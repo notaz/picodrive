@@ -197,7 +197,7 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 #if defined(EMU_C68K)
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
   memcpy(cpu,context->d,0x40);
-  pc=context->pc-context->membase;
+  *(u32 *)(cpu+0x40)=context->pc-context->membase;
   *(u32 *)(cpu+0x44)=CycloneGetSr(context);
   *(u32 *)(cpu+0x48)=context->osp;
   cpu[0x4c] = context->irq;
@@ -206,7 +206,7 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   void *oldcontext = m68ki_cpu_p;
   m68k_set_context(is_sub ? &PicoCpuMS68k : &PicoCpuMM68k);
   memcpy(cpu,m68ki_cpu_p->dar,0x40);
-  pc=m68ki_cpu_p->pc;
+  *(u32  *)(cpu+0x40)=m68ki_cpu_p->pc;
   *(u32  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
   *(u32  *)(cpu+0x48)=m68ki_cpu_p->sp[m68ki_cpu_p->s_flag^SFLAG_SET];
   cpu[0x4c] = CPU_INT_LEVEL>>8;
@@ -215,16 +215,20 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 #elif defined(EMU_F68K)
   M68K_CONTEXT *context = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
   memcpy(cpu,context->dreg,0x40);
-  pc=context->pc;
+  *(u32  *)(cpu+0x40)=context->pc;
   *(u32  *)(cpu+0x44)=context->sr;
   *(u32  *)(cpu+0x48)=context->asp;
   cpu[0x4c] = context->interrupts[0];
   cpu[0x4d] = (context->execinfo & FM68K_HALTED) ? 1 : 0;
 #endif
 
-  *(u32 *)(cpu+0x40) = pc;
-  *(u32 *)(cpu+0x50) =
-    is_sub ? SekCycleCntS68k : Pico.t.m68c_cnt;
+  if (is_sub) {
+    *(u32 *)(cpu+0x50) = SekCycleCntS68k;
+    *(s16 *)(cpu+0x4e) = SekCycleCntS68k - SekCycleAimS68k;
+  } else {
+    *(u32 *)(cpu+0x50) = Pico.t.m68c_cnt;
+    *(u32 *)(cpu+0x4e) = Pico.t.m68c_cnt - Pico.t.m68c_aim;
+  }
 }
 
 PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
@@ -261,10 +265,13 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
-  if (is_sub)
+  if (is_sub) {
     SekCycleCntS68k = *(u32 *)(cpu+0x50);
-  else
+    SekCycleAimS68k = SekCycleCntS68k - *(s16 *)(cpu+0x4e);
+  } else {
     Pico.t.m68c_cnt = *(u32 *)(cpu+0x50);
+    Pico.t.m68c_aim = Pico.t.m68c_cnt - *(s16 *)(cpu+0x4e);
+  }
 }
 
 

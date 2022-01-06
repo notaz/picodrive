@@ -582,14 +582,11 @@ readend:
   z80_unpack(buff_z80);
 
   // due to dep from 68k cycles..
-  Pico.t.m68c_frame_start = Pico.t.m68c_aim = Pico.t.m68c_cnt;
+  Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   if (PicoIn.AHW & PAHW_32X)
     Pico32xStateLoaded(0);
   if (PicoIn.AHW & PAHW_MCD)
-  {
-    SekCycleAimS68k = SekCycleCntS68k;
     pcd_state_loaded();
-  }
 
   Pico.m.dirtyPal = 1;
   Pico.video.status &= ~(SR_VB | SR_F);
