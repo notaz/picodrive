@@ -2296,11 +2296,13 @@ void PicoMemSetup32x(void)
   unsigned int rs;
   int i;
 
-  Pico32xMem = plat_mmap(0x06000000, sizeof(*Pico32xMem), 0, 0);
+  if (Pico32xMem == NULL)
+    Pico32xMem = plat_mmap(0x06000000, sizeof(*Pico32xMem), 0, 0);
   if (Pico32xMem == NULL) {
     elprintf(EL_STATUS, "OOM");
     return;
   }
+  memset(Pico32xMem, 0, sizeof(struct Pico32xMem));
 
   get_bios();
 
@@ -2481,12 +2483,12 @@ void Pico32xMemStateLoaded(void)
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
   Pico32x.dirty_pal = 1;
 
-  Pico32x.emu_flags &= ~(P32XF_68KCPOLL | P32XF_68KVPOLL);
   memset(&m68k_poll, 0, sizeof(m68k_poll));
   msh2.state = 0;
   msh2.poll_addr = msh2.poll_cycles = msh2.poll_cnt = 0;
   ssh2.state = 0;
   ssh2.poll_addr = ssh2.poll_cycles = ssh2.poll_cnt = 0;
+  memset(sh2_poll_fifo, 0, sizeof(sh2_poll_fifo));
 
   sh2_drc_flush_all();
 }

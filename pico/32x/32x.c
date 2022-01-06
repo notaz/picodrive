@@ -618,6 +618,7 @@ void Pico32xStateLoaded(int is_early)
 
   sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCyclesDone();
   p32x_update_irls(NULL, SekCyclesDone());
+  p32x_timers_recalc();
   p32x_pwm_state_loaded();
   p32x_run_events(SekCyclesDone());
 }
