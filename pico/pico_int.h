@@ -313,8 +313,8 @@ struct PicoVideo
   unsigned char hint_cnt;
   unsigned char pad2;
   unsigned short hv_latch;    // latched hvcounter value
-  signed int fifo_cnt;        // pending xfers for current FIFO queue entry
-  unsigned char pad[0x04];
+  signed int fifo_cnt;        // pending xfers for blocking FIFO queue entries
+  signed int fifo_bgcnt;      // pending xfers for background FIFO queue entries
 };
 
 struct PicoMisc

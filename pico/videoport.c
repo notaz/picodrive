@@ -1138,9 +1138,18 @@ void PicoVideoSave(void)
   int l, x;
 
   // account for all outstanding xfers XXX kludge, entry attr's not saved
-  pv->fifo_cnt = vf->fifo_cnt;
-  for (l = vf->fifo_ql, x = vf->fifo_qx + l-1; l > 1; l--, x--)
-    pv->fifo_cnt += (vf->fifo_queue[x&7] >> 3) << (vf->fifo_queue[x&7] & FQ_BYTE);
+  pv->fifo_cnt = pv->fifo_bgcnt = 0;
+  for (l = vf->fifo_ql, x = vf->fifo_qx + l-1; l > 1; l--, x--) {
+    int cnt = (vf->fifo_queue[x&7] >> 3) << (vf->fifo_queue[x&7] & FQ_BYTE);
+    if (vf->fifo_queue[x&7] & FQ_BGDMA)
+      pv->fifo_bgcnt += cnt;
+    else
+      pv->fifo_cnt += cnt;
+  }
+  if (vf->fifo_ql && (vf->fifo_queue[vf->fifo_qx] & FQ_BGDMA))
+    pv->fifo_bgcnt += vf->fifo_cnt;
+  else
+    pv->fifo_cnt += vf->fifo_cnt;
 }
 
 void PicoVideoLoad(void)
@@ -1151,23 +1160,31 @@ void PicoVideoLoad(void)
 
   // convert former dma_xfers (why was this in PicoMisc anyway?)
   if (Pico.m.dma_xfers) {
-    pv->status |= SR_DMA;
     pv->fifo_cnt = Pico.m.dma_xfers << b;
     Pico.m.dma_xfers = 0;
   }
-  // make an entry in the FIFO if there are outstanding transfers
+
+  // fake entries in the FIFO if there are outstanding transfers
   vf->fifo_ql = vf->fifo_qx = vf->fifo_total = 0;
-  vf->fifo_cnt = pv->fifo_cnt;
   if (pv->fifo_cnt) {
     int wc = (pv->fifo_cnt + b) >> b;
     pv->status |= PVS_FIFORUN|PVS_CPUWR;
-    if (!(pv->status & PVS_DMABG))
-      vf->fifo_total = wc;
-    if ((pv->status & SR_DMA) && !(pv->status & PVS_DMAFILL))
-      b |= (pv->status & PVS_DMABG) ? FQ_BGDMA : FQ_FGDMA;
-    vf->fifo_queue[vf->fifo_qx] = (wc << 3) | b;
-    vf->fifo_ql = 1;
+    vf->fifo_total = wc;
+    vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3) | b | FQ_FGDMA;
+    vf->fifo_ql ++;
+    vf->fifo_cnt = pv->fifo_cnt;
   }
+  if (pv->fifo_bgcnt) {
+    int wc = pv->fifo_bgcnt;
+    if (!vf->fifo_ql) {
+      pv->status |= PVS_DMABG;
+      vf->fifo_cnt = pv->fifo_bgcnt;
+    }
+    vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3)     | FQ_BGDMA;
+    vf->fifo_ql ++;
+  }
+  if (vf->fifo_ql)
+    pv->status |= SR_DMA;
   PicoVideoCacheSAT();
 }
 // vim:shiftwidth=2:ts=2:expandtab
