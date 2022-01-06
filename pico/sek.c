@@ -404,7 +404,10 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
     (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
 
   // XXX: probably shouldn't patch RAM too
-  v = m68k_read16_map[pc >> M68K_MEM_SHIFT];
+  if (is_main68k)
+    v = m68k_read16_map[pc >> M68K_MEM_SHIFT];
+  else
+    v = s68k_read16_map[pc >> M68K_MEM_SHIFT];
   if (~v & ~((uptr)-1LL >> 1)) // MSB clear?
     target = (u16 *)((v << 1) + pc);
   else {
