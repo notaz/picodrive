@@ -1165,7 +1165,7 @@ void PicoVideoLoad(void)
   }
 
   // fake entries in the FIFO if there are outstanding transfers
-  vf->fifo_ql = vf->fifo_qx = vf->fifo_total = 0;
+  vf->fifo_ql = vf->fifo_qx = vf->fifo_cnt = vf->fifo_total = 0;
   if (pv->fifo_cnt) {
     int wc = (pv->fifo_cnt + b) >> b;
     pv->status |= PVS_FIFORUN|PVS_CPUWR;
