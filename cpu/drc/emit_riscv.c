@@ -4,6 +4,8 @@
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
+ *
+ * TODO: support for compressed instructions
  */
 #define HOST_REGS	32
 
@@ -425,6 +427,16 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 	} else	EMIT(R5_ADDW_REG(d, s1, s2)); \
 } while (0)
 
+#define emith_addf_r_r_r_lsl_ptr(d, s1, s2, simm) do { \
+	if (simm) { \
+		EMIT(R5_LSL_IMM(AT, s2, simm)); \
+		EMIT(R5_ADD_REG(FNZ, s1, AT)); \
+		emith_set_arith_flags(d, s1, AT, 0, 0); \
+	} else { \
+		EMIT(R5_ADD_REG(FNZ, s1, s2)); \
+		emith_set_arith_flags(d, s1, s2, 0, 0); \
+	} \
+} while (0)
 #define emith_addf_r_r_r_lsl(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(R5_LSLW_IMM(AT, s2, simm)); \
@@ -510,11 +522,13 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_add_r_r_r_ptr(d, s1, s2) \
+	emith_add_r_r_r_lsl_ptr(d, s1, s2, 0)
 #define emith_add_r_r_r(d, s1, s2) \
 	emith_add_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_addf_r_r_r_ptr(d, s1, s2) \
-	emith_addf_r_r_r_lsl(d, s1, s2, 0)
+	emith_addf_r_r_r_lsl_ptr(d, s1, s2, 0)
 #define emith_addf_r_r_r(d, s1, s2) \
 	emith_addf_r_r_r_ptr(d, s1, s2)
 
@@ -1025,11 +1039,11 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_read_r_r_offs(r, rs, offs)
  
 #define emith_read_r_r_r_ptr(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_P, r, AT, 0); \
 } while (0)
 #define emith_read_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_W, r, AT, 0); \
 } while (0)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
@@ -1041,7 +1055,7 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_read8_r_r_offs(r, rs, offs)
 
 #define emith_read8_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_BU, r, AT, 0); \
 } while (0)
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
@@ -1053,7 +1067,7 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_read16_r_r_offs(r, rs, offs)
 
 #define emith_read16_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_HU, r, AT, 0); \
 } while (0)
 #define emith_read16_r_r_r_c(cond, r, rs, rm) \
@@ -1065,7 +1079,7 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_read8s_r_r_offs(r, rs, offs)
 
 #define emith_read8s_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_B, r, AT, 0); \
 } while (0)
 #define emith_read8s_r_r_r_c(cond, r, rs, rm) \
@@ -1077,7 +1091,7 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_read16s_r_r_offs(r, rs, offs)
 
 #define emith_read16s_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_H, r, AT, 0); \
 } while (0)
 #define emith_read16s_r_r_r_c(cond, r, rs, rm) \
@@ -1100,7 +1114,7 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 	emith_write_r_r_offs_ptr(r, rs, offs)
 
 #define emith_write_r_r_r_ptr(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_st_offs(F1_P, r, AT, 0); \
 } while (0)
 #define emith_write_r_r_r_ptr_c(cond, r, rs, rm) \
@@ -1112,7 +1126,7 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 	emith_write_r_r_offs(r, rs, offs)
 
 #define emith_write_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_st_offs(F1_W, r, AT, 0); \
 } while (0)
 #define emith_write_r_r_r_c(cond, r, rs, rm) \
@@ -1227,7 +1241,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 {
 	int b = -1;
 
-	*s = Z0;
+	*s = *r = Z0;
 	if (emith_cmp_rs >= 0) {
 		if (emith_cmp_rt != -1)
 			b = emith_cmpr_check(emith_cmp_rs,emith_cmp_rt, cond,r,s);
@@ -1291,8 +1305,8 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 // NB: R5 unconditional jumps have only +/- 1MB range, hence use reg jumps
 #define emith_jump(target) do { \
-	uintptr_t target_ = (uintptr_t)(target); \
-	EMIT(R5_MOVT_IMM(AT, target_ + _CB(target_,1,11,12))); \
+	uintptr_t target_ = (uintptr_t)(target) - (uintptr_t)tcache_ptr; \
+	EMIT(R5_MOVA_IMM(AT, target_ + _CB(target_,1,11,12))); \
 	EMIT(R5_JR(AT, target_));  \
 } while (0)
 #define emith_jump_patchable(target) \
@@ -1314,7 +1328,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr; /* must skip condition check code */ \
-	while ((*ptr_&0x77) != OP_BCOND && (*ptr_&0x77) != OP_LUI) ptr_ ++; \
+	while ((*ptr_&0x77) != OP_BCOND && (*ptr_&0x77) != OP_AUIPC) ptr_ ++; \
 	if ((*ptr_&0x77) == OP_BCOND) { \
 		u32 *p_ = ptr_, disp_ = (u8 *)target - (u8 *)ptr_; \
 		u32 f1_ = _CB(*ptr_,3,12,0); \
@@ -1322,8 +1336,8 @@ static int emith_cond_check(int cond, int *r, int *s)
 		EMIT_PTR(p_, R5_BCOND(f1_, r_, s_, disp_ & 0x00001fff)); \
 	} else { \
 		u32 *p_ = ptr_; \
-		uintptr_t target_ = (uintptr_t)(target); \
-		EMIT_PTR(p_, R5_MOVT_IMM(AT, target_ + _CB(target_,1,11,12))); \
+		uintptr_t target_ = (uintptr_t)(target) - (uintptr_t)ptr_; \
+		EMIT_PTR(p_, R5_MOVA_IMM(AT, target_ + _CB(target_,1,11,12))); \
 		EMIT_PTR(p_, R5_JR(AT, target_));  \
 	} \
 	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)(ptr_); \
@@ -1335,9 +1349,9 @@ static int emith_cond_check(int cond, int *r, int *s)
 #define emith_jump_patch_size() 8
 
 #define emith_jump_at(ptr, target) do { \
-	uintptr_t target_ = (uintptr_t)(target); \
 	u32 *ptr_ = (u32 *)ptr; \
-	EMIT_PTR(ptr_, R5_MOVT_IMM(AT, target_ + _CB(target_,1,11,12))); \
+	uintptr_t target_ = (uintptr_t)(target) - (uintptr_t)ptr_; \
+	EMIT_PTR(ptr_, R5_MOVA_IMM(AT, target_ + _CB(target_,1,11,12))); \
 	EMIT_PTR(ptr_, R5_JR(AT, target_));  \
 } while (0)
 #define emith_jump_at_size() 8
@@ -1355,8 +1369,8 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_jump_ctx(offs)
 
 #define emith_call(target) do { \
-	uintptr_t target_ = (uintptr_t)(target); \
-	EMIT(R5_MOVT_IMM(AT, target_ + _CB(target_,1,11,12))); \
+	uintptr_t target_ = (uintptr_t)(target) - (uintptr_t)tcache_ptr; \
+	EMIT(R5_MOVA_IMM(AT, target_ + _CB(target_,1,11,12))); \
 	EMIT(R5_JALR(LR, AT, target_));  \
 } while (0)
 #define emith_call_cond(cond, target) \
@@ -1613,7 +1627,7 @@ static void emith_set_t_cond(int sr, int cond)
 
   // try to avoid jumping around if possible
   b = emith_cond_check(cond, &r, &s);
-  if (r == Z0) {
+  if (r == s) {
     if (b == F1_BEQ || b == F1_BGE || b == F1_BGEU)
       emith_or_r_imm(sr, T);
     return;
@@ -1622,9 +1636,11 @@ static void emith_set_t_cond(int sr, int cond)
 
   if (!val) switch (b) {
   case F1_BEQ:  if (s == Z0) { EMIT(R5_SLTU_IMM(AT,r ,1)); r=AT; val++; break; }
+                if (r == Z0) { EMIT(R5_SLTU_IMM(AT,s ,1)); r=AT; val++; break; }
                 EMIT(R5_XOR_REG(AT, r, s));
                 EMIT(R5_SLTU_IMM(AT,AT, 1)); r=AT; val++; break;
   case F1_BNE:  if (s == Z0) { EMIT(R5_SLTU_REG(AT,Z0,r)); r=AT; val++; break; }
+                if (r == Z0) { EMIT(R5_SLTU_REG(AT,Z0,s)); r=AT; val++; break; }
                 EMIT(R5_XOR_REG(AT, r, s));
                 EMIT(R5_SLTU_REG(AT,Z0,AT)); r=AT; val++; break;
   case F1_BLTU: EMIT(R5_SLTU_REG(AT, r, s)); r=AT; val++; break;
