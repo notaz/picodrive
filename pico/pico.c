@@ -187,6 +187,7 @@ int PicoReset(void)
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
+  Pico.t.m68c_line_start = Pico.t.m68c_cnt;
   PicoVideoFIFOWrite(rand() & 0x1fff, 0, 0, PVS_CPURD);
 
   SekFinishIdleDet();
