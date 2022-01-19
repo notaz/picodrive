@@ -49,7 +49,7 @@
 #define LOOP_DETECTION          1
 #define LOOP_OPTIMIZER          1
 #define T_OPTIMIZER             1
-#define DIV_OPTIMIZER           0
+#define DIV_OPTIMIZER           1
 
 #define MAX_LITERAL_OFFSET      0x200	// max. MOVA, MOV @(PC) offset
 #define MAX_LOCAL_TARGETS       (BLOCK_INSN_LIMIT / 4)
@@ -2588,9 +2588,9 @@ static void emit_le_swap(int cond, int r)
 {
 #if CPU_IS_LE
   if (cond == -1)
-		emith_ror(r, r, 16);
+    emith_ror(r, r, 16);
   else
-		emith_ror_c(cond, r, r, 16);
+    emith_ror_c(cond, r, r, 16);
 #endif
 }
 
@@ -2599,9 +2599,9 @@ static void emit_le_ptr8(int cond, int r)
 {
 #if CPU_IS_LE
   if (cond == -1)
-                emith_eor_r_imm_ptr(r, 1);
+    emith_eor_r_imm_ptr(r, 1);
   else
-                emith_eor_r_imm_ptr_c(cond, r, 1);
+    emith_eor_r_imm_ptr_c(cond, r, 1);
 #endif
 }
 
@@ -3837,7 +3837,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         else
           u = (s16)FETCH_OP(opd->imm);
         // tweak for Blackthorne: avoid stack overwriting
-        if (GET_Rn() == SHR_SP && u == 0x0603f800) u = 0x0603f880;
+        if (GET_Rn() == SHR_SP && u == 0x0603f800) u = 0x0603f900;
         gconst_new(GET_Rn(), u);
       }
       else
@@ -3980,6 +3980,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             // divide 64/32
             tmp4 = rcache_get_reg(div(opd).ro, RC_GR_READ, NULL);
             emith_ctx_write(tmp4, offsetof(SH2, drc_tmp));
+            rcache_free(tmp4);
             tmp = rcache_get_tmp_arg(1);
             emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
             rcache_get_reg_arg(0, div(opd).rn, NULL);
@@ -4100,6 +4101,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           // divide 64/32
           tmp4 = rcache_get_reg(div(opd).ro, RC_GR_READ, NULL);
           emith_ctx_write(tmp4, offsetof(SH2, drc_tmp));
+          rcache_free(tmp4);
           tmp  = rcache_get_reg_arg(0, div(opd).rn, NULL);
           tmp2 = rcache_get_reg_arg(2, div(opd).rm, NULL);
           tmp3 = rcache_get_tmp_arg(1);

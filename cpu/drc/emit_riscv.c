@@ -1466,7 +1466,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_lsl(func, func, PTR_SCALE); \
 	emith_read_r_r_r_ptr(func, tab, func); \
 	emith_move_r_r_ptr(12, CONTEXT_REG); /* arg2 */ \
-	emith_jump_reg(func); \
+	emith_abijump_reg(func); \
 } while (0)
 
 #define emith_sh2_delay_loop(cycles, reg) do {			\

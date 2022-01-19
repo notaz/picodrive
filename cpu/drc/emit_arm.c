@@ -1288,7 +1288,7 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 	emith_lsr(func, a, SH2_WRITE_SHIFT); \
 	EOP_LDR_REG_LSL(A_COND_AL,func,tab,func,2); \
 	emith_move_r_r(2, CONTEXT_REG); /* arg2 */ \
-	emith_jump_reg(func); \
+	emith_abijump_reg(func); \
 } while (0)
 
 #define emith_sh2_dtbf_loop() do { \

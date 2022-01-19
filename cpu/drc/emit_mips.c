@@ -73,7 +73,7 @@ enum { OP_ADDI=010, OP_ADDIU, OP_SLTI, OP_SLTIU, OP_ANDI, OP_ORI, OP_XORI, OP_LU
 enum { OP_DADDI=030, OP_DADDIU, OP_LDL, OP_LDR, OP__FN2=034, OP__FN3=037 };
 enum { OP_LB=040, OP_LH, OP_LWL, OP_LW, OP_LBU, OP_LHU, OP_LWR, OP_LWU };
 enum { OP_SB=050, OP_SH, OP_SWL, OP_SW, OP_SDL, OP_SDR, OP_SWR };
-enum { OP_SD=067, OP_LD=077 };
+enum { OP_LD=067, OP_SD=077 };
 // function field (encoded in fn if opcode = OP__FN)
 enum { FN_SLL=000, __(01), FN_SRL, FN_SRA, FN_SLLV, __(05), FN_SRLV, FN_SRAV };
 enum { FN_JR=010, FN_JALR, FN_MOVZ, FN_MOVN, FN_SYNC=017 };
@@ -693,6 +693,8 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_add_r_r_r_ptr(d, s1, s2) \
+	emith_add_r_r_r_lsl_ptr(d, s1, s2, 0)
 #define emith_add_r_r_r(d, s1, s2) \
 	emith_add_r_r_r_lsl(d, s1, s2, 0)
 
@@ -840,7 +842,7 @@ static void emith_move_imm(int r, uintptr_t imm)
 	emith_move_imm(r, (uintptr_t)(imm))
 
 #define emith_move_r_imm(r, imm) \
-	emith_move_imm(r, (u32)(imm))
+	emith_move_imm(r, (s32)(imm))
 #define emith_move_r_imm_c(cond, r, imm) \
 	emith_move_r_imm(r, imm)
 
@@ -1185,12 +1187,12 @@ static void emith_lohi_nops(void)
 	emith_read_r_r_offs(r, rs, offs)
  
 #define emith_read_r_r_r_ptr(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_OP_IMM(OP_LP, r, AT, 0)); \
 } while (0)
 
 #define emith_read_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_LW(r, AT, 0)); \
 } while (0)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
@@ -1202,7 +1204,7 @@ static void emith_lohi_nops(void)
 	emith_read8_r_r_offs(r, rs, offs)
 
 #define emith_read8_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_LBU(r, AT, 0)); \
 } while (0)
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
@@ -1214,7 +1216,7 @@ static void emith_lohi_nops(void)
 	emith_read16_r_r_offs(r, rs, offs)
 
 #define emith_read16_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_LHU(r, AT, 0)); \
 } while (0)
 #define emith_read16_r_r_r_c(cond, r, rs, rm) \
@@ -1226,7 +1228,7 @@ static void emith_lohi_nops(void)
 	emith_read8s_r_r_offs(r, rs, offs)
 
 #define emith_read8s_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_LB(r, AT, 0)); \
 } while (0)
 #define emith_read8s_r_r_r_c(cond, r, rs, rm) \
@@ -1238,7 +1240,7 @@ static void emith_lohi_nops(void)
 	emith_read16s_r_r_offs(r, rs, offs)
 
 #define emith_read16s_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_LH(r, AT, 0)); \
 } while (0)
 #define emith_read16s_r_r_r_c(cond, r, rs, rm) \
@@ -1251,7 +1253,7 @@ static void emith_lohi_nops(void)
 	emith_write_r_r_offs_ptr(r, rs, offs)
 
 #define emith_write_r_r_r_ptr(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_OP_IMM(OP_SP, r, AT, 0)); \
 } while (0)
 #define emith_write_r_r_r_ptr_c(cond, r, rs, rm) \
@@ -1263,7 +1265,7 @@ static void emith_lohi_nops(void)
 	emith_write_r_r_offs(r, rs, offs)
 
 #define emith_write_r_r_r(r, rs, rm) do { \
-	emith_add_r_r_r(AT, rs, rm); \
+	emith_add_r_r_r_ptr(AT, rs, rm); \
 	EMIT(MIPS_SW(r, AT, 0)); \
 } while (0)
 #define emith_write_r_r_r_c(cond, r, rs, rm) \
@@ -1643,9 +1645,9 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 #define emith_sh2_wcall(a, val, tab, func) do { \
 	emith_lsr(func, a, SH2_WRITE_SHIFT); \
 	emith_lsl(func, func, PTR_SCALE); \
-	emith_read_r_r_r_ptr(func, tab, func); \
+	emith_read_r_r_r_ptr(CR, tab, func); \
 	emith_move_r_r_ptr(6, CONTEXT_REG); /* arg2 */ \
-	emith_abijump_reg(func); \
+	emith_abijump_reg(CR); \
 } while (0)
 
 #define emith_sh2_delay_loop(cycles, reg) do {			\

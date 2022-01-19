@@ -1449,7 +1449,7 @@ static int emith_cond_check(int cond)
 
 #define emith_jump_cond_inrange(target) \
 	((u8 *)target - (u8 *)tcache_ptr <   0x8000 && \
-	 (u8 *)target - (u8 *)tcache_ptr >= -0x8000+0x10) //mind cond_check
+	 (u8 *)target - (u8 *)tcache_ptr >= -0x8000+0x14) //mind cond_check
 
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
@@ -1631,9 +1631,9 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 #define emith_sh2_wcall(a, val, tab, func) do { \
 	emith_lsr(func, a, SH2_WRITE_SHIFT); \
 	emith_lsl(func, func, PTR_SCALE); \
-	emith_read_r_r_r_ptr(func, tab, func); \
+	emith_read_r_r_r_ptr(CR, tab, func); \
 	emith_move_r_r_ptr(5, CONTEXT_REG); /* arg2 */ \
-	emith_jump_reg(func); \
+	emith_abijump_reg(CR); \
 } while (0)
 
 #define emith_sh2_delay_loop(cycles, reg) do {			\

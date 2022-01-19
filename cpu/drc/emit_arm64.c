@@ -1225,7 +1225,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	emith_lsl(func, func, 3); \
 	emith_read_r_r_r_ptr(func, tab, func); \
 	emith_move_r_r_ptr(2, CONTEXT_REG); /* arg2 */ \
-	emith_jump_reg(func); \
+	emith_abijump_reg(func); \
 } while (0)
 
 #define emith_sh2_delay_loop(cycles, reg) do {			\
