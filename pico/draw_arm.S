@@ -2018,7 +2018,7 @@ FinalizeLine555:
     and     r6, lr, r12, lsr #15
     ldrh    r6, [r3, r6]
     and     r8 ,lr, r12, lsr #23
-    ldrh    r8 ,[r3, r8 ]
+    ldrh    r8 ,[r3, r8]
 
     orr     r4, r4, r4, lsl #16
     orr     r5, r5, r5, lsl #16
