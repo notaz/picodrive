@@ -541,7 +541,7 @@ static int state_load(void *file)
         break;
 #endif
       default:
-        if (len|chunk == 0)
+        if (!len && !chunk)
            goto readend;
         if (carthw_chunks != NULL)
         {
