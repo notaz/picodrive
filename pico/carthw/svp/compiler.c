@@ -476,6 +476,7 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo, int count)
 		if (mod == 2)
 		     known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] - count) & modulo);
 		else known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] + count) & modulo);
+		dirty_regb |= (1 << (r + 8));
 	}
 	else
 	{
@@ -842,6 +843,7 @@ static void tr_PMX_to_r0(int reg)
 		return;
 	}
 
+	tr_flush_dirty_pmcrs();
 	known_regb &= ~KRREG_PMC;
 	dirty_regb &= ~KRREG_PMC;
 	known_regb &= ~(1 << (20+reg));
@@ -849,7 +851,6 @@ static void tr_PMX_to_r0(int reg)
 
 	// call the C code to handle this
 	tr_flush_dirty_ST();
-	//tr_flush_dirty_pmcrs();
 	tr_mov16(0, reg);
 	emith_call_c_func(ssp_pm_read);
 	hostreg_clear();
@@ -1021,9 +1022,9 @@ static void tr_r0_to_AL(int const_val)
 	hostreg_sspreg_changed(SSP_AL);
 	if (const_val != -1) {
 		known_regs.gr[SSP_A].l = const_val;
-		known_regb |= 1 << SSP_AL;
+		known_regb |=  KRREG_AL;
 	} else
-		known_regb &= ~(1 << SSP_AL);
+		known_regb &= ~KRREG_AL;
 }
 
 static void tr_r0_to_PMX(int reg)
@@ -1083,6 +1084,7 @@ static void tr_r0_to_PMX(int reg)
 		return;
 	}
 
+	tr_flush_dirty_pmcrs();
 	known_regb &= ~KRREG_PMC;
 	dirty_regb &= ~KRREG_PMC;
 	known_regb &= ~(1 << (25+reg));
@@ -1090,7 +1092,6 @@ static void tr_r0_to_PMX(int reg)
 
 	// call the C code to handle this
 	tr_flush_dirty_ST();
-	//tr_flush_dirty_pmcrs();
 	tr_mov16(1, reg);
 	emith_call_c_func(ssp_pm_write);
 	hostreg_clear();
@@ -1128,16 +1129,17 @@ static void tr_r0_to_PMC(int const_val)
 			known_regs.emu_status |= SSP_PMC_HAVE_ADDR;
 			known_regs.pmc.l = const_val;
 		}
+		dirty_regb |= KRREG_PMC;
 	}
 	else
 	{
 		tr_flush_dirty_ST();
-		if (known_regb & KRREG_PMC) {
+		if (dirty_regb & KRREG_PMC) {
 			emith_move_r_imm(1, known_regs.pmc.v);
 			EOP_STR_IMM(1,7,0x400+SSP_PMC*4);
-			known_regb &= ~KRREG_PMC;
 			dirty_regb &= ~KRREG_PMC;
 		}
+		known_regb &= ~KRREG_PMC;
 		EOP_LDR_IMM(1,7,0x484);			// ldr r1, [r7, #0x484] // emu_status
 		EOP_ADD_IMM(2,7,24/2,4);		// add r2, r7, #0x400
 		EOP_TST_IMM(1, 0, SSP_PMC_HAVE_ADDR);
@@ -1245,7 +1247,7 @@ static int tr_detect_pm0_block(unsigned int op, int *pc, int imm)
 	EOP_ORR_IMM(6, 6, 24/2, 6);		// orr   r6, r6, 0x600
 	hostreg_sspreg_changed(SSP_ST);
 	known_regs.gr[SSP_ST].h = 0x60;
-	known_regb |= 1 << SSP_ST;
+	known_regb |=  KRREG_ST;
 	dirty_regb &= ~KRREG_ST;
 	(*pc) += 3*2;
 	n_in_ops += 3;
@@ -1514,8 +1516,8 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			tr_make_dirty_ST();
 			EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_SUB,1,5,5,0,A_AM1_LSL,10); // subs r5, r5, r10
 			hostreg_sspreg_changed(SSP_A);
-			known_regb &= ~(KRREG_A|KRREG_AL);
 			dirty_regb |= KRREG_ST;
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
 			ret++; break;
 
 		// mpya (rj), (ri), b
@@ -1525,8 +1527,8 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			tr_make_dirty_ST();
 			EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ADD,1,5,5,0,A_AM1_LSL,10); // adds r5, r5, r10
 			hostreg_sspreg_changed(SSP_A);
-			known_regb &= ~(KRREG_A|KRREG_AL);
 			dirty_regb |= KRREG_ST;
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
 			ret++; break;
 
 		// mld (rj), (ri), b
@@ -1534,8 +1536,9 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,1,0,5,0,0); // movs r5, #0
 			hostreg_sspreg_changed(SSP_A);
 			known_regs.gr[SSP_A].v = 0;
-			known_regb |= (KRREG_A|KRREG_AL);
 			dirty_regb |= KRREG_ST;
+			known_regb &= ~KRREG_ST;
+			known_regb |= (KRREG_A|KRREG_AL);
 			tr_mac_load_XY(op);
 			ret++; break;
 
