@@ -235,8 +235,8 @@ enum { RB_SRL=0, RB_ROTR=1 };
 #define MIPS_BGT (OP_BGTZ << 5)			// rs >  0
 #define MIPS_BLT ((OP__RT << 5)|RT_BLTZ)	// rs <  0
 #define MIPS_BGE ((OP__RT << 5)|RT_BGEZ)	// rs >= 0
-#define MIPS_BGTL ((OP__RT << 5)|RT_BLTZAL)	// rs >  0, link $ra if jumping
-#define MIPS_BGEL ((OP__RT << 5)|RT_BGEZAL)	// rs >= 0, link $ra if jumping
+#define MIPS_BLTL ((OP__RT << 5)|RT_BLTZAL)	// rs >  0, always link $ra
+#define MIPS_BGEL ((OP__RT << 5)|RT_BGEZAL)	// rs >= 0, always link $ra
 
 #define MIPS_BCOND(cond, rs, rt, offs16) \
 	MIPS_OP_IMM((cond >> 5), rt, rs, (offs16) >> 2)
@@ -809,20 +809,71 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 
 
 // move immediate
+#define MAX_HOST_LITERALS	32	// pool must be smaller than 32 KB
+static uintptr_t literal_pool[MAX_HOST_LITERALS];
+static u32 *literal_insn[MAX_HOST_LITERALS];
+static int literal_pindex, literal_iindex;
+
+static inline int emith_pool_literal(uintptr_t imm)
+{
+	int idx = literal_pindex - 8; // max look behind in pool
+	// see if one of the last literals was the same
+	for (idx = (idx < 0 ? 0 : idx); idx < literal_pindex; idx++)
+		if (imm == literal_pool[idx])
+			break;
+	if (idx == literal_pindex)	// store new literal
+		literal_pool[literal_pindex++] = imm;
+	return idx;
+}
+
+static void emith_pool_commit(int jumpover)
+{
+	int i, sz = literal_pindex * sizeof(uintptr_t);
+	u8 *pool = (u8 *)tcache_ptr;
+
+	// nothing to commit if pool is empty
+	if (sz == 0)
+		return;
+	// align pool to pointer size
+	if (jumpover)
+		pool += sizeof(u32);
+	i = (uintptr_t)pool & (sizeof(void *)-1);
+	pool += (i ? sizeof(void *)-i : 0);
+	// need branch over pool if not at block end
+	if (jumpover)
+		emith_branch(MIPS_B(sz + (pool-(u8 *)tcache_ptr)));
+	emith_flush();
+	// safety check - pool must be after insns and reachable
+	if ((u32)(pool - (u8 *)literal_insn[0] + 8) > 0x7fff) {
+		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
+			"pool offset out of range");
+		exit(1);
+	}
+	// copy pool and adjust addresses in insns accessing the pool
+	memcpy(pool, literal_pool, sz);
+	for (i = 0; i < literal_iindex; i++) {
+		u32 *pi = literal_insn[i];
+		*pi = (*pi & 0xffff0000) | (u16)(*pi + ((u8 *)pool - (u8 *)pi));
+	}
+	// count pool constants as insns for statistics
+	for (i = 0; i < literal_pindex * sizeof(uintptr_t)/sizeof(u32); i++)
+		COUNT_OP;
+
+	tcache_ptr = (void *)((u8 *)pool + sz);
+	literal_pindex = literal_iindex = 0;
+}
+
+static void emith_pool_check(void)
+{
+	// check if pool must be committed
+	if (literal_iindex > MAX_HOST_LITERALS-4 || (literal_pindex &&
+		    (u8 *)tcache_ptr - (u8 *)literal_insn[0] > 0x7000))
+		// pool full, or displacement is approaching the limit
+		emith_pool_commit(1);
+}
+
 static void emith_move_imm(int r, uintptr_t imm)
 {
-#if _MIPS_SZPTR == 64
-	if ((s32)imm != imm) {
-		emith_move_imm(r, imm >> 32);
-		if (imm & 0xffff0000) {
-			EMIT(MIPS_DLSL_IMM(r, r, 16));
-			EMIT(MIPS_OR_IMM(r, r, (imm >> 16) & 0xffff));
-			EMIT(MIPS_DLSL_IMM(r, r, 16));
-		} else	EMIT(MIPS_DLSL32_IMM(r, r, 0));
-		if (imm & 0x0000ffff)
-			EMIT(MIPS_OR_IMM(r, r, imm & 0xffff));
-	} else
-#endif
 	if ((s16)imm == imm) {
 		EMIT(MIPS_ADD_IMM(r, Z0, imm));
 	} else if (!((u32)imm >> 16)) {
@@ -837,9 +888,33 @@ static void emith_move_imm(int r, uintptr_t imm)
 			EMIT(MIPS_OR_IMM(r, s, (u16)imm));
 	}
 }
+static void emith_move_ptr_imm(int r, uintptr_t imm)
+{
+#if _MIPS_SZPTR == 64
+	uintptr_t offs = (u8 *)imm - (u8 *)tcache_ptr - 8;
+	if ((s32)imm != imm && (s32)offs == offs) {
+		// PC relative
+		emith_flush(); // next insn must not change its position at all
+		EMIT_PTR(tcache_ptr, MIPS_BCONDZ(MIPS_BLTL, Z0, 0)); // loads PC+8 into LR
+		emith_move_imm(r, offs);
+		emith_add_r_r_r_ptr(r, LR, r);
+	} else if ((s32)imm != imm) {
+		// via literal pool
+		int idx;
+		if (literal_iindex >= MAX_HOST_LITERALS)
+			emith_pool_commit(1);
+		idx = emith_pool_literal(imm);
+		emith_flush(); // next 2 must not change their position at all
+		EMIT_PTR(tcache_ptr, MIPS_BCONDZ(MIPS_BLTL, Z0, 0)); // loads PC+8 into LR
+		literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
+		EMIT_PTR(tcache_ptr, MIPS_OP_IMM(OP_LP, r, LR, idx*sizeof(uintptr_t) - 4));
+	} else
+#endif
+		emith_move_imm(r, imm);
+}
 
 #define emith_move_r_ptr_imm(r, imm) \
-	emith_move_imm(r, (uintptr_t)(imm))
+	emith_move_ptr_imm(r, (uintptr_t)(imm))
 
 #define emith_move_r_imm(r, imm) \
 	emith_move_imm(r, (s32)(imm))
@@ -1580,8 +1655,6 @@ static int emith_cond_check(int cond, int *r)
 
 
 // emitter ABI stuff
-#define emith_pool_check()	/**/
-#define emith_pool_commit(j)	/**/
 #define	emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 #define emith_uext_ptr(r)	/**/

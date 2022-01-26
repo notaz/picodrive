@@ -713,7 +713,14 @@ static void emith_move_imm(int r, uintptr_t imm)
 static void emith_move_ptr_imm(int r, uintptr_t imm)
 {
 #if __riscv_xlen == 64
-	if ((s32)imm != imm) {
+	uintptr_t offs = (u8 *)imm - (u8 *)tcache_ptr;
+	if ((s32)imm != imm && (s32)offs == offs) {
+		// PC relative
+		EMIT(R5_MOVA_IMM(r, offs + _CB(offs,1,11,12)));
+		if (offs & 0xfff)
+			EMIT(R5_ADD_IMM(r, r, offs));
+	} else if ((s32)imm != imm) {
+		// via literal pool
 		int idx;
 		if (literal_iindex >= MAX_HOST_LITERALS)
 			emith_pool_commit(1);
