@@ -95,8 +95,8 @@ typedef struct PicoInterface
 {
 	unsigned int opt; // POPT_* bitfield
 
-	unsigned short pad[2];     // Joypads, format is MXYZ SACB RLDU
-	unsigned short padInt[2];  // internal copy
+	unsigned short pad[4];     // Joypads, format is MXYZ SACB RLDU
+	unsigned short padInt[4];  // internal copy
 	unsigned short AHW;        // active addon hardware: PAHW_* bitfield
 
 	unsigned short skipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff

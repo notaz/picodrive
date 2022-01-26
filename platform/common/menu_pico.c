@@ -366,6 +366,12 @@ static int key_config_loop_wrap(int id, int keys)
 		case MA_CTRL_PLAYER2:
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 1);
 			break;
+		case MA_CTRL_PLAYER3:
+			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 2);
+			break;
+		case MA_CTRL_PLAYER4:
+			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 3);
+			break;
 		case MA_CTRL_EMU:
 			key_config_loop(emuctrl_actions, array_size(emuctrl_actions) - 1, -1);
 			break;
@@ -396,15 +402,18 @@ static const char *mgn_dev_name(int id, int *offs)
 static int mh_saveloadcfg(int id, int keys);
 static const char *mgn_saveloadcfg(int id, int *offs);
 
-const char *indev_names[] = { "none", "3 button pad", "6 button pad", NULL };
+const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
+const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
 static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
+	mee_handler_id("Player 3",          MA_CTRL_PLAYER3,    key_config_loop_wrap),
+	mee_handler_id("Player 4",          MA_CTRL_PLAYER4,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
-	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev_names),
-	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev_names),
+	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev0_names),
+	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev1_names),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
 	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   currentConfig.analog_deadzone, 1, 99),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
