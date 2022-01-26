@@ -990,6 +990,7 @@ static void tr_r0_to_ST(int const_val)
 	EOP_ORR_REG_LSL(6, 6, 1, 4);		// orr   r6, r6, r1, lsl #4
 	TR_WRITE_R0_TO_REG(SSP_ST);
 	hostreg_r[1] = -1;
+	known_regb &= ~KRREG_ST;
 	dirty_regb &= ~KRREG_ST;
 }
 
