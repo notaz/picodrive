@@ -32,10 +32,6 @@
 #include <libkern/OSCacheControl.h>
 #endif
 
-#ifdef USE_LIBRETRO_VFS
-#include "file_stream_transforms.h"
-#endif
-
 #if defined(RENDER_GSKIT_PS2)
 #include <malloc.h>
 #include "libretro-common/include/libretro_gskit_ps2.h"

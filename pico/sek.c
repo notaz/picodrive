@@ -10,10 +10,6 @@
 #include "pico_int.h"
 #include "memory.h"
 
-#ifdef USE_LIBRETRO_VFS
-#include "file_stream_transforms.h"
-#endif
-
 /* context */
 // Cyclone 68000
 #ifdef EMU_C68K

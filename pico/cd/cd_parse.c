@@ -13,10 +13,6 @@
 #include "cd_parse.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
-#ifdef USE_LIBRETRO_VFS
-#include "file_stream_transforms.h"
-#endif
-
 #if defined(USE_LIBCHDR)
 #include "libchdr/chd.h"
 #include "libchdr/cdrom.h"

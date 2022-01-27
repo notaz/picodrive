@@ -10,10 +10,6 @@
 #include "pico_int.h"
 #include <cpu/debug.h>
 
-#ifdef USE_LIBRETRO_VFS
-#include "file_stream_transforms.h"
-#endif
-
 #if defined(USE_LIBCHDR)
 #include "libchdr/chd.h"
 #include "libchdr/cdrom.h"

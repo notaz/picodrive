@@ -8,6 +8,10 @@
 #endif
 #include "pico_types.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #if defined(__GNUC__) && defined(__i386__)
 #define REGPARM(x) __attribute__((regparm(x)))
 #else
