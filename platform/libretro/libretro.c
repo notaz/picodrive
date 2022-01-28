@@ -1455,6 +1455,8 @@ static const unsigned short retro_pico_map[] = {
 };
 #define RETRO_PICO_MAP_LEN (sizeof(retro_pico_map) / sizeof(retro_pico_map[0]))
 
+static int has_4_pads;
+
 static void snd_write(int len)
 {
    audio_batch_cb(PicoIn.sndOut, len / 4);
@@ -1491,8 +1493,11 @@ static void update_variables(bool first_run)
 
    var.value = NULL;
    var.key = "picodrive_input1";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-      PicoSetInputDevice(0, input_name_to_val(var.value));
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      int input = input_name_to_val(var.value);
+      PicoSetInputDevice(0, input);
+      has_4_pads = input == PICO_INPUT_PAD_TEAM || input == PICO_INPUT_PAD_4WAY;
+   }
 
    var.value = NULL;
    var.key = "picodrive_input2";
@@ -1736,7 +1741,7 @@ static void update_variables(bool first_run)
 void retro_run(void)
 {
    bool updated = false;
-   int pad, i;
+   int pad, i, padcount;
    static void *buff;
    int16_t input;
 
@@ -1748,7 +1753,8 @@ void retro_run(void)
    input_poll_cb();
 
    PicoIn.pad[0] = PicoIn.pad[1] = PicoIn.pad[2] = PicoIn.pad[3] = 0;
-   for (pad = 0; pad < 4; pad++) {
+   padcount = has_4_pads && !(PicoIn.AHW & (PAHW_SMS|PAHW_PICO)) ? 4 : 2;
+   for (pad = 0; pad < padcount; pad++) {
       if (libretro_supports_bitmasks) {
          input = input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
          for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
