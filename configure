@@ -191,6 +191,8 @@ fi
 
 # CPU/ABI stuff first, else compile test may fail
 case "$ARCH" in
+arm64*)
+  ;;
 arm*)
   # ARM stuff
   ARCH="arm"
