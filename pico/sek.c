@@ -188,8 +188,6 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 // XXX: rename
 PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 {
-  u32 pc=0;
-
 #if defined(EMU_C68K)
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
   memcpy(cpu,context->d,0x40);
@@ -301,14 +299,6 @@ void SekRegisterIdleHit(unsigned int pc)
 
 void SekInitIdleDet(void)
 {
-  unsigned short **tmp;
-  tmp = realloc(idledet_ptrs, 0x200 * sizeof(tmp[0]));
-  if (tmp == NULL) {
-    free(idledet_ptrs);
-    idledet_ptrs = NULL;
-  }
-  else
-    idledet_ptrs = tmp;
   idledet_count = idledet_bads = 0;
   idledet_start_frame = Pico.m.frame_count + 360;
 #ifdef IDLE_STATS
@@ -331,7 +321,7 @@ int SekIsIdleReady(void)
 int SekIsIdleCode(unsigned short *dst, int bytes)
 {
   // printf("SekIsIdleCode %04x %i\n", *dst, bytes);
-  switch (bytes)
+  if (idledet_count >= 0) switch (bytes)
   {
     case 2:
       if ((*dst & 0xf000) != 0x6000)     // not another branch
@@ -412,7 +402,7 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
     return 1; // don't patch
   }
 
-  if (idledet_count >= 0x200 && (idledet_count & 0x1ff) == 0) {
+  if (!idledet_ptrs || (idledet_count & 0x1ff) == 0) {
     unsigned short **tmp;
     tmp = realloc(idledet_ptrs, (idledet_count+0x200) * sizeof(tmp[0]));
     if (tmp == NULL)
@@ -447,7 +437,11 @@ void SekFinishIdleDet(void)
     else
       elprintf(EL_STATUS|EL_IDLE, "idle: don't know how to restore %04x", *op);
   }
+
   idledet_count = -1;
+  if (idledet_ptrs)
+    free(idledet_ptrs);
+  idledet_ptrs = NULL;
 }
 
 
