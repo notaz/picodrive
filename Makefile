@@ -305,6 +305,8 @@ target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h
+	$(MAKE) -C cpu/cyclone clean
+	$(MAKE) -C cpu/musashi clean
 	$(RM) -r .od_data
 
 $(TARGET): $(OBJS)
