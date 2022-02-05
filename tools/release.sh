@@ -35,7 +35,9 @@ export LD_LIBRARY_PATH
 # NB: -msoft-float uses the fpu setting for determining the parameter passing;
 #     default upto gcc 4.7 was -mfpu=fpa, which has been removed in gcc 4.8, so
 #     nothing newer than gcc 4.7 can be used here :-/
-TC=$HOME/opt/open2x/gcc-4.1.1-glibc-2.3.6 PATH=$HOME/opt/gcc-arm-none-eabi-4_7-2014q2/bin:$PATH CROSS_COMPILE=arm-none-eabi- CFLAGS="-I$TC/arm-open2x-linux/include -I$HOME/src/gp2x/armroot/include -U_FORTIFY_SOURCE -D__linux__" LDFLAGS="-B$TC/lib/gcc/arm-open2x-linux/4.1.1 -B$TC/arm-open2x-linux/lib -L$TC/arm-open2x-linux/lib -L$HOME/src/gp2x/armroot/lib" ./configure --platform=gp2x
+# NB: the arm-none-eabi toolchain is available for gcc 4.7, but it creates bad
+#     ELF files for linux. The -Wl,-Ttext-segment=... below seems to fix this
+TC=$HOME/opt/open2x/gcc-4.1.1-glibc-2.3.6 PATH=$HOME/opt/gcc-arm-none-eabi-4_7-2014q2/bin:$PATH CROSS_COMPILE=arm-none-eabi- CFLAGS="-I$TC/arm-open2x-linux/include -I$HOME/src/gp2x/armroot/include -U_FORTIFY_SOURCE -D__linux__" LDFLAGS="-B$TC/lib/gcc/arm-open2x-linux/4.1.1 -B$TC/arm-open2x-linux/lib -L$TC/arm-open2x-linux/lib -L$HOME/src/gp2x/armroot/lib -Wl,-Ttext-segment=0x10100" ./configure --platform=gp2x
 PATH=$HOME/opt/gcc-arm-none-eabi-4_7-2014q2/bin:$PATH make clean all
 PATH=$HOME/opt/gcc-arm-none-eabi-4_7-2014q2/bin:$PATH make -C platform/gp2x rel VER=$rel
 mv PicoDrive_$rel.zip release-$rel/PicoDrive-gph_$rel.zip
