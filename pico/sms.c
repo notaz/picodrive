@@ -755,8 +755,7 @@ void PicoFrameMS(void)
     z80_exec(Pico.t.z80c_line_start + cycles_line);
   }
 
-  if (PicoIn.sndOut)
-    PsndGetSamplesMS(lines);
+  PsndGetSamplesMS(lines);
 }
 
 void PicoFrameDrawOnlyMS(void)

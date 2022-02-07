@@ -311,8 +311,7 @@ static int PicoFrameHints(void)
 #endif
 
   // get samples from sound chips
-  if (PicoIn.sndOut)
-    PsndGetSamples(y);
+  PsndGetSamples(y);
 
   timers_cycle();
 

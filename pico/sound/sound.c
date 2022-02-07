@@ -130,6 +130,9 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   int pos, len;
   int dout = ym2612.dacout;
 
+  // nothing to do if sound is off
+  if (!PicoIn.sndOut) return;
+
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.dac_pos;
 
@@ -169,6 +172,9 @@ PICO_INTERNAL void PsndDoPSG(int cyc_to)
   int pos, len;
   int stereo = 0;
 
+  // nothing to do if sound is off
+  if (!PicoIn.sndOut) return;
+
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.psg_pos;
 
@@ -195,6 +201,9 @@ PICO_INTERNAL void PsndDoYM2413(int cyc_to)
   int pos, len;
   int stereo = 0;
   short *buf;
+
+  // nothing to do if sound is off
+  if (!PicoIn.sndOut) return;
 
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.ym2413_pos;
@@ -235,6 +244,9 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
 {
   int pos, len;
   int stereo = 0;
+
+  // nothing to do if sound is off
+  if (!PicoIn.sndOut) return;
 
   // Q20, number of samples since last call
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
@@ -306,6 +318,11 @@ PICO_INTERNAL void PsndClear(void)
 {
   int len = Pico.snd.len;
   if (Pico.snd.len_e_add) len++;
+
+  // drop pos remainder to avoid rounding errors (not entirely correct though)
+  Pico.snd.dac_pos = Pico.snd.fm_pos = Pico.snd.psg_pos = Pico.snd.ym2413_pos = 0;
+  if (!PicoIn.sndOut) return;
+
   if (PicoIn.opt & POPT_EN_STEREO)
     memset32((int *) PicoIn.sndOut, 0, len); // assume PicoIn.sndOut to be aligned
   else {
@@ -316,14 +333,12 @@ PICO_INTERNAL void PsndClear(void)
   }
   if (!(PicoIn.opt & POPT_EN_FM))
     memset32(PsndBuffer, 0, PicoIn.opt & POPT_EN_STEREO ? len*2 : len);
-  // drop pos remainder to avoid rounding errors (not entirely correct though)
-  Pico.snd.dac_pos = Pico.snd.fm_pos = Pico.snd.psg_pos = Pico.snd.ym2413_pos = 0;
 }
 
 
 static int PsndRender(int offset, int length)
 {
-  int *buf32;
+  s32 *buf32;
   int stereo = (PicoIn.opt & 8) >> 3;
   int fmlen = ((Pico.snd.fm_pos+0x80000) >> 20);
   int daclen = ((Pico.snd.dac_pos+0x80000) >> 20);
@@ -334,12 +349,14 @@ static int PsndRender(int offset, int length)
   pprof_start(sound);
 
   if (PicoIn.AHW & PAHW_PICO) {
-    PicoPicoPCMUpdate(PicoIn.sndOut+(offset<<stereo), length-offset, stereo);
+    // XXX ugly hack, need to render sound for interrupts
+    s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut : (short *)PsndBuffer;
+    PicoPicoPCMUpdate(buf16+(offset<<stereo), length-offset, stereo);
     return length;
   }
 
   // Fill up DAC output in case of missing samples (Q rounding errors)
-  if (length-daclen > 0) {
+  if (length-daclen > 0 && PicoIn.sndOut) {
     short *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
     *dacbuf++ += Pico.snd.dac_val2;
@@ -352,7 +369,7 @@ static int PsndRender(int offset, int length)
   }
 
   // Add in parts of the PSG output not yet done
-  if (length-psglen > 0) {
+  if (length-psglen > 0 && PicoIn.sndOut) {
     short *psgbuf = PicoIn.sndOut + (psglen << stereo);
     Pico.snd.psg_pos += (length-psglen) << 20;
     if (PicoIn.opt & POPT_EN_PSG)
@@ -360,7 +377,7 @@ static int PsndRender(int offset, int length)
   }
 
   // Add in parts of the FM buffer not yet done
-  if (length-fmlen > 0) {
+  if (length-fmlen > 0 && PicoIn.sndOut) {
     int *fmbuf = buf32 + ((fmlen-offset) << stereo);
     Pico.snd.fm_pos += (length-fmlen) << 20;
     if (PicoIn.opt & POPT_EN_FM)
@@ -389,7 +406,8 @@ static int PsndRender(int offset, int length)
     p32x_pwm_update(buf32, length-offset, stereo);
 
   // convert + limit to normal 16bit output
-  PsndMix_32_to_16l(PicoIn.sndOut+(offset<<stereo), buf32, length-offset);
+  if (PicoIn.sndOut)
+    PsndMix_32_to_16l(PicoIn.sndOut+(offset<<stereo), buf32, length-offset);
 
   pprof_end(sound);
 
@@ -402,7 +420,7 @@ PICO_INTERNAL void PsndGetSamples(int y)
 
   curr_pos  = PsndRender(0, Pico.snd.len_use);
 
-  if (PicoIn.writeSound)
+  if (PicoIn.writeSound && PicoIn.sndOut)
     PicoIn.writeSound(curr_pos * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
   // clear sound buffer
   PsndClear();
@@ -413,6 +431,9 @@ static int PsndRenderMS(int offset, int length)
   int stereo = (PicoIn.opt & 8) >> 3;
   int psglen = ((Pico.snd.psg_pos+0x80000) >> 20);
   int ym2413len = ((Pico.snd.ym2413_pos+0x80000) >> 20);
+
+  if (!PicoIn.sndOut)
+    return length;
 
   pprof_start(sound);
 
@@ -456,7 +477,7 @@ PICO_INTERNAL void PsndGetSamplesMS(int y)
 
   curr_pos  = PsndRenderMS(0, Pico.snd.len_use);
 
-  if (PicoIn.writeSound != NULL)
+  if (PicoIn.writeSound != NULL && PicoIn.sndOut)
     PicoIn.writeSound(curr_pos * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
 }

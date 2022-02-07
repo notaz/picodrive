@@ -986,7 +986,7 @@ void emu_set_fastforward(int set_on)
 		set_EmuOpt = currentConfig.EmuOpt;
 		PicoIn.sndOut = NULL;
 		currentConfig.Frameskip = 8;
-		currentConfig.EmuOpt &= ~4;
+		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 		currentConfig.EmuOpt |= EOPT_NO_FRMLIMIT;
 		is_on = 1;
 		emu_status_msg("FAST FORWARD");
@@ -997,9 +997,6 @@ void emu_set_fastforward(int set_on)
 		currentConfig.EmuOpt = set_EmuOpt;
 		PsndRerate(1);
 		is_on = 0;
-		// mainly to unbreak pcm
-		if (PicoIn.AHW & PAHW_MCD)
-			pcd_state_loaded();
 	}
 }
 
