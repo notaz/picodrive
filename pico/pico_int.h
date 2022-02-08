@@ -905,7 +905,7 @@ int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flag
 void PicoVideoInit(void);
 void PicoVideoSave(void);
 void PicoVideoLoad(void);
-void PicoVideoCacheSAT(void);
+void PicoVideoCacheSAT(int load);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);

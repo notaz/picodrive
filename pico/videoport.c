@@ -1104,7 +1104,7 @@ unsigned char PicoVideoRead8HV_L(int is_from_z80)
   return d;
 }
 
-void PicoVideoCacheSAT(void)
+void PicoVideoCacheSAT(int load)
 {
   struct PicoVideo *pv = &Pico.video;
   int l;
@@ -1115,7 +1115,7 @@ void PicoVideoCacheSAT(void)
     SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
 
   // rebuild SAT cache XXX wrong since cache and memory can differ
-  for (l = 0; l < 80; l++) {
+  for (l = 0; load && l < 80; l++) {
     ((u16 *)VdpSATCache)[l*2    ] = PicoMem.vram[(SATaddr>>1) + l*4    ];
     ((u16 *)VdpSATCache)[l*2 + 1] = PicoMem.vram[(SATaddr>>1) + l*4 + 1];
   }
@@ -1170,6 +1170,6 @@ void PicoVideoLoad(void)
   }
   if (vf->fifo_ql)
     pv->status |= SR_DMA;
-  PicoVideoCacheSAT();
+  PicoVideoCacheSAT(1);
 }
 // vim:shiftwidth=2:ts=2:expandtab
