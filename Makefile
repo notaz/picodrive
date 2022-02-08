@@ -314,7 +314,7 @@ $(TARGET): $(OBJS)
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $^
 else
-	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
+	$(LD) $(LINKOUT)$@ $^ $(CFLAGS) $(LDFLAGS) $(LDLIBS)
 endif
 
 ifeq "$(PLATFORM)" "psp"
