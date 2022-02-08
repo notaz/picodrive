@@ -24,7 +24,7 @@ static char *mystrip(char *str);
 
 #include "menu_pico.h"
 #include "emu.h"
-#include <pico/pico.h>
+#include <pico/pico_int.h>
 
 // always output DOS endlines
 #ifdef _WIN32

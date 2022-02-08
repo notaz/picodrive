@@ -14,7 +14,7 @@
 #include "mix.h"
 #include "emu2413/emu2413.h"
 
-void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
+void (*PsndMix_32_to_16l)(s16 *dest, s32 *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to
 // +1 for a fill triggered by an instruction overhanging into the next scanline
@@ -98,6 +98,9 @@ void PsndRerate(int preserve_state)
   Pico.snd.smpl_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
   // samples per z80 clock (Q20)
   Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488;
+  // samples per 44.1 KHz sample
+  Pico.snd.cdda_mult = 65536LL * 44100 / PicoIn.sndRate;
+  Pico.snd.cdda_div  = 65536LL * PicoIn.sndRate / 44100;
 
   // clear all buffers
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
@@ -154,12 +157,12 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   // y[n] = (x[n] + x[n-1])*(1/2) (3dB cutoff at 11025 Hz, no gain)
   // 1 sample delay for correct IIR filtering over audio frame boundaries
   if (PicoIn.opt & POPT_EN_STEREO) {
-    short *d = PicoIn.sndOut + pos*2;
+    s16 *d = PicoIn.sndOut + pos*2;
     // left channel only, mixed ro right channel in mixing phase
     *d++ += Pico.snd.dac_val2; d++;
     while (--len) *d++ += Pico.snd.dac_val, d++;
   } else {
-    short *d = PicoIn.sndOut + pos;
+    s16 *d = PicoIn.sndOut + pos;
     *d++ += Pico.snd.dac_val2;
     while (--len) *d++ += Pico.snd.dac_val;
   }
@@ -200,7 +203,7 @@ PICO_INTERNAL void PsndDoYM2413(int cyc_to)
 {
   int pos, len;
   int stereo = 0;
-  short *buf;
+  s16 *buf;
 
   // nothing to do if sound is off
   if (!PicoIn.sndOut) return;
@@ -268,14 +271,11 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
 }
 
 // cdda
-static void cdda_raw_update(int *buffer, int length)
+static void cdda_raw_update(s32 *buffer, int length, int stereo)
 {
-  int ret, cdda_bytes, mult = 1;
+  int ret, cdda_bytes;
 
-  cdda_bytes = length*4;
-  if (PicoIn.sndRate <= 22050 + 100) mult = 2;
-  if (PicoIn.sndRate <  22050 - 100) mult = 4;
-  cdda_bytes *= mult;
+  cdda_bytes = (length * Pico.snd.cdda_mult >> 16) * 4;
 
   ret = pm_read_audio(cdda_out_buffer, cdda_bytes, Pico_mcd->cdda_stream);
   if (ret < cdda_bytes) {
@@ -285,11 +285,13 @@ static void cdda_raw_update(int *buffer, int length)
   }
 
   // now mix
-  switch (mult) {
-    case 1: mix_16h_to_32(buffer, cdda_out_buffer, length*2); break;
-    case 2: mix_16h_to_32_s1(buffer, cdda_out_buffer, length*2); break;
-    case 4: mix_16h_to_32_s2(buffer, cdda_out_buffer, length*2); break;
-  }
+  if (stereo) switch (Pico.snd.cdda_mult) {
+    case 0x10000: mix_16h_to_32(buffer, cdda_out_buffer, length*2);     break;
+    case 0x20000: mix_16h_to_32_s1(buffer, cdda_out_buffer, length*2);  break;
+    case 0x40000: mix_16h_to_32_s2(buffer, cdda_out_buffer, length*2);  break;
+    default: mix_16h_to_32_resample_stereo(buffer, cdda_out_buffer, length, Pico.snd.cdda_mult);
+  } else
+    mix_16h_to_32_resample_mono(buffer, cdda_out_buffer, length, Pico.snd.cdda_mult);
 }
 
 void cdda_start_play(int lba_base, int lba_offset, int lb_len)
@@ -326,7 +328,7 @@ PICO_INTERNAL void PsndClear(void)
   if (PicoIn.opt & POPT_EN_STEREO)
     memset32((int *) PicoIn.sndOut, 0, len); // assume PicoIn.sndOut to be aligned
   else {
-    short *out = PicoIn.sndOut;
+    s16 *out = PicoIn.sndOut;
     if ((uintptr_t)out & 2) { *out++ = 0; len--; }
     memset32((int *) out, 0, len/2);
     if (len & 1) out[len-1] = 0;
@@ -350,14 +352,14 @@ static int PsndRender(int offset, int length)
 
   if (PicoIn.AHW & PAHW_PICO) {
     // XXX ugly hack, need to render sound for interrupts
-    s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut : (short *)PsndBuffer;
+    s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut : (s16 *)PsndBuffer;
     PicoPicoPCMUpdate(buf16+(offset<<stereo), length-offset, stereo);
     return length;
   }
 
   // Fill up DAC output in case of missing samples (Q rounding errors)
   if (length-daclen > 0 && PicoIn.sndOut) {
-    short *dacbuf = PicoIn.sndOut + (daclen << stereo);
+    s16 *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
     *dacbuf++ += Pico.snd.dac_val2;
     if (stereo) dacbuf++;
@@ -370,7 +372,7 @@ static int PsndRender(int offset, int length)
 
   // Add in parts of the PSG output not yet done
   if (length-psglen > 0 && PicoIn.sndOut) {
-    short *psgbuf = PicoIn.sndOut + (psglen << stereo);
+    s16 *psgbuf = PicoIn.sndOut + (psglen << stereo);
     Pico.snd.psg_pos += (length-psglen) << 20;
     if (PicoIn.opt & POPT_EN_PSG)
       SN76496Update(psgbuf, length-psglen, stereo);
@@ -378,7 +380,7 @@ static int PsndRender(int offset, int length)
 
   // Add in parts of the FM buffer not yet done
   if (length-fmlen > 0 && PicoIn.sndOut) {
-    int *fmbuf = buf32 + ((fmlen-offset) << stereo);
+    s32 *fmbuf = buf32 + ((fmlen-offset) << stereo);
     Pico.snd.fm_pos += (length-fmlen) << 20;
     if (PicoIn.opt & POPT_EN_FM)
       YM2612UpdateOne(fmbuf, length-fmlen, stereo, 1);
@@ -395,11 +397,10 @@ static int PsndRender(int offset, int length)
       && Pico_mcd->cdda_stream != NULL
       && !(Pico_mcd->s68k_regs[0x36] & 1))
   {
-    // note: only 44, 22 and 11 kHz supported, with forced stereo
     if (Pico_mcd->cdda_type == CT_MP3)
       mp3_update(buf32, length-offset, stereo);
     else
-      cdda_raw_update(buf32, length-offset);
+      cdda_raw_update(buf32, length-offset, stereo);
   }
 
   if ((PicoIn.AHW & PAHW_32X) && (PicoIn.opt & POPT_EN_PWM))
@@ -439,14 +440,14 @@ static int PsndRenderMS(int offset, int length)
 
   // Add in parts of the PSG output not yet done
   if (length-psglen > 0) {
-    short *psgbuf = PicoIn.sndOut + (psglen << stereo);
+    s16 *psgbuf = PicoIn.sndOut + (psglen << stereo);
     Pico.snd.psg_pos += (length-psglen) << 20;
     if (PicoIn.opt & POPT_EN_PSG)
       SN76496Update(psgbuf, length-psglen, stereo);
   }
 
   if (length-ym2413len > 0) {
-    short *ym2413buf = PicoIn.sndOut + (ym2413len << stereo);
+    s16 *ym2413buf = PicoIn.sndOut + (ym2413len << stereo);
     Pico.snd.ym2413_pos += (length-ym2413len) << 20;
     int len = (length-ym2413len);
     if (PicoIn.opt & POPT_EN_YM2413){
@@ -461,8 +462,8 @@ static int PsndRenderMS(int offset, int length)
   // upmix to "stereo" if needed
   if (PicoIn.opt & POPT_EN_STEREO) {
     int i;
-    short *p;
-    for (i = length, p = (short *)PicoIn.sndOut; i > 0; i--, p+=2)
+    s16 *p;
+    for (i = length, p = (s16 *)PicoIn.sndOut; i > 0; i--, p+=2)
       *(p + 1) = *p;
   }
 

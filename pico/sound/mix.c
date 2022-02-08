@@ -8,6 +8,7 @@
  */
 
 #include <string.h>
+#include "../pico_int.h"
 
 #define MAXOUT		(+32767)
 #define MINOUT		(-32768)
@@ -15,7 +16,7 @@
 /* limitter */
 #define Limit16(val) \
 	val -= val >> 3; /* reduce level to avoid clipping */	\
-	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT)
+	if ((s16)val != val) val = (val < 0 ? MINOUT : MAXOUT)
 
 int mix_32_to_16l_level;
 
@@ -81,17 +82,17 @@ static inline int filter_null(struct iir *fi2, int x)
 	lfi2 = lf, rfi2 = rf;					\
 }
 
-void mix_32_to_16l_stereo_lvl(short *dest, int *src, int count)
+void mix_32_to_16l_stereo_lvl(s16 *dest, s32 *src, int count)
 {
 	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level, filter);
 }
 
-void mix_32_to_16l_stereo(short *dest, int *src, int count)
+void mix_32_to_16l_stereo(s16 *dest, s32 *src, int count)
 {
 	mix_32_to_16l_stereo_core(dest, src, count, 0, filter);
 }
 
-void mix_32_to_16_mono(short *dest, int *src, int count)
+void mix_32_to_16_mono(s16 *dest, s32 *src, int count)
 {
 	int l;
 	struct iir lf = lfi2;
@@ -108,7 +109,7 @@ void mix_32_to_16_mono(short *dest, int *src, int count)
 }
 
 
-void mix_16h_to_32(int *dest_buf, short *mp3_buf, int count)
+void mix_16h_to_32(s32 *dest_buf, s16 *mp3_buf, int count)
 {
 	while (count--)
 	{
@@ -116,7 +117,7 @@ void mix_16h_to_32(int *dest_buf, short *mp3_buf, int count)
 	}
 }
 
-void mix_16h_to_32_s1(int *dest_buf, short *mp3_buf, int count)
+void mix_16h_to_32_s1(s32 *dest_buf, s16 *mp3_buf, int count)
 {
 	count >>= 1;
 	while (count--)
@@ -127,7 +128,7 @@ void mix_16h_to_32_s1(int *dest_buf, short *mp3_buf, int count)
 	}
 }
 
-void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
+void mix_16h_to_32_s2(s32 *dest_buf, s16 *mp3_buf, int count)
 {
 	count >>= 1;
 	while (count--)
@@ -135,6 +136,30 @@ void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
 		*dest_buf++ += *mp3_buf++ >> 1;
 		*dest_buf++ += *mp3_buf++ >> 1;
 		mp3_buf += 3*2;
+	}
+}
+
+// mixes cdda audio @44.1 KHz into dest_buf, resampling with nearest neighbour
+void mix_16h_to_32_resample_stereo(s32 *dest_buf, s16 *cdda_buf, int count, int fac16)
+{
+	int pos16 = 0;
+	while (count--) {
+		int pos = 2 * (pos16>>16);
+		*dest_buf++ += cdda_buf[pos  ] >> 1;
+		*dest_buf++ += cdda_buf[pos+1] >> 1;
+		pos16 += fac16;
+	}
+}
+
+// mixes cdda audio @44.1 KHz into dest_buf, resampling with nearest neighbour
+void mix_16h_to_32_resample_mono(s32 *dest_buf, s16 *cdda_buf, int count, int fac16)
+{
+	int pos16 = 0;
+	while (count--) {
+		int pos = 2 * (pos16>>16);
+		*dest_buf   += cdda_buf[pos  ] >> 2;
+		*dest_buf++ += cdda_buf[pos+1] >> 2;
+		pos16 += fac16;
 	}
 }
 

@@ -1127,7 +1127,7 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 	return smp;
 }
 
-static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
+static void chan_render_loop(chan_rend_context *ct, s32 *buffer, int length)
 {
 	int scounter;					/* sample counter */
 
@@ -1244,7 +1244,7 @@ disabled:
 	}
 }
 #else
-void chan_render_loop(chan_rend_context *ct, int *buffer, unsigned short length);
+void chan_render_loop(chan_rend_context *ct, s32 *buffer, unsigned short length);
 #endif
 
 static chan_rend_context crct;
@@ -1255,7 +1255,7 @@ static void chan_render_prep(void)
 	crct.lfo_inc = ym2612.OPN.lfo_inc;
 }
 
-static void chan_render_finish(int *buffer, unsigned short length, int active_chans)
+static void chan_render_finish(s32 *buffer, unsigned short length, int active_chans)
 {
 	ym2612.OPN.eg_cnt = crct.eg_cnt;
 	ym2612.OPN.eg_timer = crct.eg_timer;
@@ -1290,7 +1290,7 @@ static UINT32 update_lfo_phase(FM_SLOT *SLOT, UINT32 block_fnum)
 		return SLOT->Incr;
 }
 
-static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: stereo, ?, disabled, ?, pan_r, pan_l
+static int chan_render(s32 *buffer, int length, int c, UINT32 flags) // flags: stereo, ?, disabled, ?, pan_r, pan_l
 {
 	crct.CH = &ym2612.CH[c];
 	crct.mem = crct.CH->mem_value;		/* one sample delay memory */
@@ -1781,7 +1781,7 @@ static int OPNWriteReg(int r, int v)
 /*******************************************************************************/
 
 /* Generate samples for YM2612 */
-int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
+int YM2612UpdateOne_(s32 *buffer, int length, int stereo, int is_buf_empty)
 {
 	int pan;
 	int active_chs = 0;

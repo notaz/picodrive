@@ -266,7 +266,7 @@ void p32x_pwm_write16(u32 a, unsigned int d, SH2 *sh2, unsigned int m68k_cycles)
   }
 }
 
-void p32x_pwm_update(int *buf32, int length, int stereo)
+void p32x_pwm_update(s32 *buf32, int length, int stereo)
 {
   short *pwmb;
   int step;

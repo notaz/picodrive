@@ -452,6 +452,7 @@ struct PicoSound
   int len_e_cnt;
   unsigned int clkl_mult;               // z80 clocks per line in Q20
   unsigned int smpl_mult;               // samples per line in Q16
+  unsigned int cdda_mult, cdda_div;     // 44.1 KHz resampling factor in Q16
   short dac_val, dac_val2;              // last DAC sample
   unsigned int dac_pos;                 // last DAC position in Q20
   unsigned int fm_pos;                  // last FM position in Q20
@@ -1025,7 +1026,7 @@ extern int Pico32xDrawMode;
 // 32x/pwm.c
 unsigned int p32x_pwm_read16(u32 a, SH2 *sh2, unsigned int m68k_cycles);
 void p32x_pwm_write16(u32 a, unsigned int d, SH2 *sh2, unsigned int m68k_cycles);
-void p32x_pwm_update(int *buf32, int length, int stereo);
+void p32x_pwm_update(s32 *buf32, int length, int stereo);
 void p32x_pwm_ctl_changed(void);
 void p32x_pwm_schedule(unsigned int m68k_now);
 void p32x_pwm_schedule_sh2(SH2 *sh2);
