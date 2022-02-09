@@ -263,6 +263,7 @@ int load_cd_image(const char *cd_img_name, int *type)
 finish:
   cdd.toc.last = n - 1;
   cdd.toc.end = lba;
+  tracks[n].start = cdd.toc.end;
 
   sprintf_lba(tmp_ext, sizeof(tmp_ext), cdd.toc.end);
   elprintf(EL_STATUS, "End CD -  %s\n", tmp_ext);

@@ -902,8 +902,20 @@ void cdd_process(void)
         Pico_mcd->s68k_regs[0x38+0] = cdd.status;
 
         /* unless RS1 indicated invalid track infos */
-        if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
+        if (Pico_mcd->s68k_regs[0x38+1] == 0x0f ||
+            Pico_mcd->s68k_regs[0x38+1] == 0x00 ||
+            Pico_mcd->s68k_regs[0x38+1] == 0x01)
         {
+          int lba = cdd.lba + 150;
+	  if (Pico_mcd->s68k_regs[0x38+1] == 0x01)
+            lba = abs(cdd.lba - cdd.toc.tracks[cdd.index].start);
+	  if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
+            Pico_mcd->s68k_regs[0x38+1] = 0x00;
+	  set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
+	  set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
+	  set_reg16(0x3e, lut_BCD_16[(lba%75)]);
+          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04;
+        } else if (Pico_mcd->s68k_regs[0x38+1] == 0x02) {
           /* then return valid track infos, e.g current track number in RS2-RS3 (fixes Lunar - The Silver Star) */
           Pico_mcd->s68k_regs[0x38+1] = 0x02;
           set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[cdd.index + 1] : 0x0A0A);
@@ -1009,6 +1021,16 @@ void cdd_process(void)
           break;
         }
 
+        case 0x06:  /* Latest Error Information */
+        {
+          set_reg16(0x38, (cdd.status << 8) | 0x06);
+          set_reg16(0x3a, 0x0000);
+          set_reg16(0x3c, 0x0000);
+          set_reg16(0x3e, 0x0000);
+          Pico_mcd->s68k_regs[0x40+0] = 0x00;
+          break;
+        }
+
         default:
         {
 #ifdef LOG_ERROR
@@ -1038,7 +1060,7 @@ void cdd_process(void)
         /* Wolf Team games (Anet Futatabi, Cobra Command, Road Avenger & Time Gal) need at least 6 interrupts delay  */
         /* Space Adventure Cobra (2nd morgue scene) needs at least 13 interrupts delay (incl. seek time, so 6 is OK) */
         /* Jeopardy & ESPN Sunday Night NFL are picky about this as well: 10 interrupts delay (+ seek time) seems OK */
-        cdd.latency = 10;
+        cdd.latency = 11;
       }
 
       /* CD drive seek time */
