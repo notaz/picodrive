@@ -15,12 +15,10 @@
 #include <stdarg.h>
 #include <string.h>
 #ifndef _WIN32
-#ifndef NO_MMAP
 #ifdef __SWITCH__
 #include "switch/mman.h"
 #else
 #include <sys/mman.h>
-#endif
 #endif
 #else
 #include <io.h>
@@ -340,30 +338,6 @@ static void munmap(void *addr, size_t length)
    UnmapViewOfFile(addr);
    /* ruh-ro, we leaked handle from CreateFileMapping() ... */
 }
-#elif defined(NO_MMAP)
-#define PROT_EXEC   0x04
-#define MAP_FAILED 0
-#define PROT_READ 0
-#define PROT_WRITE 0
-#define MAP_PRIVATE 0
-#define MAP_ANONYMOUS 0
-
-void* mmap(void *desired_addr, size_t len, int mmap_prot, int mmap_flags, int fildes, size_t off)
-{
-   return calloc(1, len);
-}
-
-void munmap(void *base_addr, size_t len)
-{
-   free(base_addr);
-}
-
-int mprotect(void *addr, size_t len, int prot)
-{
-   /* stub - not really needed at this point since this codepath has no dynarecs */
-   return 0;
-}
-
 #endif
 
 #ifndef MAP_ANONYMOUS
