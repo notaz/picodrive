@@ -264,6 +264,7 @@ enum media_type_e {
   PM_BAD_CD_NO_BIOS = -4,
   PM_MD_CART = 1,	/* also 32x */
   PM_MARK3,
+  PM_PICO,
   PM_CD,
 };
 

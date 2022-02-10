@@ -837,7 +837,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   }
   pdb_cleanup();
 
-  PicoIn.AHW &= PAHW_MCD|PAHW_SMS;
+  PicoIn.AHW &= PAHW_MCD|PAHW_SMS|PAHW_PICO;
 
   PicoCartMemSetup = NULL;
   PicoDmaHook = NULL;
@@ -846,9 +846,9 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
-  if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS)))
+  if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS|PAHW_PICO)))
     PicoCartDetect(carthw_cfg);
-  else if (PicoIn.AHW & PAHW_SMS)
+  if (PicoIn.AHW & PAHW_SMS)
     PicoCartDetectMS();
 
   // setup correct memory map for loaded ROM
