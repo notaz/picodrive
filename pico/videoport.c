@@ -201,7 +201,7 @@ enum { FQ_BYTE = 1, FQ_BGDMA = 2, FQ_FGDMA = 4 }; // queue flags, NB: BYTE = 1!
 #define Sl2Cyc(vf,sl)   (vf->fifo_sl2cyc[sl]*clkdiv)
 
 // do the FIFO math
-static NOINLINE int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, int slots)
+static int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, int slots)
 {
   u32 *qx = &vf->fifo_queue[vf->fifo_qx];
   int l = slots, b = *qx & FQ_BYTE;
@@ -320,7 +320,6 @@ static int PicoVideoFIFORead(void)
   int burn = 0;
 
   if (vf->fifo_ql) {
-    PicoVideoFIFOSync(lc);
     // advance FIFO and CPU until FIFO is empty
     burn = PicoVideoFIFODrain(0, lc, FQ_BGDMA);
     lc += burn;
@@ -343,15 +342,16 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   struct VdpFIFO *vf = &VdpFIFO;
   struct PicoVideo *pv = &Pico.video;
   int lc = SekCyclesDone()-Pico.t.m68c_line_start;
-  int burn = 0;
+  int burn = 0, x;
 
-  if (vf->fifo_total >= 4 || (pv->status & SR_DMA))
+  // sync only needed if queue is too full or background dma might be deferred
+  if (vf->fifo_ql >= 6 || (pv->status & SR_DMA))
     PicoVideoFIFOSync(lc);
   pv->status = (pv->status & ~sr_mask) | sr_flags;
 
   if (count && vf->fifo_ql < 7) {
     // determine queue position for entry
-    int x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
+    x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
     if (unlikely(vf->fifo_queue[x] & FQ_BGDMA)) {
       // CPU FIFO writes have priority over a background DMA Fill/Copy
       vf->fifo_queue[(x+1) & 7] = vf->fifo_queue[x]; // push bg DMA back
@@ -383,7 +383,9 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   }
 
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
-  if (vf->fifo_total > 4 && (pv->status & PVS_CPUWR))
+  // do this only if it would exhaust the available slots since last sync
+  x = (Cyc2Sl(vf,lc) - vf->fifo_slot) / 2; // lower bound of FIFO ents 
+  if (vf->fifo_total > 4 + x && (pv->status & PVS_CPUWR))
     burn = PicoVideoFIFODrain(4, lc, 0);
 
   return burn;
@@ -401,10 +403,9 @@ int PicoVideoFIFOHint(void)
   vf->fifo_slot = 0;
  
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
-  if (pv->status & PVS_CPUWR) {
-    PicoVideoFIFOSync(lc);
+  if (pv->status & PVS_CPUWR)
     burn = PicoVideoFIFODrain(4, lc, 0);
-  } else if (pv->status & PVS_CPURD)
+  else if (pv->status & PVS_CPURD)
     burn = PicoVideoFIFORead();
 
   return burn;
