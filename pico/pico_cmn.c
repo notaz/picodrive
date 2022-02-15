@@ -185,6 +185,7 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
@@ -288,6 +289,7 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_LINE);
   do_timing_hacks_end(pv);
