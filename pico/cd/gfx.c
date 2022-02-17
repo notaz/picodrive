@@ -88,7 +88,7 @@ void gfx_init(void)
   }
 
   /* Initialize cell lookup table             */
-  /* table entry = yyxxhrr (7 bits)          */
+  /* table entry = yyxxhrr (7 bits)           */
   /* with: yy = cell row (0-3)                */
   /*       xx = cell column (0-3)             */
   /*      hrr = HFLIP & ROTATION bits         */
@@ -201,7 +201,7 @@ static inline int gfx_pixel(uint32 xpos, uint32 ypos, uint16 *lut_cell)
       stamp_data = (stamp_data >> 13) & 7;
 
       /* cell offset (0-3 or 0-15)                             */
-      /* table entry = yyxxhrr (7 bits)                       */
+      /* table entry = yyxxhrr (7 bits)                        */
       /* with: yy = cell row  (0-3) = (ypos >> (11 + 3)) & 3   */
       /*       xx = cell column (0-3) = (xpos >> (11 + 3)) & 3 */
       /*      hrr = HFLIP & ROTATION bits                      */
@@ -212,16 +212,13 @@ static inline int gfx_pixel(uint32 xpos, uint32 ypos, uint16 *lut_cell)
       /* with: yyy = pixel row  (0-7) = (ypos >> 11) & 7   */
       /*       xxx = pixel column (0-7) = (xpos >> 11) & 7 */
       /*       hrr = HFLIP & ROTATION bits                 */
-      stamp_index |= gfx.lut_pixel[stamp_data | ((xpos >> 8) & 0x38) | ((ypos >> 5) & 0x1c0)];
+      stamp_index |= gfx.lut_pixel[stamp_data | ((ypos >> 5) & 0x1c0) | ((xpos >> 8) & 0x38)];
 
       /* read pixel pair (2 pixels/byte) */
       pixel_out = READ_BYTE(Pico_mcd->word_ram2M, stamp_index >> 1);
 
-      /* extract left or rigth pixel */
-      if (!(stamp_index & 1))
-      {
-         pixel_out >>= 4;
-      }
+      /* extract left or right pixel */
+      pixel_out >>= 4 * !(stamp_index & 1);
       pixel_out &= 0x0f;
     }
   }
@@ -231,7 +228,7 @@ static inline int gfx_pixel(uint32 xpos, uint32 ypos, uint16 *lut_cell)
 
 #define RENDER_LOOP(N, UPDP, COND1, COND2) do {				\
   if (bufferIndex & 1) {						\
-    bufferIndex &= ~1;							\
+    bufferIndex ^= 1;							\
     goto right##N; /* no initial left pixel */				\
   }									\
   /* process all dots */						\
@@ -424,10 +421,9 @@ static void gfx_schedule(void)
   h = (Pico_mcd->s68k_regs[0x64] << 8) | Pico_mcd->s68k_regs[0x65];
 
   cycles = 5 * w * h;
+  y_step = h;
   if (cycles > UPDATE_CYCLES)
     y_step = (UPDATE_CYCLES + 5 * w - 1) / (5 * w);
-  else
-    y_step = h;
 
   gfx.y_step = y_step;
   pcd_event_schedule_s68k(PCD_EVENT_GFX, 5 * w * y_step);
