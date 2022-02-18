@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux rpi1 rpi2 psp"
+platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux miyoo rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -105,6 +105,13 @@ set_platform()
     CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
     MFLAGS="-march=mips32r2"
     platform="opendingux"
+    ;;
+  miyoo)
+    # Miyoo BittBoy, PocketGO 1, PowKiddy V90/Q90 with Allwinner F1C100s
+    sound_drivers="sdl"
+    CFLAGS="$CFLAGS -D__MIYOO__"
+    MFLAGS="-mcpu=arm926ej-s -marm"
+    platform="miyoo"
     ;;
   pandora)
     sound_drivers="oss alsa"
@@ -251,7 +258,7 @@ arm*)
 esac
 
 case "$platform" in
-rpi1 | rpi2 | generic | opendingux)
+rpi1 | rpi2 | generic | opendingux | miyoo)
   need_sdl="yes"
   ;;
 esac

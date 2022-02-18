@@ -39,6 +39,7 @@ dingux|dingux with ubuntu mips gcc 5.4|CROSS_COMPILE=mipsel-linux-gnu- CFLAGS="-
 retrofw|retrofw|CROSS_COMPILE=mipsel-linux- CFLAGS="-I $TC/include -I $TC/include/SDL -Wno-unused-result" LDFLAGS="--sysroot $TC/mipsel-buildroot-linux-uclibc/sysroot" ./configure --platform=retrofw
 gcw0|gcw0|CROSS_COMPILE=mipsel-gcw0-linux-uclibc- CFLAGS="-I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include -I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include/SDL" LDFLAGS="--sysroot $TC/usr/mipsel-gcw0-linux-uclibc/sysroot" ./configure --platform=gcw0
 rg350|rg350|CROSS_COMPILE=mipsel-linux- CFLAGS="-I$TC/usr/include -I$TC/usr/include/SDL" LDFLAGS="--sysroot $TC -L$TC/lib" ./configure --platform=rg350
+miyoo|miyoo|CROSS_COMPILE=arm-miyoo-linux-uclibcgnueabi- CFLAGS="-I$TC/arm-miyoo-linux-uclibcgnueabi/sysroot/usr/include -I$TC/arm-miyoo-linux-uclibcgnueabi/sysroot/usr/include/SDL" LDFLAGS="--sysroot $TC/arm-miyoo-linux-uclibcgnueabi/sysroot" ./configure --platform=miyoo
 
 For gp2x, wiz, and caanoo you may need to compile libpng first.
 

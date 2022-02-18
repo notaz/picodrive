@@ -29,8 +29,13 @@ const struct menu_keymap in_sdl_key_map[] = {
 	{ SDLK_DOWN,	PBTN_DOWN },
 	{ SDLK_LEFT,	PBTN_LEFT },
 	{ SDLK_RIGHT,	PBTN_RIGHT },
+#if defined(__MIYOO__)
+	{ SDLK_LALT,	PBTN_MOK },
+	{ SDLK_LCTRL,	PBTN_MBACK },
+#else
 	{ SDLK_LCTRL,	PBTN_MOK },
 	{ SDLK_LALT,	PBTN_MBACK },
+#endif
 	{ SDLK_SPACE,	PBTN_MA2 },
 	{ SDLK_LSHIFT,	PBTN_MA3 },
 	{ SDLK_TAB,	PBTN_L },
@@ -56,9 +61,14 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_DOWN] = "DOWN",
 	[SDLK_LEFT] = "LEFT",
 	[SDLK_RIGHT] = "RIGHT",
+#if defined(__MIYOO__)
+	[SDLK_LALT] = "A",
+	[SDLK_LCTRL] = "B",
+#else
 	[SDLK_LCTRL] = "A",
 	[SDLK_LALT] = "B",
-#if defined(__GCW0__)
+#endif
+#if defined(__GCW0__) || defined(__MIYOO__)
 	[SDLK_LSHIFT] = "X",
 	[SDLK_SPACE] = "Y",
 #else
@@ -77,6 +87,12 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_PAGEDOWN] = "R2",
 	[SDLK_KP_DIVIDE] = "L3",
 	[SDLK_KP_PERIOD] = "R3",
+#elif defined(__MIYOO__)
+	[SDLK_TAB] = "L1",
+	[SDLK_BACKSPACE] = "R1",
+	[SDLK_RALT] = "L2",
+	[SDLK_RSHIFT] = "R2",
+	[SDLK_RCTRL] = "R",
 #else
 	[SDLK_TAB] = "L",
 	[SDLK_BACKSPACE] = "R",

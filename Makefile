@@ -49,7 +49,7 @@ endif
 	LINKOUT ?= -o
 endif
 
-ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
+ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "miyoo" "rpi1"))
 # very small caches, avoid optimization options making the binary much bigger
 CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp -ffast-math
 # this gets you about 20% better execution speed on 32bit arm/mips
@@ -115,6 +115,11 @@ OBJS += platform/opendingux/inputmap.o
 use_inputmap ?= 1
 
 # OpenDingux is a generic platform, really.
+PLATFORM := generic
+endif
+ifeq "$(PLATFORM)" "miyoo"
+OBJS += platform/opendingux/inputmap.o
+use_inputmap ?= 1
 PLATFORM := generic
 endif
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","rpi1" "rpi2"))
