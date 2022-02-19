@@ -237,7 +237,7 @@ static void SetFIFOState(struct VdpFIFO *vf, struct PicoVideo *pv)
     }
   }
   if (vf->fifo_ql == 0) {
-    st &= ~(PVS_CPURD|PVS_FIFORUN);
+    st &= ~PVS_CPURD;
     // terminate DMA if applicable
     if (!(st & PVS_DMAFILL)) {
       st &= ~(SR_DMA|PVS_DMABG);
@@ -345,47 +345,36 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   int burn = 0, x;
 
   // sync only needed if queue is too full or background dma might be deferred
-  if (vf->fifo_ql >= 6 || (pv->status & SR_DMA))
+  if ((vf->fifo_ql >= 6) | (pv->status & SR_DMA))
     PicoVideoFIFOSync(lc);
   pv->status = (pv->status & ~sr_mask) | sr_flags;
 
-  if (count && vf->fifo_ql < 7) {
-    // determine queue position for entry
-    x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
-    if (unlikely(vf->fifo_queue[x] & FQ_BGDMA)) {
-      // CPU FIFO writes have priority over a background DMA Fill/Copy
-      vf->fifo_queue[(x+1) & 7] = vf->fifo_queue[x]; // push bg DMA back
-      x = (x-1) & 7;
-      if (vf->fifo_ql == 1) {
-        // XXX if interrupting a DMA fill, fill data changes
-        pv->status &= ~PVS_FIFORUN;
-      }
-    }
+  x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
+  if (unlikely(vf->fifo_queue[x] & FQ_BGDMA))
+    x = (x-1) & 7; // ignore bg dma ent (pushed back below if new ent created)
 
-    if (!(flags & FQ_BGDMA))
-      vf->fifo_total += count;
+  // determine queue position for entry
+  if (!(flags & FQ_BGDMA))
+    vf->fifo_total += count;
+  if (!vf->fifo_ql)
+    vf->fifo_slot = Cyc2Sl(vf, lc+7); // FIFO latency ~3 vdp slots
 
-    count <<= (flags & FQ_BYTE);
-    if ((pv->status & PVS_FIFORUN) && (vf->fifo_queue[x] & 7) == flags) {
-      // amalgamate entries if of same type
-      vf->fifo_queue[x] += (count << 3);
-    } else {
-      // create new xfer queue entry
-      vf->fifo_ql ++;
-      x = (x+1) & 7;
-      vf->fifo_queue[x] = (count << 3) | flags;
-    }
-
-    // update FIFO state if it was empty
-    if (!(pv->status & PVS_FIFORUN))
-      vf->fifo_slot = Cyc2Sl(vf, lc+7); // FIFO latency ~3 vdp slots
-    pv->status |= PVS_FIFORUN;
+  count <<= (flags & FQ_BYTE)+3;
+  if (vf->fifo_queue[x] && (vf->fifo_queue[x] & 7) == flags) {
+    // amalgamate entries if of same type and not empty (in case of bgdma)
+    vf->fifo_queue[x] += count;
+  } else {
+    // create new xfer queue entry
+    vf->fifo_ql ++;
+    x = (x+1) & 7;
+    vf->fifo_queue[(x+1)&7] = vf->fifo_queue[x]; // push back bg dma if exists
+    vf->fifo_queue[x] = count | flags;
   }
 
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
   // do this only if it would exhaust the available slots since last sync
   x = (Cyc2Sl(vf,lc) - vf->fifo_slot) / 2; // lower bound of FIFO ents 
-  if (vf->fifo_total > 4 + x && (pv->status & PVS_CPUWR))
+  if ((pv->status & PVS_CPUWR) && vf->fifo_total > 4 + x)
     burn = PicoVideoFIFODrain(4, lc, 0);
 
   return burn;
@@ -763,7 +752,7 @@ static NOINLINE void CommandDma(void)
     elprintf(EL_VDPDMA, "Dma overlap, left=%d @ %06x",
              VdpFIFO.fifo_total, SekPc);
     VdpFIFO.fifo_total = VdpFIFO.fifo_ql = 0;
-    pvid->status &= ~(PVS_FIFORUN|PVS_DMAFILL);
+    pvid->status &= ~PVS_DMAFILL;
   }
 
   len = GetDmaLength();
@@ -1157,7 +1146,7 @@ void PicoVideoLoad(void)
   vf->fifo_ql = vf->fifo_qx = vf->fifo_total = 0;
   if (pv->fifo_cnt) {
     int wc = pv->fifo_cnt;
-    pv->status |= PVS_FIFORUN|PVS_CPUWR;
+    pv->status |= PVS_CPUWR;
     vf->fifo_total = (wc+b) >> b;
     vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3) | b | FQ_FGDMA;
     vf->fifo_ql ++;
@@ -1165,7 +1154,7 @@ void PicoVideoLoad(void)
   if (pv->fifo_bgcnt) {
     int wc = pv->fifo_bgcnt;
     if (!vf->fifo_ql)
-      pv->status |= PVS_FIFORUN|PVS_DMABG;
+      pv->status |= PVS_DMABG;
     vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3)     | FQ_BGDMA;
     vf->fifo_ql ++;
   }
