@@ -84,12 +84,12 @@ int main(int argc, char *argv[])
 	//in_probe();
 
 	plat_target_init();
-	plat_init();
-	menu_init();
 
 	emu_prep_defconfig(); // depends on input
 	emu_read_config(NULL, 0);
 
+	plat_init();
+	menu_init();
 	emu_init();
 
 	engineState = PGS_Menu;

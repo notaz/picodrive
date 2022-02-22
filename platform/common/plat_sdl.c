@@ -128,8 +128,6 @@ static int clear_buf_cnt, clear_stat_cnt;
 void plat_video_set_size(int w, int h)
 {
 	if (area.w != w || area.h != h) {
-		area = (struct area) { w, h };
-
 		if (plat_sdl_change_video_mode(w, h, 0) < 0) {
 			// failed, revert to original resolution
 			plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
@@ -141,6 +139,7 @@ void plat_video_set_size(int w, int h)
 			g_screen_ppitch = w;
 			g_screen_ptr = plat_sdl_screen->pixels;
 		}
+		area = (struct area) { w, h };
 	}
 }
 
@@ -193,7 +192,7 @@ void plat_video_clear_status(void)
 void plat_video_clear_buffers(void)
 {
 	if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
-		memset(shadow_fb, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+		memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	else {
 		memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
 		clear_buf_cnt = 3; // do it thrice in case of triple buffering

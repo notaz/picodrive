@@ -1316,6 +1316,7 @@ static menu_entry e_menu_hidden[] =
 {
 	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, POPT_ACC_SPRITES),
 	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
+	mee_onoff("SDL fullscreen mode", MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
 	mee_end,
 };
 
