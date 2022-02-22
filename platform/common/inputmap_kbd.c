@@ -40,10 +40,10 @@ const struct menu_keymap in_sdl_key_map[] = {
 	{ SDLK_RIGHT,	PBTN_RIGHT },
 	{ SDLK_RETURN,	PBTN_MOK },
 	{ SDLK_ESCAPE,	PBTN_MBACK },
-	{ SDLK_SEMICOLON,	PBTN_MA2 },
-	{ SDLK_QUOTE,	PBTN_MA3 },
-	{ SDLK_LEFTBRACKET,  PBTN_L },
-	{ SDLK_RIGHTBRACKET, PBTN_R },
+	{ SDLK_COMMA,	PBTN_MA2 },
+	{ SDLK_PERIOD,	PBTN_MA3 },
+	{ SDLK_o,	PBTN_L },
+	{ SDLK_p,	PBTN_R },
 };
 const int in_sdl_key_map_sz = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]);
 
