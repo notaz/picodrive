@@ -3,14 +3,11 @@
  * (C) notaz, 2009-2010
  * (C) kub, 2021
  *
- * currently supports VDP mode 4 (SMS and GG) and mode 2+0 (TMS)
+ * currently supports VDP mode 4 (SMS and GG) and mode 3-0 (TMS)
+ * modes numbered after the bit numbers used in Sega and TI documentation
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
- */
-/*
- * TODO:
- * - other TMS9918 modes?
  */
 #include "pico_int.h"
 #include <platform/common/upscale.h>
@@ -55,8 +52,8 @@ static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
   return col;
 }
 
-/* Mode 4 */
-/*========*/
+/* Mode 4 - SMS Graphics */
+/*=======================*/
 
 static void TileBGM4(u16 sx, int pal)
 {
@@ -333,14 +330,44 @@ static void DrawDisplayM4(int scanline)
 /* TMS Modes */
 /*===========*/
 
-/* Background, Graphics modes */
+/* Background */
 
 #define TMS_PIXELBG(x,p) \
   t = (pack>>(7-p)) & 0x01; \
   t = (pal >> (t << 2)) & 0x0f; \
-  pd[x] = t;
+  if (t) \
+    pd[x] = t;
 
-static void TileNormBgGr(u16 sx, unsigned int pack, int pal)
+static void TileNormBgM1(u16 sx, unsigned int pack, int pal) /* Text */
+{
+  u8 *pd = Pico.est.HighCol + sx;
+  unsigned int t;
+
+  TMS_PIXELBG(0, 0)
+  TMS_PIXELBG(1, 1)
+  TMS_PIXELBG(2, 2)
+  TMS_PIXELBG(3, 3)
+  TMS_PIXELBG(4, 4)
+  TMS_PIXELBG(5, 5)
+}
+
+static void TileNormBgM2(u16 sx, int pal) /* Multicolor */
+{
+  u8 *pd = Pico.est.HighCol + sx;
+  unsigned int pack = 0xf0;
+  unsigned int t;
+
+  TMS_PIXELBG(0, 0)
+  TMS_PIXELBG(1, 1)
+  TMS_PIXELBG(2, 2)
+  TMS_PIXELBG(3, 3)
+  TMS_PIXELBG(4, 4)
+  TMS_PIXELBG(5, 5)
+  TMS_PIXELBG(6, 6)
+  TMS_PIXELBG(7, 7)
+}
+
+static void TileNormBgMg(u16 sx, unsigned int pack, int pal) /* Graphics */
 {
   u8 *pd = Pico.est.HighCol + sx;
   unsigned int t;
@@ -494,11 +521,105 @@ static void DrawSpritesTMS(void)
   }
 }
 
-/* Mode 2 */
-/*========*/
+
+/* Mode 1 - Text */
+/*===============*/
 
 /* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
-static void DrawStripM2(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
+static void DrawStripM1(const u8 *nametab, const u8 *pattab, int cells_dx, int tilex_ty)
+{
+  // Draw tiles across screen:
+  for (; cells_dx > 0; cells_dx += 6, tilex_ty++, cells_dx -= 0x10000)
+  {
+    unsigned int pack, pal;
+    unsigned code;
+
+    code = nametab[tilex_ty & 0x3f];
+    pal  = Pico.video.reg[7];
+    pack = pattab[code << 3];
+    TileNormBgM1(cells_dx, pack, pal);
+  }
+}
+
+/* Draw a scanline */
+static void DrawDisplayM1(int scanline)
+{
+  struct PicoVideo *pv = &Pico.video;
+  u8 *nametab, *pattab;
+  int tilex, dx, cells;
+  int cellskip = 0; // XXX
+  int maxcells = 40;
+
+  // name, color, pattern table:
+  nametab = PicoMem.vramb + ((pv->reg[2]<<10) & 0x3c00);
+  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & 0x3800);
+
+  nametab += ((scanline>>3) * maxcells);
+  pattab  += (scanline & 0x7);
+
+  tilex = cellskip & 0x1f;
+  cells = maxcells - cellskip;
+  dx = (cellskip << 3) + line_offset + 8;
+
+  // tiles
+  if (!(pv->debug_p & PVD_KILL_B))
+    DrawStripM1(nametab, pattab, dx | (cells << 16), tilex | (scanline << 16));
+}
+
+
+/* Mode 2 - Multicolor */
+/*=====================*/
+
+/* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
+static void DrawStripM2(const u8 *nametab, const u8 *pattab, int cells_dx, int tilex_ty)
+{
+  // Draw tiles across screen:
+  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
+  {
+    unsigned int pal;
+    unsigned code;
+
+    code = nametab[tilex_ty & 0x1f];
+    pal  = pattab[code << 3];
+    TileNormBgM2(cells_dx, pal);
+  }
+}
+
+/* Draw a scanline */
+static void DrawDisplayM2(int scanline)
+{
+  struct PicoVideo *pv = &Pico.video;
+  u8 *nametab, *pattab;
+  int tilex, dx, cells;
+  int cellskip = 0; // XXX
+  int maxcells = 32;
+
+  // name, color, pattern table:
+  nametab = PicoMem.vramb + ((pv->reg[2]<<10) & 0x3c00);
+  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & 0x3800);
+
+  nametab += (scanline>>5) << 5;
+  pattab  += (scanline>>2) & 0x7;
+
+  tilex = cellskip & 0x1f;
+  cells = maxcells - cellskip;
+  dx = (cellskip << 3) + line_offset + 8;
+
+  // tiles
+  if (!(pv->debug_p & PVD_KILL_B))
+    DrawStripM2(nametab, pattab, dx | (cells << 16), tilex | (scanline << 16));
+
+  // sprites
+  if (!(pv->debug_p & PVD_KILL_S_LO))
+    DrawSpritesTMS();
+}
+
+
+/* Mode 3 - Graphics II */
+/*======================*/
+
+/* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
+static void DrawStripM3(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
   for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
@@ -509,12 +630,12 @@ static void DrawStripM2(const u8 *nametab, const u8 *coltab, const u8 *pattab, i
     code = nametab[tilex_ty & 0x1f] << 3;
     pal  = coltab[code];
     pack = pattab[code];
-    TileNormBgGr(cells_dx, pack, pal);
+    TileNormBgMg(cells_dx, pack, pal);
   }
 }
 
 /* Draw a scanline */
-static void DrawDisplayM2(int scanline)
+static void DrawDisplayM3(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 *nametab, *coltab, *pattab;
@@ -537,15 +658,16 @@ static void DrawDisplayM2(int scanline)
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
-    DrawStripM2(nametab, coltab, pattab, dx | (cells << 16), tilex | (scanline << 16));
+    DrawStripM3(nametab, coltab, pattab, dx | (cells << 16), tilex | (scanline << 16));
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
     DrawSpritesTMS();
 }
 
-/* Mode 0 */
-/*========*/
+
+/* Mode 0 - Graphics I */
+/*=====================*/
 
 /* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
 static void DrawStripM0(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
@@ -559,7 +681,7 @@ static void DrawStripM0(const u8 *nametab, const u8 *coltab, const u8 *pattab, i
     code = nametab[tilex_ty & 0x1f];
     pal  = coltab[code >> 3];
     pack = pattab[code << 3];
-    TileNormBgGr(cells_dx, pack, pal);
+    TileNormBgMg(cells_dx, pack, pal);
   }
 }
 
@@ -690,7 +812,9 @@ void PicoLineSMS(int line)
   BackFill(bgcolor, 0, &Pico.est); // bgcolor is from 2nd palette in mode 4
   if (Pico.video.reg[1] & 0x40) {
     if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
-    else if (Pico.video.reg[0] & 0x02) DrawDisplayM2(line);
+    else if (Pico.video.reg[0] & 0x02) DrawDisplayM3(line);
+    else if (Pico.video.reg[1] & 0x08) DrawDisplayM2(line);
+    else if (Pico.video.reg[1] & 0x10) DrawDisplayM1(line);
     else                               DrawDisplayM0(line);
   }
 
@@ -705,12 +829,14 @@ norender:
   Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
-/* Fixed palette for TMS9918 modes */
+/* Palette for TMS9918 mode, see https://www.smspower.org/Development/Palette */
+// RGB values: #000000 #000000 #21c842 #5edc78 #5455ed #7d76fc #d4524d #42ebf5
+//             #fc5554 #ff7978 #d4c154 #e6ce80 #21b03b #c95b5a #cccccc #ffffff
 static u16 tmspal[32] = {
   // SMS palette
-  0x0000, 0x0000, 0x00a0, 0x00f0, 0x0500, 0x0f00, 0x0005, 0x0ff0,
-  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
-  // TMS palette
+//  0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
+//  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+  // GG palette
   0x0000, 0x0000, 0x04c2, 0x07d5, 0x0e55, 0x0f77, 0x045d, 0x0fe4,
   0x055f, 0x077f, 0x05cd, 0x08ce, 0x03b2, 0x0b5c, 0x0ccc, 0x0fff,
 };
