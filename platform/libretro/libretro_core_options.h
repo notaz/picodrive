@@ -138,6 +138,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "Korea 4-Pak",   NULL },
          { "Korea Janggun", NULL },
          { "Korea Nemesis", NULL },
+         { "Taiwan 8K RAM", NULL },
          { NULL, NULL },
        },
       "Auto"

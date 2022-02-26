@@ -1526,6 +1526,8 @@ static void update_variables(bool first_run)
          PicoIn.mapper = PMS_MAP_JANGGUN;
       else if (strcmp(var.value, "Korea Nemesis") == 0)
          PicoIn.mapper = PMS_MAP_NEMESIS;
+      else if (strcmp(var.value, "Taiwan 8K RAM") == 0)
+         PicoIn.mapper = PMS_MAP_8KRAM;
       else
          PicoIn.mapper = PMS_MAP_SEGA;
    }

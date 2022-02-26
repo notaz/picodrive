@@ -456,7 +456,12 @@ static void write_bank_jang(unsigned short a, unsigned char d)
 
 static void write_bank_x8k(unsigned short a, unsigned char d)
 {
+  // 8KB address range @ 0x2000
   if ((a&0xe000) != 0x2000) return;
+  // never autodetected, selectable only via config
+  if (Pico.ms.mapper != PMS_MAP_8KBRAM) return;
+  elprintf(EL_Z80BNK, "bank x8k %04x %02x @ %04x", a, d, z80_pc());
+
   ((unsigned char *)PicoMem.vram)[a+0x6000] = d;
   z80_map_set(z80_read_map,  0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
   z80_map_set(z80_write_map, 0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
@@ -479,6 +484,7 @@ static void xwrite(unsigned int a, unsigned char d)
   case PMS_MAP_N16K:	write_bank_n16k(a, d);  break;
   case PMS_MAP_JANGGUN: write_bank_jang(a, d);  break;
   case PMS_MAP_NEMESIS: write_bank_msxn(a, d);  break;
+  case PMS_MAP_8KBRAM:  write_bank_x8k(a, d);   break;
 
   case PMS_MAP_AUTO:
         // NB the sequence of mappers is crucial for the auto detection
@@ -488,7 +494,6 @@ static void xwrite(unsigned int a, unsigned char d)
         write_bank_codem(a, d);
         write_bank_korea(a, d);
         write_bank_n16k(a, d);
-        write_bank_x8k(a, d);
         break;
   }
 }
