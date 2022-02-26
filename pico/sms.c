@@ -454,6 +454,14 @@ static void write_bank_jang(unsigned short a, unsigned char d)
   }
 }
 
+static void write_bank_x8k(unsigned short a, unsigned char d)
+{
+  if ((a&0xe000) != 0x2000) return;
+  ((unsigned char *)PicoMem.vram)[a+0x6000] = d;
+  z80_map_set(z80_read_map,  0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
+  z80_map_set(z80_write_map, 0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
+}
+
 // TODO auto-selecting is not really reliable.
 // Before adding more mappers this should be revised.
 static void xwrite(unsigned int a, unsigned char d)
@@ -480,11 +488,12 @@ static void xwrite(unsigned int a, unsigned char d)
         write_bank_codem(a, d);
         write_bank_korea(a, d);
         write_bank_n16k(a, d);
+        write_bank_x8k(a, d);
         break;
   }
 }
 
-// TMR product codes and hardware type for know 50Hz-only games */
+// TMR product codes and hardware type for know 50Hz-only games
 static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
   0x40207067 /* Addams Family */, 0x40207020 /* Back.Future 3 */,
   0x40207058 /* Battlemaniacs */, 0x40007105 /* Cal.Games 2 */,

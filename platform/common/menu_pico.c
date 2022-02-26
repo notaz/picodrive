@@ -42,7 +42,7 @@ static const char *rom_exts[] = {
 	"bin", "smd", "gen", "md",
 	"iso", "cso", "cue", "chd",
 	"32x",
-	"sms", "gg",
+	"sms", "gg",  "sg",
 	NULL
 };
 

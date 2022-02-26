@@ -733,7 +733,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define _GIT_VERSION "-" GIT_VERSION
 #endif
    info->library_version = VERSION _GIT_VERSION;
-   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg";
+   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg|sg";
    info->need_fullpath = true;
 }
 
