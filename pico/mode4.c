@@ -831,14 +831,16 @@ norender:
 
 /* Palette for TMS9918 mode, see https://www.smspower.org/Development/Palette */
 // RGB values: #000000 #000000 #21c842 #5edc78 #5455ed #7d76fc #d4524d #42ebf5
-//             #fc5554 #ff7978 #d4c154 #e6ce80 #21b03b #c95b5a #cccccc #ffffff
+//             #fc5554 #ff7978 #d4c154 #e6ce80 #21b03b #c95bba #cccccc #ffffff
+// 00   11   22   33   44   55   66   77   88   99   aa   bb   cc   dd   ee   ff
+// 0007 0818 1929 2a3a 3b4b 4c5c 5d6d 6e7e 7f8f 90a0 a1b1 b2c2 c3d3 d4e4 e5f5 f6
 static u16 tmspal[32] = {
   // SMS palette
 //  0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
 //  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
   // GG palette
-  0x0000, 0x0000, 0x04c2, 0x07d5, 0x0e55, 0x0f77, 0x045d, 0x0fe4,
-  0x055f, 0x077f, 0x05cd, 0x08ce, 0x03b2, 0x0b5c, 0x0ccc, 0x0fff,
+  0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055d, 0x0ee4,
+  0x055f, 0x077f, 0x05bd, 0x08ce, 0x04a2, 0x0b5c, 0x0ccc, 0x0fff,
 };
 
 void PicoDoHighPal555SMS(void)

@@ -77,15 +77,16 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_DIS_FM_SSGEG   (1<<23)
 #define POPT_EN_FM_DAC      (1<<24) //x00 0000
 
-#define PAHW_MCD  (1<<0)
-#define PAHW_32X  (1<<1)
-#define PAHW_SVP  (1<<2)
-#define PAHW_PICO (1<<3)
-#define PAHW_SMS  (1<<4)
+#define PAHW_MCD    (1<<0)
+#define PAHW_32X    (1<<1)
+#define PAHW_SVP    (1<<2)
+#define PAHW_PICO   (1<<3)
+#define PAHW_SMS    (1<<4)
 
-#define PHWS_AUTO 0
-#define PHWS_GG   1
-#define PHWS_SMS  2
+#define PHWS_AUTO   0
+#define PHWS_GG     1
+#define PHWS_SMS    2
+#define PHWS_SG1000 3
 
 #define PQUIRK_FORCE_6BTN   (1<<0)
 
