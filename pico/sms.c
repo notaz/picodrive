@@ -458,15 +458,16 @@ static void write_bank_jang(unsigned short a, unsigned char d)
 static void write_bank_x8k(unsigned short a, unsigned char d)
 {
   // 8KB address range @ 0x2000
-  if ((a&0xe000) != 0x2000) return;
+  if ((a&0xe000) != 0x2000 && (a&0xe000) != 0x8000) return;
   // this is only available on SG-1000
   if (Pico.ms.mapper != PMS_MAP_8KBRAM && (Pico.ms.mapper || !(Pico.m.hardware & PMS_HW_SG))) return;
   elprintf(EL_Z80BNK, "bank x8k %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_8KBRAM;
 
-  ((unsigned char *)PicoMem.vram)[a+0x6000] = d;
-  z80_map_set(z80_read_map,  0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
-  z80_map_set(z80_write_map, 0x2000, 0x3fff, PicoMem.vram+0x4000, 0);
+  ((unsigned char *)PicoMem.vram)[(a&0x1fff)+0x8000] = d;
+  a &= 0xe000;
+  z80_map_set(z80_read_map,  a, a+0x1fff, PicoMem.vram+0x4000, 0);
+  z80_map_set(z80_write_map, a, a+0x1fff, PicoMem.vram+0x4000, 0);
 }
 
 // TODO auto-selecting is not really reliable.
