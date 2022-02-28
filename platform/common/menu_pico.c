@@ -536,7 +536,7 @@ static int menu_loop_32x_options(int id, int keys)
 
 #ifndef NO_SMS
 
-static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", NULL };
+static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG-1000", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", NULL };
 static const char h_smsfm[] = "FM sound is only supported by few games\nOther games may crash with FM enabled";
 

@@ -1494,6 +1494,8 @@ static void update_variables(bool first_run)
          PicoIn.hwSelect = PHWS_AUTO;
       else if (strcmp(var.value, "Game Gear") == 0)
          PicoIn.hwSelect = PHWS_GG;
+      else if (strcmp(var.value, "SG-1000") == 0)
+         PicoIn.hwSelect = PHWS_SG;
       else
          PicoIn.hwSelect = PHWS_SMS;
    }
@@ -1527,7 +1529,7 @@ static void update_variables(bool first_run)
       else if (strcmp(var.value, "Korea Nemesis") == 0)
          PicoIn.mapper = PMS_MAP_NEMESIS;
       else if (strcmp(var.value, "Taiwan 8K RAM") == 0)
-         PicoIn.mapper = PMS_MAP_8KRAM;
+         PicoIn.mapper = PMS_MAP_8KBRAM;
       else
          PicoIn.mapper = PMS_MAP_SEGA;
    }

@@ -332,9 +332,11 @@ static void system_announce(void)
 
 	if (PicoIn.AHW & PAHW_SMS) {
 		sys_name = "Master System";
-		if (Pico.m.hardware & 0x1)
+		if (Pico.m.hardware & PMS_HW_GG)
 			sys_name = "Game Gear";
-		else if (Pico.m.hardware & 0x4)
+		else if (Pico.m.hardware & PMS_HW_SG)
+			sys_name = "SG-1000";
+		else if (Pico.m.hardware & PMS_HW_JAP)
 			sys_name = "Mark III";
 #ifdef NO_SMS
 		extra = " [no support]";

@@ -86,7 +86,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define PHWS_AUTO   0
 #define PHWS_GG     1
 #define PHWS_SMS    2
-#define PHWS_SG1000 3
+#define PHWS_SG     3
 
 #define PQUIRK_FORCE_6BTN   (1<<0)
 

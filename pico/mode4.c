@@ -163,7 +163,7 @@ static void ParseSpritesM4(int scanline)
   if (pv->reg[0] & 8)
     xoff = 0;
   xoff += line_offset;
-  if ((Pico.m.hardware & 0x3) == 0x3)
+  if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
     xoff -= 48; // GG LCD, adjust to center 160 px
 
   sat = (u8 *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
@@ -302,7 +302,7 @@ static void DrawDisplayM4(int scanline)
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B)) {
-    if ((Pico.m.hardware & 0x3) == 0x3) {
+    if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD)) {
       // on GG render only the center 160 px
       DrawStripM4(nametab , dx | ((cells-12)<< 16),(tilex+6) | (ty  << 16));
     } else if (pv->reg[0] & 0x80) {
@@ -318,7 +318,7 @@ static void DrawDisplayM4(int scanline)
   if (!(pv->debug_p & PVD_KILL_S_LO))
     DrawSpritesM4();
 
-  if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 0x3) {
+  if ((pv->reg[0] & 0x20) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) != (PMS_HW_GG|PMS_HW_LCD)) {
     // first column masked with background, caculate offset to start of line
     dx = (dx&~0x1f) / 4;
     ty = ((pv->reg[7]&0x0f)|0x10) * 0x01010101;
@@ -736,11 +736,11 @@ void PicoFrameStartSMS(void)
   }
 
   // Copy LCD enable flag for easier handling
-  Pico.m.hardware &= ~0x2;
+  Pico.m.hardware &= ~PMS_HW_LCD;
   if (PicoIn.opt & POPT_EN_GG_LCD)
-    Pico.m.hardware |= 0x2;
+    Pico.m.hardware |= PMS_HW_LCD;
 
-  if ((Pico.m.hardware & 0x3) == 0x3) {
+  if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD)) {
     // GG LCD always has 160x144 regardless of settings
     screen_offset = 24; // nonetheless the vdp timing has 224 lines
     loffs = 48;
@@ -796,7 +796,7 @@ void PicoLineSMS(int line)
   unsigned bgcolor;
 
   // GG LCD, render only visible part of screen
-  if ((Pico.m.hardware & 0x3) == 0x3 && (line < 24 || line >= 24+144))
+  if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD) && (line < 24 || line >= 24+144))
     goto norender;
 
   if (PicoScanBegin != NULL && skip == 0)
@@ -832,12 +832,10 @@ norender:
 /* Palette for TMS9918 mode, see https://www.smspower.org/Development/Palette */
 // RGB values: #000000 #000000 #21c842 #5edc78 #5455ed #7d76fc #d4524d #42ebf5
 //             #fc5554 #ff7978 #d4c154 #e6ce80 #21b03b #c95bba #cccccc #ffffff
-// 00   11   22   33   44   55   66   77   88   99   aa   bb   cc   dd   ee   ff
-// 0007 0818 1929 2a3a 3b4b 4c5c 5d6d 6e7e 7f8f 90a0 a1b1 b2c2 c3d3 d4e4 e5f5 f6
 static u16 tmspal[32] = {
   // SMS palette
-//  0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
-//  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+  0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
+  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
   // GG palette
   0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055d, 0x0ee4,
   0x055f, 0x077f, 0x05bd, 0x08ce, 0x04a2, 0x0b5c, 0x0ccc, 0x0fff,
@@ -861,8 +859,8 @@ void PicoDoHighPal555SMS(void)
   /* SMS 6 bit cram data was already converted to MD/GG format by vdp write,
    * hence GG/SMS/TMS can all be handled the same here */
   for (j = cnt; j > 0; j--) {
-    if (!(Pico.video.reg[0] & 0x4))
-      spal = (u32 *)tmspal; // fixed palette in TMS modes
+    if (!(Pico.video.reg[0] & 0x4)) // fixed palette in TMS modes
+      spal = (u32 *)tmspal + (Pico.m.hardware & PMS_HW_SG ? 16/2 : 0);
     for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
       t = *spal;
 #if defined(USE_BGR555)

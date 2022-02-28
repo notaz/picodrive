@@ -117,6 +117,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "Auto",          NULL },
          { "Game Gear",     NULL },
          { "Master System", NULL },
+         { "SG-1000"      , NULL },
          { NULL, NULL },
        },
       "Auto"
