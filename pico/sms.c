@@ -508,14 +508,14 @@ static void xwrite(unsigned int a, unsigned char d)
         // NB the sequence of mappers is crucial for the auto detection
         if (Pico.m.hardware & PMS_HW_SG)
           write_bank_x8k(a, d);
-	else {
+        else {
           write_bank_n32k(a, d);
           write_bank_sega(a, d);
           write_bank_msx(a, d);
           write_bank_codem(a, d);
           write_bank_korea(a, d);
           write_bank_n16k(a, d);
-	}
+        }
 
         Pico.ms.mapcnt ++;
         if (Pico.ms.mapper)
@@ -552,6 +552,8 @@ void PicoResetMS(void)
   if (PicoIn.mapper)
     Pico.ms.mapper = PicoIn.mapper;
   Pico.m.hardware |= PMS_HW_JAP; // default region Japan if no TMR header
+  if (PicoIn.regionOverride > 2)
+    Pico.m.hardware &= ~PMS_HW_JAP;
 
   // check if the ROM header contains more system information
   for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {

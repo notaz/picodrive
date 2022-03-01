@@ -549,10 +549,12 @@ static void DrawDisplayM1(int scanline)
   int tilex, dx, cells;
   int cellskip = 0; // XXX
   int maxcells = 40;
+  unsigned mask = pv->reg[0] & 0x2 ? 0x2000 : 0x3800; // M3: 2 bits table select
 
   // name, color, pattern table:
   nametab = PicoMem.vramb + ((pv->reg[2]<<10) & 0x3c00);
-  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & 0x3800);
+  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & mask);
+  pattab += ((scanline>>6) << 11) & ~mask; // table select bits for M3
 
   nametab += ((scanline>>3) * maxcells);
   pattab  += (scanline & 0x7);
@@ -593,12 +595,14 @@ static void DrawDisplayM2(int scanline)
   int tilex, dx, cells;
   int cellskip = 0; // XXX
   int maxcells = 32;
+  unsigned mask = pv->reg[0] & 0x2 ? 0x2000 : 0x3800; // M3: 2 bits table select
 
   // name, color, pattern table:
   nametab = PicoMem.vramb + ((pv->reg[2]<<10) & 0x3c00);
-  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & 0x3800);
+  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & mask);
+  pattab += ((scanline>>6) << 11) & ~mask; // table select bits for M3
 
-  nametab += (scanline>>5) << 5;
+  nametab += (scanline>>3) << 5;
   pattab  += (scanline>>2) & 0x7;
 
   tilex = cellskip & 0x1f;
@@ -811,10 +815,10 @@ void PicoLineSMS(int line)
   bgcolor = (Pico.video.reg[7] & 0x0f) | ((Pico.video.reg[0] & 0x04) << 2);
   BackFill(bgcolor, 0, &Pico.est); // bgcolor is from 2nd palette in mode 4
   if (Pico.video.reg[1] & 0x40) {
-    if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
+    if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line); // also M4+M3
+    else if (Pico.video.reg[1] & 0x08) DrawDisplayM2(line); // also M2+M3
+    else if (Pico.video.reg[1] & 0x10) DrawDisplayM1(line); // also M1+M3
     else if (Pico.video.reg[0] & 0x02) DrawDisplayM3(line);
-    else if (Pico.video.reg[1] & 0x08) DrawDisplayM2(line);
-    else if (Pico.video.reg[1] & 0x10) DrawDisplayM1(line);
     else                               DrawDisplayM0(line);
   }
 
@@ -835,10 +839,10 @@ norender:
 static u16 tmspal[32] = {
   // SMS palette
   0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
-  0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+  0x000a, 0x000f, 0x00aa, 0x00ff, 0x0050, 0x0f0f, 0x0aaa, 0x0fff,
   // GG palette
-  0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055d, 0x0ee4,
-  0x055f, 0x077f, 0x05bd, 0x08ce, 0x04a2, 0x0b5c, 0x0ccc, 0x0fff,
+  0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055c, 0x0ee4,
+  0x055f, 0x077f, 0x05bc, 0x08ce, 0x03a2, 0x0b5c, 0x0ccc, 0x0fff,
 };
 
 void PicoDoHighPal555SMS(void)
