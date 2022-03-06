@@ -97,10 +97,9 @@ static void make_bg(int no_scale, int from_screen)
 		pp = g_screen_ppitch;
 	}
 
-	if (src == NULL) {
-		memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
+	memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
+	if (src == NULL)
 		return;
-	}
 
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{

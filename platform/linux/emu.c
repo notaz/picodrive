@@ -297,7 +297,6 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	Pico.m.dirtyPal = 1;
 	if (currentConfig.scaling)  currentConfig.scaling  = EOPT_SCALE_SW;
 	if (currentConfig.vscaling) currentConfig.vscaling = EOPT_SCALE_SW;
-	plat_video_set_size(g_menuscreen_w, g_menuscreen_h);
 
 	// render a frame in 16 bit mode
 	render_bg = 1;
@@ -402,9 +401,17 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		break;
 	}
 
-	if (screen_w != g_screen_width || screen_h != g_screen_height)
-		plat_video_set_size(screen_w, screen_h);
+	plat_video_set_size(screen_w, screen_h);
 	plat_video_set_buffer(g_screen_ptr);
+
+	if (screen_w < g_screen_width)
+		screen_x = (g_screen_width  - screen_w)/2;
+	if (screen_h < g_screen_height) {
+		screen_y = (g_screen_height - screen_h)/2;
+		// NTSC always has 224 visible lines, anything smaller has bars
+		if (out_h < 224 && out_h > 144)
+			screen_y += (224 - out_h)/2;
+	}
 
 	// create a backing buffer for emulating the bad GG lcd display
 	if (currentConfig.ghosting && out_h == 144) {
@@ -429,7 +436,11 @@ void pemu_loop_prep(void)
 void pemu_loop_end(void)
 {
 	/* do one more frame for menu bg */
+	plat_video_set_size(320, 240);
 	pemu_forced_frame(0, 1);
+	g_menubg_src_w = g_screen_width;
+	g_menubg_src_h = g_screen_height;
+	g_menubg_src_pp = g_screen_ppitch;
 	if (ghost_buf) {
 		free(ghost_buf);
 		ghost_buf = NULL;

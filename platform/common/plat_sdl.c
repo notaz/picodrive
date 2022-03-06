@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2013
+ * (C) kub, 2020-2022
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -22,6 +23,7 @@
 #include <pico/pico_int.h>
 
 static void *shadow_fb;
+static int shadow_size;
 static struct area { int w, h; } area;
 
 static struct in_pdata in_sdl_platform_data = {
@@ -82,14 +84,14 @@ void bgr_to_uyvy_init(void)
   }
 }
 
-void rgb565_to_uyvy(void *d, const void *s, int w, int h, int pitch, int x2)
+void rgb565_to_uyvy(void *d, const void *s, int w, int h, int pitch, int dpitch, int x2)
 {
   uint32_t *dst = d;
   const uint16_t *src = s;
   int i;
 
   if (x2) while (h--) {
-    for (i = w; i > 0; src += 4, dst += 4, i -= 4)
+    for (i = w; i >= 4; src += 4, dst += 4, i -= 4)
     {
       struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
       struct uyvy *uyvy2 = yuv_uyvy + src[2], *uyvy3 = yuv_uyvy + src[3];
@@ -105,9 +107,10 @@ void rgb565_to_uyvy(void *d, const void *s, int w, int h, int pitch, int x2)
       dst[3] = uyvy3->y | (uyvy3->vyu << 8);
 #endif
     }
-    src += pitch - w;
+    src += pitch - (w-i);
+    dst += (dpitch - 2*(w-i))/2;
   } else while (h--) {
-    for (i = w; i > 0; src += 4, dst += 2, i -= 4)
+    for (i = w; i >= 4; src += 4, dst += 2, i -= 4)
     {
       struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
       struct uyvy *uyvy2 = yuv_uyvy + src[2], *uyvy3 = yuv_uyvy + src[3];
@@ -119,11 +122,22 @@ void rgb565_to_uyvy(void *d, const void *s, int w, int h, int pitch, int x2)
       dst[1] = uyvy3->y | (uyvy2->vyu << 8);
 #endif
     }
-    src += pitch - w;
+    src += pitch - (w-i);
+    dst += (dpitch - (w-i))/2;
   }
 }
 
 static int clear_buf_cnt, clear_stat_cnt;
+
+static void resize_buffers(void)
+{
+	// make sure the shadow buffers are big enough in case of resize
+	if (shadow_size < g_menuscreen_w * g_menuscreen_h * 2) {
+		shadow_size = g_menuscreen_w * g_menuscreen_h * 2;
+		shadow_fb = realloc(shadow_fb, shadow_size);
+		g_menubg_ptr = realloc(g_menubg_ptr, shadow_size);
+	}
+}
 
 void plat_video_set_size(int w, int h)
 {
@@ -134,10 +148,14 @@ void plat_video_set_size(int w, int h)
 			w = g_screen_width, h = g_screen_height;
 		}
 		if (!plat_sdl_overlay && !plat_sdl_gl_active) {
+			g_screen_width = plat_sdl_screen->w;
+			g_screen_height = plat_sdl_screen->h;
+			g_screen_ppitch = plat_sdl_screen->pitch/2;
+			g_screen_ptr = plat_sdl_screen->pixels;
+		} else {
 			g_screen_width = w;
 			g_screen_height = h;
 			g_screen_ppitch = w;
-			g_screen_ptr = plat_sdl_screen->pixels;
 		}
 		area = (struct area) { w, h };
 	}
@@ -145,13 +163,17 @@ void plat_video_set_size(int w, int h)
 
 void plat_video_flip(void)
 {
+	resize_buffers();
+
 	if (plat_sdl_overlay != NULL) {
 		SDL_Rect dstrect =
 			{ 0, 0, plat_sdl_screen->w, plat_sdl_screen->h };
 		SDL_LockYUVOverlay(plat_sdl_overlay);
-		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				area.w, area.h, g_screen_ppitch,
-				plat_sdl_overlay->w >= 2*area.w);
+		if (area.w <= plat_sdl_overlay->w && area.h <= plat_sdl_overlay->h)
+			rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
+					area.w, area.h, g_screen_ppitch,
+					plat_sdl_overlay->pitches[0]/2,
+					plat_sdl_overlay->w >= 2*area.w);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
 	}
@@ -165,12 +187,21 @@ void plat_video_flip(void)
 			SDL_LockSurface(plat_sdl_screen);
 		} else
 			SDL_Flip(plat_sdl_screen);
+		g_screen_ppitch = plat_sdl_screen->pitch/2;
 		g_screen_ptr = plat_sdl_screen->pixels;
 		plat_video_set_buffer(g_screen_ptr);
 		if (clear_buf_cnt) {
 			memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
 			clear_buf_cnt--;
 		}
+	}
+
+	// for overlay/gl modes buffer ptr may change on resize
+	if ((plat_sdl_overlay || plat_sdl_gl_active) &&
+	    (g_screen_ptr != shadow_fb || g_screen_ppitch != g_screen_width)) {
+		g_screen_ppitch = g_screen_width;
+		g_screen_ptr = shadow_fb;
+		plat_video_set_buffer(g_screen_ptr);
 	}
 	if (clear_stat_cnt) {
 		unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_ppitch * g_screen_height;
@@ -191,7 +222,7 @@ void plat_video_clear_status(void)
 
 void plat_video_clear_buffers(void)
 {
-	if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
+	if (plat_sdl_overlay || plat_sdl_gl_active)
 		memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	else {
 		memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
@@ -204,18 +235,20 @@ void plat_video_menu_enter(int is_rom_loaded)
 	if (SDL_MUSTLOCK(plat_sdl_screen))
 		SDL_UnlockSurface(plat_sdl_screen);
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 1);
-	g_screen_ptr = shadow_fb;
-	plat_video_set_buffer(g_screen_ptr);
+	resize_buffers();
 }
 
 void plat_video_menu_begin(void)
 {
-	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
+	resize_buffers();
+	if (plat_sdl_overlay || plat_sdl_gl_active) {
+		g_menuscreen_pp = g_menuscreen_w;
 		g_menuscreen_ptr = shadow_fb;
 	}
 	else {
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
+		g_menuscreen_pp = plat_sdl_screen->pitch / 2;
 		g_menuscreen_ptr = plat_sdl_screen->pixels;
 	}
 }
@@ -227,8 +260,11 @@ void plat_video_menu_end(void)
 			{ 0, 0, plat_sdl_screen->w, plat_sdl_screen->h };
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
-		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-			g_menuscreen_w, g_menuscreen_h, g_menuscreen_pp, 0);
+		if (g_menuscreen_w <= plat_sdl_overlay->w && g_menuscreen_h <= plat_sdl_overlay->h)
+			rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
+				g_menuscreen_w, g_menuscreen_h, g_menuscreen_pp,
+				plat_sdl_overlay->pitches[0]/2,
+				plat_sdl_overlay->w >= 2 * g_menuscreen_w);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
@@ -251,29 +287,41 @@ void plat_video_menu_leave(void)
 void plat_video_loop_prepare(void)
 {
 	// take over any new vout settings
-	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
+	plat_sdl_change_video_mode(0, 0, 0);
+	area.w = g_menuscreen_w, area.h = g_menuscreen_h;
+	resize_buffers();
+
 	// switch over to scaled output if available, but keep the aspect ratio
-	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
+	if (plat_sdl_overlay || plat_sdl_gl_active) {
 		g_screen_width = (240 * g_menuscreen_w / g_menuscreen_h) & ~1;
 		g_screen_height = 240;
 		g_screen_ppitch = g_screen_width;
-		plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
 		g_screen_ptr = shadow_fb;
 	}
 	else {
-		g_screen_width = g_menuscreen_w;
-		g_screen_height = g_menuscreen_h;
-		g_screen_ppitch = g_menuscreen_pp;
+		g_screen_width = plat_sdl_screen->w;
+		g_screen_height = plat_sdl_screen->h;
+		g_screen_ppitch = plat_sdl_screen->pitch/2;
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
 	}
-	plat_video_set_buffer(g_screen_ptr);
+
 	plat_video_set_size(g_screen_width, g_screen_height);
+	plat_video_set_buffer(g_screen_ptr);
 }
 
 void plat_early_init(void)
 {
+}
+
+static void plat_sdl_resize(int w, int h)
+{
+	// take over new settings
+	g_menuscreen_h = (plat_sdl_screen->h < 480 ? plat_sdl_screen->h : 480);
+	if (!plat_sdl_overlay && !plat_sdl_gl_active)
+		g_menuscreen_h = plat_sdl_screen->h;
+	g_menuscreen_w = g_menuscreen_h * plat_sdl_screen->w/plat_sdl_screen->h;
 }
 
 static void plat_sdl_quit(void)
@@ -284,24 +332,22 @@ static void plat_sdl_quit(void)
 
 void plat_init(void)
 {
-	int shadow_size;
 	int ret;
 
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
-	SDL_ShowCursor(0);
 #if defined(__RG350__) || defined(__GCW0__) || defined(__OPENDINGUX__)
 	// opendingux on JZ47x0 may falsely report a HW overlay, fix to window
 	plat_target.vout_method = 0;
 #endif
 
 	plat_sdl_quit_cb = plat_sdl_quit;
+	plat_sdl_resize_cb = plat_sdl_resize;
 
+	SDL_ShowCursor(0);
 	SDL_WM_SetCaption("PicoDrive " VERSION, NULL);
 
-	g_menuscreen_w = plat_sdl_screen->w;
-	g_menuscreen_h = plat_sdl_screen->h;
 	g_menuscreen_pp = g_menuscreen_w;
 	g_menuscreen_ptr = NULL;
 
