@@ -345,20 +345,18 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   int burn = 0, x;
 
   // sync only needed if queue is too full or background dma might be deferred
-  if ((vf->fifo_ql >= 6) | (pv->status & SR_DMA))
+  if ((vf->fifo_ql >= 6) | (pv->status & PVS_DMABG))
     PicoVideoFIFOSync(lc);
+
+  // determine last ent, ignoring bg dma (pushed back below if new ent created)
+  x = (vf->fifo_qx + vf->fifo_ql - 1 - !!(pv->status & PVS_DMABG)) & 7;
+
   pv->status = (pv->status & ~sr_mask) | sr_flags;
-
-  x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
-  if (unlikely(vf->fifo_queue[x] & FQ_BGDMA))
-    x = (x-1) & 7; // ignore bg dma ent (pushed back below if new ent created)
-
-  // determine queue position for entry
-  if (!(flags & FQ_BGDMA))
-    vf->fifo_total += count;
+  vf->fifo_total += count * !(flags & FQ_BGDMA);
   if (!vf->fifo_ql)
     vf->fifo_slot = Cyc2Sl(vf, lc+7); // FIFO latency ~3 vdp slots
 
+  // determine queue position for entry
   count <<= (flags & FQ_BYTE)+3;
   if (vf->fifo_queue[x] && (vf->fifo_queue[x] & 7) == flags) {
     // amalgamate entries if of same type and not empty (in case of bgdma)
