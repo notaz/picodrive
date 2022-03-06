@@ -275,7 +275,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 		case MA_OPT_SOUND_QUALITY:
 			if (strcasecmp(var, "Sound Quality") != 0) return 0;
 			PicoIn.sndRate = strtoul(val, &tmp, 10);
-			if (PicoIn.sndRate < 8000 || PicoIn.sndRate > 44100)
+			if (PicoIn.sndRate < 8000 || PicoIn.sndRate > 53267)
 				PicoIn.sndRate = 22050;
 			if (*tmp == 'H' || *tmp == 'h') tmp++;
 			if (*tmp == 'Z' || *tmp == 'z') tmp++;

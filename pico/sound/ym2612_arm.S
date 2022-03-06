@@ -327,9 +327,6 @@
 @ r0-r2=scratch, r3=sin_tab, r5=scratch, r6-r7=vol_out[4], r10=op1_out
 .macro upd_algo0_m
 
-    cmp     r8, #(1<<EG_SH)
-    bge     1f
-
     @ SLOT3
     make_eg_out SLOT3
     cmp     r1, #ENV_QUIET
@@ -370,9 +367,6 @@
 
 .macro upd_algo1_m
 
-    cmp     r8, #(1<<EG_SH)
-    bge     1f
-
     @ SLOT3
     make_eg_out SLOT3
     cmp     r1, #ENV_QUIET
@@ -412,9 +406,6 @@
 
 
 .macro upd_algo2_m
-
-    cmp     r8, #(1<<EG_SH)
-    bge     1f
 
     @ SLOT3
     make_eg_out SLOT3
@@ -457,9 +448,6 @@
 
 .macro upd_algo3_m
 
-    cmp     r8, #(1<<EG_SH)
-    bge     1f
-
     @ SLOT3
     make_eg_out SLOT3
     cmp     r1, #ENV_QUIET
@@ -501,9 +489,6 @@
 
 .macro upd_algo4_m
 
-    cmp     r8, #(1<<EG_SH)
-    bge     2f
-
     @ SLOT3
     make_eg_out SLOT3
     cmp     r1, #ENV_QUIET
@@ -540,9 +525,6 @@
 
 
 .macro upd_algo5_m
-
-    cmp     r8, #(1<<EG_SH)
-    bge     2f
 
     @ SLOT3
     make_eg_out SLOT3
@@ -584,9 +566,6 @@
 
 .macro upd_algo6_m
 
-    cmp     r8, #(1<<EG_SH)
-    bge     2f
-
     @ SLOT3
     make_eg_out SLOT3
     cmp     r1, #ENV_QUIET
@@ -621,9 +600,6 @@
 
 
 .macro upd_algo7_m
-
-    cmp     r8, #(1<<EG_SH)
-    bge     2f
 
     @ SLOT3
     make_eg_out SLOT3
@@ -709,53 +685,15 @@ crl_loop:
     mov     r0, #0
     add     r8, r8, r9
     subs    r8, r8, #(1<<EG_SH)
-    blt     crl_smp_loop_end
+    blt     eg_loop_done
 
-    cmp     r8, #(2<<EG_SH)      @ calculate only for operator memory, sample,
-    tstge   r12, #0xf000         @ ...feedback
-    bne     crl_smp_loop
-
-    @ -- LFO+PHASE UPDATE, FF --
-    mov     r0, r8, lsr #EG_SH
-    sub     r0, r0, #1
-
-    tst     r12, #8              @ lfo?
-    beq     lfo_done_ff
-
-    ldr     r2, [lr, #0x34]      @ lfo_inc
-    ldr     r1, [lr, #0x30]      @ lfo_cnt
-    mul     r2, r0, r2
-
-    add     r2, r2, r1
-    str     r2, [lr, #0x30]
-
-    @ r12=lfo_ampm[31:16], r1=lfo_cnt_old, r2=lfo_cnt
-    advance_lfo_m
-
-lfo_done_ff:
-    add     lr, lr, #0x10
-    ldmia   lr, {r1-r3,r5-r7}
-    mul     r6, r0, r6
-    mul     r7, r0, r7
-    add     r1, r1, r6
-    add     r2, r2, r7
-    ldr     r6, [lr, #0x18]
-    ldr     r7, [lr, #0x1c]
-    mul     r6, r0, r6
-    mul     r7, r0, r7
-    add     r3, r3, r6
-    add     r5, r5, r7
-    stmia   lr, {r1-r3,r5}
-    sub     lr, lr, #0x10
-
-crl_smp_loop:
+crl_eg_loop:
     ldr     r5, [lr, #0x40]      @ CH
 #if defined(SSG_EG)
     tst     r12, #0x02              @ ssg_enabled?
     beq     ssg_done
 
     @ -- SSG --
-ssg_loop:
     mov     r6, #4
 ssg_upd_loop:
     @ use lr as a pointer to the slot phases stored in the context
@@ -808,9 +746,11 @@ eg_upd_loop:
     sub     r5, r5, #SLOT_STRUCT_SIZE*3
 
 eg_done:
-    cmp     r8, #(2<<EG_SH)      @ calculate only for operator memory, sample,
-    tstge   r12, #0xf000         @ ...feedback
-    beq     crl_ff
+    subs    r8, r8, #(1<<EG_SH)
+    bge     crl_eg_loop
+
+eg_loop_done:
+    add     r8, r8, #(1<<EG_SH)
 
     @ -- disabled? --
     mov     r0, #0
@@ -847,9 +787,6 @@ lfo_done:
     upd_slot1_m
 
     @ -- SLOT2+ --
-    cmp     r8, #(2<<EG_SH)      @ op mem or sample?
-    bge     crl_algo_done
-
     and     r0, r4, #7
     PIC_XB(,r0, lsl #2)
     nop
@@ -915,13 +852,7 @@ crl_algo_done:
     stmia   lr, {r1-r3,r5}
     sub     lr, lr, #0x10
 
-crl_ff:
-    subs    r8, r8, #(1<<EG_SH)
-    bge     crl_smp_loop
-
 crl_smp_loop_end:
-    add     r8, r8, #(1<<EG_SH)
-
     @ -- WRITE SAMPLE --
     tst     r0, r0
     beq     ctl_sample_skip

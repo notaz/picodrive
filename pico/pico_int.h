@@ -853,6 +853,8 @@ extern short cdda_out_buffer[2*1152];
 
 void cdda_start_play(int lba_base, int lba_offset, int lb_len);
 
+#define YM2612_NATIVE_RATE() (((Pico.m.pal?OSC_PAL:OSC_NTSC)/7 + 3*24) / (6*24))
+
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 void ym2612_pack_state(void);
 void ym2612_unpack_state(void);

@@ -1316,6 +1316,8 @@ bool retro_load_game(const struct retro_game_info *info)
    PicoIn.writeSound = snd_write;
    memset(sndBuffer, 0, sizeof(sndBuffer));
    PicoIn.sndOut = sndBuffer;
+   if (PicoIn.sndRate > 52000)
+      PicoIn.sndRate = YM2612_NATIVE_RATE();
    PsndRerate(0);
 
    apply_renderer();
@@ -1566,7 +1568,9 @@ static void update_variables(bool first_run)
    {
       PicoDetectRegion();
       PicoLoopPrepare();
-      PsndRerate(1);
+      if (PicoIn.sndRate > 52000)
+         PicoIn.sndRate = YM2612_NATIVE_RATE();
+      PsndRerate(!first_run);
    }
 
    old_vout_aspect = vout_aspect;
@@ -1687,10 +1691,12 @@ static void update_variables(bool first_run)
    var.key = "picodrive_sound_rate";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       new_sound_rate = atoi(var.value);
+      if (!strcmp(var.value, "native"))
+        new_sound_rate = YM2612_NATIVE_RATE();
       if (new_sound_rate != PicoIn.sndRate) {
          /* Update the sound rate */
          PicoIn.sndRate = new_sound_rate;
-         PsndRerate(1);
+         PsndRerate(!first_run);
          struct retro_system_av_info av_info;
          retro_get_system_av_info(&av_info);
          environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info);

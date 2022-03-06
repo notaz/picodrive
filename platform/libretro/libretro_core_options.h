@@ -207,7 +207,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "picodrive_sound_rate",
       "Audio Sample Rate (Hz)",
       "Sample Rate (Hz)",
-      "Higher values increase sound quality. Lower values may increase performance.",
+      "Higher values increase sound quality. Lower values may increase performance. Native is the FM sound chip rate, either 53267 Hz for NTSC or 52781 Hz for PAL. Select this if you want the most accurate audio.",
       NULL,
       "audio",
       {
@@ -215,6 +215,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "22050", NULL },
          { "32000", NULL },
          { "44100", NULL },
+         { "native", NULL },
          { NULL, NULL },
       },
       "44100"

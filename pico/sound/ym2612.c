@@ -974,7 +974,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 				ct->mem = op_calc(ct->phase2, eg_out2, c1);
 			}
 			else ct->mem = 0;
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
 				c2  = op_calc(ct->phase3, eg_out,  m2);
@@ -993,7 +992,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
 				ct->mem+= op_calc(ct->phase2, eg_out2, 0);
 			}
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
 				c2  = op_calc(ct->phase3, eg_out,  m2);
@@ -1013,7 +1011,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 				ct->mem = op_calc(ct->phase2, eg_out2, 0);
 			}
 			else ct->mem = 0;
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
 				c2 += op_calc(ct->phase3, eg_out,  m2);
@@ -1033,7 +1030,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 				ct->mem = op_calc(ct->phase2, eg_out2, c1);
 			}
 			else ct->mem = 0;
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
 				c2 += op_calc(ct->phase3, eg_out,  0);
@@ -1048,7 +1044,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 			/* M1---C1-+-OUT */
 			/* M2---C2-+     */
 			/* MEM: not used */
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			c1 = ct->op1_out>>16;
 			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
@@ -1069,7 +1064,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 			/*    +----C2----+     */
 			m2 = ct->mem;
 			ct->mem = c1 = c2 = ct->op1_out>>16;
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
 				smp = op_calc(ct->phase3, eg_out, m2);
@@ -1088,7 +1082,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 			/*      M2-+-OUT */
 			/*      C2-+     */
 			/* MEM: not used */
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			c1 = ct->op1_out>>16;
 			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
@@ -1109,7 +1102,6 @@ static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsig
 			/* M2-+     */
 			/* C2-+     */
 			/* MEM: not used*/
-			if (ct->eg_timer >= (1<<EG_SH)) break;
 
 			smp = ct->op1_out>>16;
 			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
@@ -1139,20 +1131,6 @@ static void chan_render_loop(chan_rend_context *ct, s32 *buffer, int length)
 
 		ct->eg_timer += ct->eg_timer_add;
 
-		if (ct->eg_timer >= 3<<EG_SH && !(ct->pack&0xf000)) {
-			int cnt = (ct->eg_timer>>EG_SH)-2;
-			if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
-				int inc = cnt*ct->lfo_inc;
-				ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + inc) << 16);
-				ct->lfo_cnt += inc;
-			}
-
-			ct->phase1 += cnt*ct->incr1;
-			ct->phase2 += cnt*ct->incr2;
-			ct->phase3 += cnt*ct->incr3;
-			ct->phase4 += cnt*ct->incr4;
-		}
-
 		while (ct->eg_timer >= 1<<EG_SH) {
 			ct->eg_timer -= 1<<EG_SH;
 
@@ -1168,61 +1146,55 @@ static void chan_render_loop(chan_rend_context *ct, s32 *buffer, int length)
 
 				update_eg_phase_channel(ct);
 			}
-
-			ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
-			ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
-			ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
-			ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
-
-			if (ct->eg_timer < (2<<EG_SH) || (ct->pack&0xf000)) {
-				if (ct->pack & 4) goto disabled; /* output disabled */
-
-				if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
-					ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + ct->lfo_inc) << 16);
-					ct->lfo_cnt += ct->lfo_inc;
-				}
-
-				/* calculate channel sample */
-				eg_out = ct->vol_out1;
-				if ( (ct->pack & 8) && (ct->pack&(1<<(SLOT1+8))) )
-					eg_out += ct->pack >> (((ct->pack&0xc0)>>6)+24);
-
-				if( eg_out < ENV_QUIET )	/* SLOT 1 */
-				{
-					int out = 0;
-
-					if (ct->pack&0xf000) out = ((ct->op1_out + (ct->op1_out<<16))>>16) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
-					ct->op1_out <<= 16;
-					ct->op1_out |= (unsigned short)op_calc1(ct->phase1, eg_out, out);
-				} else {
-					ct->op1_out <<= 16; /* op1_out0 = op1_out1; op1_out1 = 0; */
-				}
-
-				if (ct->eg_timer < (2<<EG_SH)) {
-					eg_out  = ct->vol_out3; // volume_calc(&CH->SLOT[SLOT3]);
-					eg_out2 = ct->vol_out2; // volume_calc(&CH->SLOT[SLOT2]);
-					eg_out4 = ct->vol_out4; // volume_calc(&CH->SLOT[SLOT4]);
-
-					if (ct->pack & 8) {
-						unsigned int add = ct->pack >> (((ct->pack&0xc0)>>6)+24);
-						if (ct->pack & (1<<(SLOT3+8))) eg_out  += add;
-						if (ct->pack & (1<<(SLOT2+8))) eg_out2 += add;
-						if (ct->pack & (1<<(SLOT4+8))) eg_out4 += add;
-					}
-
-					smp = update_algo_channel(ct, eg_out, eg_out2, eg_out4);
-				}
-				/* done calculating channel sample */
-
-disabled:
-				/* update phase counters AFTER output calculations */
-				ct->phase1 += ct->incr1;
-				ct->phase2 += ct->incr2;
-				ct->phase3 += ct->incr3;
-				ct->phase4 += ct->incr4;
-			}
-
 		}
+
+		ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
+		ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
+		ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
+		ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
+
+		if (ct->pack & 4) goto disabled; /* output disabled */
+
+		if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
+			ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + ct->lfo_inc) << 16);
+			ct->lfo_cnt += ct->lfo_inc;
+		}
+
+		/* calculate channel sample */
+		eg_out = ct->vol_out1;
+		if ( (ct->pack & 8) && (ct->pack&(1<<(SLOT1+8))) )
+			eg_out += ct->pack >> (((ct->pack&0xc0)>>6)+24);
+
+		if( eg_out < ENV_QUIET )	/* SLOT 1 */
+		{
+			int out = 0;
+
+			if (ct->pack&0xf000) out = ((ct->op1_out + (ct->op1_out<<16))>>16) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
+			ct->op1_out <<= 16;
+			ct->op1_out |= (unsigned short)op_calc1(ct->phase1, eg_out, out);
+		} else {
+			ct->op1_out <<= 16; /* op1_out0 = op1_out1; op1_out1 = 0; */
+		}
+
+		eg_out  = ct->vol_out3; // volume_calc(&CH->SLOT[SLOT3]);
+		eg_out2 = ct->vol_out2; // volume_calc(&CH->SLOT[SLOT2]);
+		eg_out4 = ct->vol_out4; // volume_calc(&CH->SLOT[SLOT4]);
+
+		if (ct->pack & 8) {
+			unsigned int add = ct->pack >> (((ct->pack&0xc0)>>6)+24);
+			if (ct->pack & (1<<(SLOT3+8))) eg_out  += add;
+			if (ct->pack & (1<<(SLOT2+8))) eg_out2 += add;
+			if (ct->pack & (1<<(SLOT4+8))) eg_out4 += add;
+		}
+
+		smp = update_algo_channel(ct, eg_out, eg_out2, eg_out4);
+		/* done calculating channel sample */
+disabled:
+		/* update phase counters AFTER output calculations */
+		ct->phase1 += ct->incr1;
+		ct->phase2 += ct->incr2;
+		ct->phase3 += ct->incr3;
+		ct->phase4 += ct->incr4;
 
 		/* mix sample to output buffer */
 		if (smp) {
@@ -1615,7 +1587,7 @@ static void OPNSetPres(int pres)
 	double freqbase = (ym2612.OPN.ST.rate) ? ((double)ym2612.OPN.ST.clock / ym2612.OPN.ST.rate) / pres : 0;
 
 	ym2612.OPN.eg_timer_add  = (1<<EG_SH) * freqbase;
-	ym2612.OPN.ST.freqbase = 1.0; // freqbase
+	ym2612.OPN.ST.freqbase = freqbase;
 
 	/* make time tables */
 	init_timetables( dt_tab );
