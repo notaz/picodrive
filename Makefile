@@ -118,6 +118,16 @@ use_inputmap ?= 1
 PLATFORM := generic
 endif
 ifeq "$(PLATFORM)" "miyoo"
+$(TARGET).zip: $(TARGET)
+	$(RM) -rf .od_data
+	cp -r platform/opendingux/data/. .od_data
+	cp platform/game_def.cfg .od_data
+	cp $< .od_data/PicoDrive
+	$(STRIP) .od_data/PicoDrive
+	rm -f .od_data/default.*.desktop .od_data/PicoDrive.dge
+	cd .od_data && zip -9 -r ../$@ *
+all: $(TARGET).zip
+
 OBJS += platform/opendingux/inputmap.o
 use_inputmap ?= 1
 PLATFORM := generic

@@ -14,6 +14,7 @@
 #	retrofw:	mipsel-linux-uclibc (the retrofw toolchain)
 #	gcw0:		gcw0-toolchain; mips-toolchain (buildroot, newer gcc)
 #	rg350:		rg350-toolchain; mips-toolchain (buildroot, newer gcc)
+#	miyoo:		miyoo
 #	psp:		pspdev
 # additionally needed libs for toolchains in $HOME/opt/lib and $HOME/opt/lib64
 
@@ -80,6 +81,13 @@ mv PicoDrive.opk release-$rel/PicoDrive-gcw0_$rel.opk
 TC=$HOME/opt/rg350-toolchain PATH=$HOME/opt/mips-toolchain/bin:$PATH CROSS_COMPILE=mipsel-linux- TS=$TC/usr/mipsel-gcw0-linux-uclibc/sysroot CFLAGS="-I$TS/usr/include -I$TS/usr/include/SDL -mabicalls" LDFLAGS="--sysroot $TS -Wl,--dynamic-linker=/lib/ld-uClibc.so.0 -u__register_frame_info -u__deregister_frame_info" ./configure --platform=opendingux
 PATH=$HOME/opt/mips-toolchain/usr/bin:$PATH make clean all
 mv PicoDrive.opk release-$rel/PicoDrive-opendingux_$rel.opk
+}
+
+[ -z "${plat##* miyoo *}" ] && {
+# miyoo: BittBoy >=v1, PocketGo, Powkiddy [QV]90/Q20 (Allwinner F1C100s, ARM926)
+TC=$HOME/opt/miyoo PATH=$TC/bin:$PATH CROSS_COMPILE=arm-miyoo-linux-uclibcgnueabi- CFLAGS="-I $TC/arm-miyoo-linux-uclibcgnueabi/sysroot/usr/include -I $TC/arm-miyoo-linux-uclibcgnueabi/sysroot/usr/include/SDL -Wno-unused-result" LDFLAGS="--sysroot $TC/arm-miyoo-linux-uclibcgnueabi/sysroot" ./configure --platform=miyoo
+TC=$HOME/opt/miyoo PATH=$TC/bin:$PATH make clean all
+mv PicoDrive.zip release-$rel/PicoDrive-miyoo_$rel.zip
 }
 
 [ -z "${plat##* psp *}" ] && {
