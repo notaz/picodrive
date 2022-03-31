@@ -76,6 +76,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_PWM_IRQ_OPT    (1<<22)
 #define POPT_DIS_FM_SSGEG   (1<<23)
 #define POPT_EN_FM_DAC      (1<<24) //x00 0000
+#define POPT_EN_FM_FILTER   (1<<25)
 
 #define PAHW_MCD    (1<<0)
 #define PAHW_32X    (1<<1)

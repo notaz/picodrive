@@ -14,6 +14,12 @@
 #include "mix.h"
 #include "emu2413/emu2413.h"
 
+#ifdef USE_BLIPPER
+#include "blipper.h"
+#else
+#include "resampler.h"
+#endif
+
 void (*PsndMix_32_to_16l)(s16 *dest, s32 *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to
@@ -32,6 +38,11 @@ OPLL old_opll;
 static OPLL *opll = NULL;
 unsigned YM2413_reg;
 
+#ifdef USE_BLIPPER
+static blipper_t *fmlblip, *fmrblip;
+#else
+static resampler_t *fmresampler;
+#endif
 
 PICO_INTERNAL void PsndInit(void)
 {
@@ -44,6 +55,13 @@ PICO_INTERNAL void PsndExit(void)
 {
   OPLL_delete(opll);
   opll = NULL;
+
+#ifdef USE_BLIPPER
+  blipper_free(fmlblip); fmlblip = NULL;
+  blipper_free(fmrblip); fmrblip = NULL;
+#else
+  resampler_free(fmresampler); fmresampler = NULL;
+#endif
 }
 
 PICO_INTERNAL void PsndReset(void)
@@ -53,6 +71,111 @@ PICO_INTERNAL void PsndReset(void)
   timers_reset();
 }
 
+int (*PsndFMUpdate)(s32 *buffer, int length, int stereo, int is_buf_empty);
+
+// FM polyphase FIR resampling
+
+#ifdef USE_BLIPPER
+#define FMFIR_TAPS	11
+
+// resample FM from its native 53267Hz/52781Hz with the blipper library
+static u32 ymmulinv;
+
+int YM2612UpdateFIR(s32 *buffer, int length, int stereo, int is_buf_empty)
+{
+  int mul = Pico.snd.fm_fir_mul, div = Pico.snd.fm_fir_div;
+  s32 *p = buffer, *q = buffer;
+  int ymlen;
+  int ret = 0;
+
+  if (length <= 0) return ret;
+
+  // FM samples needed: (length*div + div-blipper_read_phase(fmlblip)) / mul
+  ymlen = ((length*div + div-blipper_read_phase(fmlblip)) * ymmulinv) >> 32;
+  if (ymlen > 0)
+    ret = YM2612UpdateOne(p, ymlen, stereo, is_buf_empty);
+
+  if (stereo) {
+    blipper_push_long_samples(fmlblip, p  , ymlen, 2, mul);
+    blipper_push_long_samples(fmrblip, p+1, ymlen, 2, mul);
+    blipper_read_long(fmlblip, q  , blipper_read_avail(fmlblip), 2);
+    blipper_read_long(fmrblip, q+1, blipper_read_avail(fmrblip), 2);
+  } else {
+    blipper_push_long_samples(fmlblip, p  , ymlen, 1, mul);
+    blipper_read_long(fmlblip, q  , blipper_read_avail(fmlblip), 1);
+  }
+
+  return ret;
+}
+
+static void YM2612_setup_FIR(int inrate, int outrate, int stereo)
+{
+  int mindiff = 999;
+  int diff, mul, div;
+  int maxdecim = 1500/FMFIR_TAPS;
+
+  // compute filter ratio with smallest error for a decent number of taps
+  for (div = maxdecim/2; div <= maxdecim; div++) {
+    mul = (outrate*div + inrate/2) / inrate;
+    diff = outrate*div/mul - inrate;
+    if (abs(diff) < abs(mindiff)) {
+      mindiff = diff;
+      Pico.snd.fm_fir_mul = mul;
+      Pico.snd.fm_fir_div = div;
+    }
+  }
+  ymmulinv = 0x100000000ULL / mul; /* 1/mul in Q32 */
+  printf("FM polyphase FIR ratio=%d/%d error=%.3f%%\n",
+        Pico.snd.fm_fir_mul, Pico.snd.fm_fir_div, 100.0*mindiff/inrate);
+
+  // create blipper (modified for polyphase resampling). Not really perfect for
+  // FM, but has SINC generator, a good window, and computes the filter in Q16.
+  blipper_free(fmlblip);
+  blipper_free(fmrblip);
+  fmlblip = blipper_new(FMFIR_TAPS, 0.85, 8.5, Pico.snd.fm_fir_div, 1000, NULL);
+  if (!stereo) return;
+  fmrblip = blipper_new(FMFIR_TAPS, 0.85, 8.5, Pico.snd.fm_fir_div, 1000, NULL);
+}
+#else
+#define FMFIR_TAPS	8
+
+// resample FM from its native 53267Hz/52781Hz with polyphase FIR filter
+static int ymchans;
+static void YM2612Update(s32 *buffer, int length, int stereo)
+{
+  ymchans = YM2612UpdateOne(buffer, length, stereo, 1);
+}
+
+int YM2612UpdateFIR(s32 *buffer, int length, int stereo, int is_buf_empty)
+{
+  resampler_update(fmresampler, buffer, length, YM2612Update);
+  return ymchans;
+}
+
+static void YM2612_setup_FIR(int inrate, int outrate, int stereo)
+{
+  int mindiff = 999;
+  int diff, mul, div;
+  int maxmult = 30; // max interpolation factor
+
+  // compute filter ratio with largest multiplier for smallest error
+  for (mul = maxmult/2; mul <= maxmult; mul++) {
+    div = (inrate*mul + outrate/2) / outrate;
+    diff = outrate*div/mul - inrate;
+    if (abs(diff) <= abs(mindiff)) {
+      mindiff = diff;
+      Pico.snd.fm_fir_mul = mul;
+      Pico.snd.fm_fir_div = div;
+    }
+  }
+  printf("FM polyphase FIR ratio=%d/%d error=%.3f%%\n",
+        Pico.snd.fm_fir_mul, Pico.snd.fm_fir_div, 100.0*mindiff/inrate);
+
+  resampler_free(fmresampler);
+  fmresampler = resampler_new(FMFIR_TAPS, Pico.snd.fm_fir_mul, Pico.snd.fm_fir_div,
+        0.85, 2.35, 2*inrate/50, stereo);
+}
+#endif
 
 // to be called after changing sound rate or chips
 void PsndRerate(int preserve_state)
@@ -60,6 +183,7 @@ void PsndRerate(int preserve_state)
   void *state = NULL;
   int target_fps = Pico.m.pal ? 50 : 60;
   int target_lines = Pico.m.pal ? 313 : 262;
+  int ym2612_clock = Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7;
 
   if (preserve_state) {
     state = malloc(0x204);
@@ -67,9 +191,19 @@ void PsndRerate(int preserve_state)
     ym2612_pack_state();
     memcpy(state, YM2612GetRegs(), 0x204);
   }
-  YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PicoIn.sndRate,
+  if (PicoIn.opt & POPT_EN_FM_FILTER) {
+    int ym2612_rate = (ym2612_clock+(6*24)/2) / (6*24);
+    YM2612Init(ym2612_clock, ym2612_rate,
         ((PicoIn.opt&POPT_DIS_FM_SSGEG) ? 0 : ST_SSG) |
         ((PicoIn.opt&POPT_EN_FM_DAC)    ? ST_DAC : 0));
+    YM2612_setup_FIR(ym2612_rate, PicoIn.sndRate, PicoIn.opt & POPT_EN_STEREO);
+    PsndFMUpdate = YM2612UpdateFIR;
+  } else {
+    YM2612Init(ym2612_clock, PicoIn.sndRate,
+        ((PicoIn.opt&POPT_DIS_FM_SSGEG) ? 0 : ST_SSG) |
+        ((PicoIn.opt&POPT_EN_FM_DAC)    ? ST_DAC : 0));
+    PsndFMUpdate = YM2612UpdateOne;
+  }
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x204);
@@ -267,7 +401,7 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
     pos <<= 1;
   }
   if (PicoIn.opt & POPT_EN_FM)
-    YM2612UpdateOne(PsndBuffer + pos, len, stereo, 1);
+    PsndFMUpdate(PsndBuffer + pos, len, stereo, 1);
 }
 
 // cdda
@@ -383,7 +517,7 @@ static int PsndRender(int offset, int length)
     s32 *fmbuf = buf32 + ((fmlen-offset) << stereo);
     Pico.snd.fm_pos += (length-fmlen) << 20;
     if (PicoIn.opt & POPT_EN_FM)
-      YM2612UpdateOne(fmbuf, length-fmlen, stereo, 1);
+      PsndFMUpdate(fmbuf, length-fmlen, stereo, 1);
   }
 
   // CD: PCM sound
