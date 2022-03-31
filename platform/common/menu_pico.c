@@ -631,7 +631,7 @@ static const char *mgn_opt_sound(int id, int *offs)
 	*offs = -8;
 	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
 	if (PicoIn.sndRate > 52000)
-		sprintf(static_buff, "native %s\n", str2);
+		sprintf(static_buff, "native %s", str2);
 	else	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
 	return static_buff;
 }
