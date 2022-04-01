@@ -850,6 +850,10 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
     PicoCartDetect(carthw_cfg);
   if (PicoIn.AHW & PAHW_SMS)
     PicoCartDetectMS();
+  if (PicoIn.AHW & PAHW_SVP)
+    PicoSVPStartup();
+  if (PicoIn.AHW & PAHW_PICO)
+    PicoInitPico();
 
   // setup correct memory map for loaded ROM
   switch (PicoIn.AHW) {
@@ -1118,9 +1122,9 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
       rstrip(p);
 
       if      (strcmp(p, "svp") == 0)
-        PicoSVPStartup();
+        PicoIn.AHW = PAHW_SVP;
       else if (strcmp(p, "pico") == 0)
-        PicoInitPico();
+        PicoIn.AHW = PAHW_PICO;
       else if (strcmp(p, "prot") == 0)
         carthw_sprot_startup();
       else if (strcmp(p, "ssf2_mapper") == 0)
