@@ -442,6 +442,24 @@ static int menu_loop_keyconfig(int id, int keys)
 	return 0;
 }
 
+// ------------ MD options menu ------------
+
+static menu_entry e_menu_md_options[] =
+{
+	mee_enum      ("Renderer",        MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_end,
+};
+
+static int menu_loop_md_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_enable(e_menu_md_options, MA_OPT_RENDERER, renderer_names[0] != NULL);
+	me_loop(e_menu_md_options, &sel);
+
+	return 0;
+}
+
 // ------------ SCD options menu ------------
 
 static const char h_cdleds[] = "Show power/CD LEDs of emulated console";
@@ -503,6 +521,7 @@ static const char *mgn_opt_sh2cycles(int id, int *offs)
 
 static const char h_32x_enable[] = "Enable emulation of the 32X addon";
 static const char h_pwm[]        = "Disabling may improve performance, but break sound";
+static const char h_pwmopt[]     = "Enabling may improve performance, but break sound";
 static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
 				   "lower values speed up emulation but break games\n"
 				   "at least 11000 recommended for compatibility";
@@ -512,6 +531,7 @@ static menu_entry e_menu_32x_options[] =
 	mee_onoff_h   ("32X enabled",       MA_32XOPT_ENABLE_32X,  PicoIn.opt, POPT_EN_32X, h_32x_enable),
 	mee_enum      ("32X renderer",      MA_32XOPT_RENDERER,    currentConfig.renderer32x, renderer_names32x),
 	mee_onoff_h   ("PWM sound",         MA_32XOPT_PWM,         PicoIn.opt, POPT_EN_PWM, h_pwm),
+	mee_onoff_h   ("PWM IRQ optimization", MA_OPT2_PWM_IRQ_OPT, PicoIn.opt, POPT_PWM_IRQ_OPT, h_pwmopt),
 	mee_cust_h    ("Master SH2 cycles", MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_cust_h    ("Slave SH2 cycles",  MA_32XOPT_SSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_end,
@@ -538,12 +558,14 @@ static int menu_loop_32x_options(int id, int keys)
 static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG-1000", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", NULL };
 static const char h_smsfm[] = "FM sound is only supported by few games\nOther games may crash with FM enabled";
+static const char h_ghost[] = "when active simulates inertia of the GG LCD display";
 
 static menu_entry e_menu_sms_options[] =
 {
-	mee_enum      ("System",        MA_SMSOPT_HARDWARE,    PicoIn.hwSelect, sms_hardwares),
-	mee_onoff_h   ("FM Sound Unit", MA_OPT2_ENABLE_YM2413, PicoIn.opt, POPT_EN_YM2413, h_smsfm),
-	mee_enum      ("Cartridge mapping", MA_SMSOPT_MAPPER,  PicoIn.mapper, sms_mappers),
+	mee_enum      ("System",            MA_SMSOPT_HARDWARE, PicoIn.hwSelect, sms_hardwares),
+	mee_enum_h    ("Game Gear LCD ghosting", MA_SMSOPT_GHOSTING, currentConfig.ghosting, men_ghosting_opts, h_ghost),
+	mee_onoff_h   ("FM Sound Unit",     MA_OPT2_ENABLE_YM2413, PicoIn.opt, POPT_EN_YM2413, h_smsfm),
+	mee_enum      ("Cartridge mapping", MA_SMSOPT_MAPPER, PicoIn.mapper, sms_mappers),
 	mee_end,
 };
 
@@ -575,8 +597,6 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
 	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
-	mee_range     ("Max auto frameskip",       MA_OPT2_MAX_FRAMESKIP, currentConfig.max_skip, 1, 10),
-	mee_onoff     ("PWM IRQ optimization",     MA_OPT2_PWM_IRQ_OPT,   PicoIn.opt, POPT_PWM_IRQ_OPT),
 	MENU_OPTIONS_ADV
 	mee_end,
 };
@@ -630,7 +650,7 @@ static const char *mgn_opt_sound(int id, int *offs)
 	const char *str2;
 	*offs = -8;
 	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
-	if (PicoIn.sndRate > 52000)
+	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
 		sprintf(static_buff, "native %s", str2);
 	else	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
 	return static_buff;
@@ -671,7 +691,7 @@ static int menu_loop_snd_options(int id, int keys)
 {
 	static int sel = 0;
 
-	if (PicoIn.sndRate > 52000)
+	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
 		PicoIn.sndRate = 53000;
 	me_loop(e_menu_snd_options, &sel);
 
@@ -698,11 +718,11 @@ static const char *mgn_aopt_gamma(int id, int *offs)
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
-	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
-	mee_range_cust("Frameskip",      MA_OPT_FRAMESKIP, currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
-	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
-	mee_range_cust_h("Gamma correction", MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
+	mee_enum      ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_range_cust("Frameskip",         MA_OPT_FRAMESKIP, currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
+	mee_range     ("Max auto frameskip",MA_OPT2_MAX_FRAMESKIP, currentConfig.max_skip, 1, 10),
+	mee_enum      ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
+	mee_range_cust_h("Gamma correction",MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
 	MENU_OPTIONS_GFX
 	mee_end,
 };
@@ -711,7 +731,6 @@ static int menu_loop_gfx_options(int id, int keys)
 {
 	static int sel = 0;
 
-	me_enable(e_menu_gfx_options, MA_OPT_RENDERER, renderer_names[0] != NULL);
 	me_loop(e_menu_gfx_options, &sel);
 
 	return 0;
@@ -866,12 +885,13 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("[Interface options]",      menu_loop_ui_options),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sound options]",          menu_loop_snd_options),
+	mee_handler   ("[Megadrive options]",      menu_loop_md_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
 	mee_handler   ("[32X options]",            menu_loop_32x_options),
 #endif
 #ifndef NO_SMS
-	mee_handler   ("[SMS options]",            menu_loop_sms_options),
+	mee_handler   ("[SG/SMS/GG options]",      menu_loop_sms_options),
 #endif
 	mee_handler   ("[Advanced options]",       menu_loop_adv_options),
 	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
@@ -1332,6 +1352,7 @@ static menu_entry *e_menu_table[] =
 	e_menu_snd_options,
 	e_menu_gfx_options,
 	e_menu_adv_options,
+	e_menu_md_options,
 	e_menu_cd_options,
 #ifndef NO_32X
 	e_menu_32x_options,

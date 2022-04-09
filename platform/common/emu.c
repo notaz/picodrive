@@ -1329,7 +1329,7 @@ void emu_sound_start(void)
 	PicoIn.sndOut = NULL;
 
 	// auto-select rate?
-	if (PicoIn.sndRate > 52000)
+	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
 		PicoIn.sndRate = YM2612_NATIVE_RATE();
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{

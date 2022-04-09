@@ -28,6 +28,7 @@ void gp2x_menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 0);
 	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 0);
 	me_enable(e_menu_gfx_options, MA_OPT2_A_SN_GAMMA, 0);
+	me_enable(e_menu_sms_options, MA_SMSOPT_GHOSTING, 0);
 
 	switch (gp2x_dev_id) {
 	case GP2X_DEV_GP2X:

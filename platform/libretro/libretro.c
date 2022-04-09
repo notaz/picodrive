@@ -1316,7 +1316,7 @@ bool retro_load_game(const struct retro_game_info *info)
    PicoIn.writeSound = snd_write;
    memset(sndBuffer, 0, sizeof(sndBuffer));
    PicoIn.sndOut = sndBuffer;
-   if (PicoIn.sndRate > 52000)
+   if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
       PicoIn.sndRate = YM2612_NATIVE_RATE();
    PsndRerate(0);
 
@@ -1577,7 +1577,7 @@ static void update_variables(bool first_run)
    {
       PicoDetectRegion();
       PicoLoopPrepare();
-      if (PicoIn.sndRate > 52000)
+      if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
          PicoIn.sndRate = YM2612_NATIVE_RATE();
       PsndRerate(!first_run);
    }

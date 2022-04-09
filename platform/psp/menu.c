@@ -1,7 +1,7 @@
 
 static const char *men_hscaling_opts[] = { "OFF", "4:3", "wide", "fullscreen", NULL };
 static const char *men_vscaling_opts[] = { "OFF", "PAL", "fullscreen", NULL };
-static const char *men_filter_opts[] = { "OFF", "bilinear" };
+static const char *men_filter_opts[] = { "nearest", "bilinear" };
 
 #define MENU_OPTIONS_GFX \
 	mee_enum    ("Horizontal scaling", MA_OPT_SCALING,    currentConfig.scaling, men_hscaling_opts), \
@@ -15,4 +15,5 @@ static const char *men_filter_opts[] = { "OFF", "bilinear" };
 
 void psp_menu_init(void)
 {
+	me_enable(e_menu_sms_options, MA_SMSOPT_GHOSTING, 0);
 }

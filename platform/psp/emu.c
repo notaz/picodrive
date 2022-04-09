@@ -487,7 +487,7 @@ void pemu_sound_start(void)
 		}
 	}
 
-	if (PicoIn.sndRate > 52000)
+	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
 		PicoIn.sndRate = YM2612_NATIVE_RATE();
 	ret = POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO;
 	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&ret) != (PicoOpt_old&ret) || Pico.m.pal != pal_old) {
