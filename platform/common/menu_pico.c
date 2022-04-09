@@ -404,12 +404,14 @@ static const char *mgn_saveloadcfg(int id, int *offs);
 const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
+static char h_play34[] = "only for MD(+add-ons) with Team/4 way";
+
 static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
-	mee_handler_id("Player 3",          MA_CTRL_PLAYER3,    key_config_loop_wrap),
-	mee_handler_id("Player 4",          MA_CTRL_PLAYER4,    key_config_loop_wrap),
+	mee_handler_id_h("Player 3",        MA_CTRL_PLAYER3,    key_config_loop_wrap, h_play34),
+	mee_handler_id_h("Player 4",        MA_CTRL_PLAYER4,    key_config_loop_wrap, h_play34),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev0_names),
 	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev1_names),
@@ -558,7 +560,7 @@ static int menu_loop_32x_options(int id, int keys)
 static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG-1000", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", NULL };
 static const char h_smsfm[] = "FM sound is only supported by few games\nOther games may crash with FM enabled";
-static const char h_ghost[] = "when active simulates inertia of the GG LCD display";
+static const char h_ghost[] = "simulates the inertia of the GG LCD display";
 
 static menu_entry e_menu_sms_options[] =
 {
@@ -651,7 +653,7 @@ static const char *mgn_opt_sound(int id, int *offs)
 	*offs = -8;
 	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
 	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
-		sprintf(static_buff, "native %s", str2);
+		sprintf(static_buff, "native  %s", str2);
 	else	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
 	return static_buff;
 }
@@ -885,10 +887,10 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("[Interface options]",      menu_loop_ui_options),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sound options]",          menu_loop_snd_options),
-	mee_handler   ("[Megadrive options]",      menu_loop_md_options),
-	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
+	mee_handler   ("[MD/Genesis options]",     menu_loop_md_options),
+	mee_handler   ("  [Sega/Mega CD add-on]",  menu_loop_cd_options),
 #ifndef NO_32X
-	mee_handler   ("[32X options]",            menu_loop_32x_options),
+	mee_handler   ("  [32X add-on]",           menu_loop_32x_options),
 #endif
 #ifndef NO_SMS
 	mee_handler   ("[SG/SMS/GG options]",      menu_loop_sms_options),
