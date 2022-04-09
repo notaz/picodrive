@@ -218,6 +218,7 @@ OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
 OBJS += platform/libretro/libretro-common/memmap/memmap.o
 OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
 OBJS += platform/libretro/libretro-common/string/stdstring.o
+OBJS += platform/libretro/libretro-common/file/file_path.o
 OBJS += platform/libretro/libretro-common/streams/file_stream.o
 OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
