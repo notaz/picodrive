@@ -83,7 +83,8 @@ static retro_audio_sample_batch_t audio_batch_cb;
 #define VOUT_MAX_WIDTH 320
 #define VOUT_MAX_HEIGHT 240
 
-#define INITIAL_SND_RATE 44100
+#define SND_RATE_DEFAULT 44100
+#define SND_RATE_MAX     53267
 
 static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (4.0f / 3.0f);
@@ -113,7 +114,7 @@ static void *retro_palette;
 static struct retro_hw_ps2_insets padding;
 #endif
 
-static short ALIGNED(4) sndBuffer[2*INITIAL_SND_RATE/50];
+static short ALIGNED(4) sndBuffer[2*SND_RATE_MAX/50];
 
 static void snd_write(int len);
 
@@ -1941,7 +1942,7 @@ void retro_init(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
       PicoIn.sndRate = atoi(var.value);
    else
-      PicoIn.sndRate = INITIAL_SND_RATE;
+      PicoIn.sndRate = SND_RATE_DEFAULT;
 
    PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
