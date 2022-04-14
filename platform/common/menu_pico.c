@@ -38,8 +38,8 @@
 #define REVISION "0"
 
 static const char *rom_exts[] = {
-	"zip",
-	"bin", "smd", "gen", "md",
+	"zip", "bin",
+	"pco", "smd", "gen", "md",
 	"iso", "cso", "cue", "chd",
 	"32x",
 	"sms", "gg",  "sg",

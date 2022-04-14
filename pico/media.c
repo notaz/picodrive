@@ -35,7 +35,7 @@ static int detect_media(const char *fname)
 {
   static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
   static const char *sms_exts[] = { "sms", "gg", "sg" };
-  static const char *md_exts[] = { "gen", "smd" };
+  static const char *md_exts[] = { "gen", "smd", "md" };
   static const char *pico_exts[] = { "pco" };
   char buff0[512], buff[32];
   unsigned short *d16;
