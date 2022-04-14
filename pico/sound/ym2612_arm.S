@@ -682,15 +682,15 @@ crl_loop:
     subs    r4, r4, #0x100
     bmi     crl_loop_end
 
+    ldr     r5, [lr, #0x40]      @ CH
     mov     r0, #0
     add     r8, r8, r9
     subs    r8, r8, #(1<<EG_SH)
     blt     eg_loop_done
 
 crl_eg_loop:
-    ldr     r5, [lr, #0x40]      @ CH
 #if defined(SSG_EG)
-    tst     r12, #0x02              @ ssg_enabled?
+    tst     r12, #0x02           @ ssg_enabled?
     beq     ssg_done
 
     @ -- SSG --

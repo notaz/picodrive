@@ -57,7 +57,7 @@ int pico_inp_mode;
 int flip_after_sync;
 int engineState = PGS_Menu;
 
-static short __attribute__((aligned(4))) sndBuffer[2*53267/50];
+static short __attribute__((aligned(4))) sndBuffer[2*54000/50];
 
 /* tmp buff to reduce stack usage for plats with small stack */
 static char static_buff[512];

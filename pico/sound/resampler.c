@@ -154,7 +154,7 @@ resampler_t *resampler_new(unsigned taps, unsigned interpolation, unsigned decim
 
    /* :cutoff is relative to the decimated frequency, but filtering is taking
     * place at the interpolated frequency. It needs to be adapted if resampled
-    * rate is lower. Also needs more taps to keep the transistion band width */
+    * rate is lower. Also needs more taps to keep the transition band width */
    if (decimation > interpolation) {
       cutoff = cutoff * interpolation/decimation;
       taps = taps * decimation/interpolation;
@@ -164,7 +164,7 @@ resampler_t *resampler_new(unsigned taps, unsigned interpolation, unsigned decim
    rs->decimation = decimation;
    rs->taps = taps;
    /* optimizers for resampler_update: */
-   rs->interp_inv = 0x100000000ULL / interpolation; 
+   rs->interp_inv = (1ULL<<32) / interpolation; 
    rs->ratio_int = decimation / interpolation;
 
    rs->filter = create_sinc(interpolation, taps, cutoff, beta);
@@ -195,7 +195,7 @@ void resampler_update(resampler_t *rs, s32 *buffer, int length,
 {
   s16 *u;
   s32 *p, *q = buffer;
-  int spf = (rs->stereo?2:1);
+  int spf = rs->stereo;
   s32 inlen;
   s32 l, r;
   int n, i;
@@ -206,29 +206,30 @@ void resampler_update(resampler_t *rs, s32 *buffer, int length,
    * inlen = (length*decimation + interpolation-phase) / interpolation */
   n = length*rs->decimation + rs->interpolation-rs->phase;
   inlen = ((u64)n * rs->interp_inv) >> 32; /* input samples, n/interpolation */
-  if (inlen * rs->interpolation < n - rs->interpolation) inlen++; /* rounding */
+  if (n - inlen * rs->interpolation > rs->interpolation) inlen++; /* rounding */
 
   /* reset buffer to start if the input doesn't fit into the buffer */
   if (rs->buffer_idx + inlen+rs->taps >= rs->buffer_sz) {
-    memcpy(rs->buffer, rs->buffer + rs->buffer_idx*spf, rs->taps*spf*sizeof(*rs->buffer));
+    memcpy(rs->buffer, rs->buffer + (rs->buffer_idx<<spf), (rs->taps<<spf)*sizeof(*rs->buffer));
     rs->buffer_idx = 0;
   }
-  p = rs->buffer + rs->buffer_idx*spf;
+  p = rs->buffer + (rs->buffer_idx<<spf);
 
   /* generate input samples */
   if (inlen > 0)
-    get_samples(p + rs->taps*spf, inlen, rs->stereo);
+    get_samples(p + (rs->taps<<spf), inlen, rs->stereo);
 
   if (rs->stereo) {
     while (--length >= 0) {
       /* compute filter output */
+      s32 *h = p;
       u = rs->filter + (rs->phase * rs->taps);
-      for (i = 0, l = r = 0; i < rs->taps-1; i += 2)
-        { n = *u++; l += n * p[2*i  ]; r += n * p[2*i+1];  
-          n = *u++; l += n * p[2*i+2]; r += n * p[2*i+3]; }
-      if (i < rs->taps)
-        { n = *u++; l += n * p[2*i  ]; r += n * p[2*i+1]; }
-      *q++ = l >> 16, *q++ = r >> 16;
+      for (i = rs->taps-1, l = r = 0; i > 0; i -= 2)
+        { n = *u++; l += n * *h++; r += n * *h++;  
+          n = *u++; l += n * *h++; r += n * *h++; }
+      if (i == 0)
+        { n = *u++; l += n * *h++; r += n * *h++; }
+      *q++ = l >> 15, *q++ = r >> 15;
       /* advance position to next sample */
       rs->phase -= rs->decimation;
 //    if (rs->ratio_int) {
@@ -241,13 +242,14 @@ void resampler_update(resampler_t *rs, s32 *buffer, int length,
   } else {
     while (--length >= 0) {
       /* compute filter output */
+      s32 *h = p;
       u = rs->filter + (rs->phase * rs->taps);
-      for (i = 0, l = r = 0; i < rs->taps-1; i += 2)
-        { n = *u++; l += n * p[  i  ];
-          n = *u++; l += n * p[  i+1]; }
-      if (i < rs->taps)
-        { n = *u++; l += n * p[  i  ]; }
-      *q++ = l >> 16;
+      for (i = rs->taps-1, l = r = 0; i > 0; i -= 2)
+        { n = *u++; l += n * *h++;
+          n = *u++; l += n * *h++; }
+      if (i == 0)
+        { n = *u++; l += n * *h++; }
+      *q++ = l >> 15;
       /* advance position to next sample */
       rs->phase -= rs->decimation;
 //    if (rs->ratio_int) {

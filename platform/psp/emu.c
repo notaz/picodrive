@@ -398,7 +398,7 @@ static void vidResetMode(void)
 #define SOUND_BLOCK_SIZE_PAL  (1764*2)
 #define SOUND_BLOCK_COUNT    8
 
-static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 44100/50*2];
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 54000/50*2];
 static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
 static int samples_made = 0, samples_done = 0, samples_block = 0;
 static int sound_thread_exit = 0;

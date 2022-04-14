@@ -1640,6 +1640,15 @@ static void update_variables(bool first_run)
          PicoIn.opt &= ~POPT_EN_FM_DAC;
    }
 
+   var.value = NULL;
+   var.key = "picodrive_fm_filter";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "on") == 0)
+         PicoIn.opt |= POPT_EN_FM_FILTER;
+      else
+         PicoIn.opt &= ~POPT_EN_FM_FILTER;
+   }
+
    old_snd_filter = PicoIn.opt & POPT_EN_SNDFILTER;
    var.value = NULL;
    var.key = "picodrive_audio_filter";
