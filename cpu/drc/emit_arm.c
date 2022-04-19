@@ -437,7 +437,7 @@ static u32 literal_pool[MAX_HOST_LITERALS];
 static u32 *literal_insn[MAX_HOST_LITERALS];
 static int literal_pindex, literal_iindex;
 
-static int emith_pool_literal(u32 imm, int *offs)
+static inline int emith_pool_literal(u32 imm, int *offs)
 {
 	int idx = literal_pindex - 8; // max look behind in pool
 	// see if one of the last literals was the same (or close enough)
