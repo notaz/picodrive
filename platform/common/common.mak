@@ -200,8 +200,8 @@ $(FR)cpu/cyclone/Cyclone.h:
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/$(CYCLONE_CONFIG)
 	@echo building Cyclone...
-	@export CC=$(CYCLONE_CC) CXX=$(CYCLONE_CXX) CFLAGS=-O2; \
-	 make -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG) HAVE_ARMv6=$(HAVE_ARMv6)
+	@export CC=$(CYCLONE_CC) CXX=$(CYCLONE_CXX) CFLAGS=-O2 CXXFLAGS=-O2 CPPFLAGS="" LDFLAGS="" && \
+		make -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG) HAVE_ARMv6=$(HAVE_ARMv6)
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 

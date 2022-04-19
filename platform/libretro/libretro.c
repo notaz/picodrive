@@ -616,7 +616,7 @@ void retro_set_environment(retro_environment_t cb)
 
    static const struct retro_system_content_info_override content_overrides[] = {
       {
-         "gen|smd|md|32x|sms|68k|sgd|pco", /* extensions */
+         "gen|smd|md|32x|sms|gg|sg|68k|sgd|pco", /* extensions */
 #if defined(LOW_MEMORY)
          true,                         /* need_fullpath */
 #else
@@ -2276,7 +2276,7 @@ void retro_run(void)
    buff = (char*)vout_buf + vout_offset;
 #endif
 
-	video_cb((short *)buff, vout_width, vout_height, vout_width * 2);
+   video_cb((short *)buff, vout_width, vout_height, vout_width * 2);
 }
 
 void retro_init(void)
