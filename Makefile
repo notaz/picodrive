@@ -82,11 +82,23 @@ endif
 
 -include Makefile.local
 
-ifeq "$(PLATFORM)" "opendingux"
+# TODO this should somehow go to the platform directory?
+ifeq "$(PLATFORM)" "generic"
+$(TARGET).zip: $(TARGET)
+	$(RM) -rf .od_data
+	mkdir .od_data
+	cp -r platform/linux/skin .od_data
+	cp platform/game_def.cfg .od_data
+	cp $< .od_data/PicoDrive
+	$(STRIP) .od_data/PicoDrive
+	cd .od_data && zip -9 -r ../$@ *
+all: $(TARGET).zip
+endif
 
-# TODO this should somehow go to the platform/opendingux directory?
+ifeq "$(PLATFORM)" "opendingux"
 .od_data: $(TARGET)
 	$(RM) -rf .od_data
+	mkdir .od_data
 	cp -r platform/opendingux/data/. .od_data
 	cp platform/game_def.cfg .od_data
 	cp $< .od_data/PicoDrive
@@ -120,6 +132,7 @@ endif
 ifeq "$(PLATFORM)" "miyoo"
 $(TARGET).zip: $(TARGET)
 	$(RM) -rf .od_data
+	mkdir .od_data
 	cp -r platform/opendingux/data/. .od_data
 	cp platform/game_def.cfg .od_data
 	cp $< .od_data/PicoDrive
