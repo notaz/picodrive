@@ -223,19 +223,25 @@ USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
-ifeq "$(USE_LIBRETRO_VFS)" "1"
+ifneq ($(STATIC_LINKING), 1)
 OBJS += platform/libretro/libretro-common/compat/compat_strcasestr.o
+ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += platform/libretro/libretro-common/compat/compat_posix_string.o
 OBJS += platform/libretro/libretro-common/compat/compat_strl.o
 OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
-OBJS += platform/libretro/libretro-common/memmap/memmap.o
 OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
 OBJS += platform/libretro/libretro-common/string/stdstring.o
-OBJS += platform/libretro/libretro-common/file/file_path.o
+OBJS += platform/libretro/libretro-common/time/rtime.o
 OBJS += platform/libretro/libretro-common/streams/file_stream.o
 OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
+OBJS += platform/libretro/libretro-common/file/file_path.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
 endif
+endif
+ifeq "$(USE_LIBRETRO_VFS)" "1"
+OBJS += platform/libretro/libretro-common/memmap/memmap.o
+endif
+
 PLATFORM_ZLIB ?= 1
 endif
 
@@ -298,7 +304,10 @@ LZMA_OBJS += $(LZMA)/src/Sort.o $(LZMA)/src/LzmaDec.o $(LZMA)/src/LzFind.o
 LZMA_OBJS += $(LZMA)/src/Delta.o
 $(LZMA_OBJS): CFLAGS += -D_7ZIP_ST
 
-OBJS += $(CHDR_OBJS) $(LZMA_OBJS)
+OBJS += $(CHDR_OBJS)
+ifneq ($(STATIC_LINKING), 1)
+OBJS += $(LZMA_OBJS)
+endif
 # ouf... prepend includes to overload headers available in the toolchain
 CHDR_I = $(shell find $(CHDR) -name 'include')
 CFLAGS := $(patsubst %, -I%, $(CHDR_I)) $(CFLAGS)
@@ -343,7 +352,7 @@ clean:
 
 $(TARGET): $(OBJS)
 
-ifeq ($(STATIC_LINKING), 1)
+ifeq ($(STATIC_LINKING_LINK), 1)
 	$(AR) rcs $@ $^
 else
 	$(LD) $(LINKOUT)$@ $^ $(CFLAGS) $(LDFLAGS) $(LDLIBS)
@@ -364,7 +373,7 @@ pprof: platform/linux/pprof.c
 	$(CC) $(CFLAGS) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 pico/pico_int_offs.h: tools/mkoffsets.sh
-	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS)" XPLATFORM="$(platform)"
+	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS) -UUSE_LIBRETRO_VFS" XPLATFORM="$(platform)"
 
 %.o: %.c
 	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)

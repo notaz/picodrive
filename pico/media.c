@@ -31,35 +31,50 @@ static void get_ext(const char *file, char *ext)
   strlwr_(ext);
 }
 
-static int detect_media(const char *fname)
+static int detect_media(const char *fname, const unsigned char *rom, unsigned int romsize)
 {
   static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
   static const char *sms_exts[] = { "sms", "gg", "sg" };
   static const char *md_exts[] = { "gen", "smd", "md" };
   static const char *pico_exts[] = { "pco" };
   char buff0[512], buff[32];
-  unsigned short *d16;
-  pm_file *pmf;
-  char ext[5];
+  unsigned short *d16 = NULL;
+  pm_file *pmf = NULL;
+  const char *ext_ptr = NULL;
+  char ext[8];
   int i;
 
-  get_ext(fname, ext);
+  ext[0] = '\0';
+  if ((ext_ptr = strrchr(fname, '.'))) {
+    strncpy(ext, ext_ptr + 1, sizeof(ext));
+    ext[sizeof(ext) - 1] = '\0';
+  }
 
   // detect wrong extensions
-  if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) // s.gz ~ .mds.gz
+  if (!strcmp(ext, "srm") || !strcmp(ext, "gz")) // s.gz ~ .mds.gz
     return PM_BAD_DETECT;
 
-  /* don't believe in extensions, except .cue */
-  if (strcasecmp(ext, ".cue") == 0 || strcasecmp(ext, ".chd") == 0)
+  /* don't believe in extensions, except .cue and .chd */
+  if (strcasecmp(ext, "cue") == 0 || strcasecmp(ext, "chd") == 0)
     return PM_CD;
 
-  pmf = pm_open(fname);
-  if (pmf == NULL)
-    return PM_BAD_DETECT;
+  /* Open rom file, if required */
+  if (!rom) {
+    pmf = pm_open(fname);
+    if (pmf == NULL)
+      return PM_BAD_DETECT;
+    romsize = pmf->size;
+  }
 
-  if (pm_read(buff0, 512, pmf) != 512) {
-    pm_close(pmf);
-    return PM_BAD_DETECT;
+  if (!rom) {
+    if (pm_read(buff0, 512, pmf) != 512) {
+      pm_close(pmf);
+      return PM_BAD_DETECT;
+    }
+  } else {
+    if (romsize < 512)
+      return PM_BAD_DETECT;
+    memcpy(buff0, rom, 512);
   }
 
   if (strncasecmp("SEGADISCSYSTEM", buff0 + 0x00, 14) == 0 ||
@@ -69,32 +84,53 @@ static int detect_media(const char *fname)
   }
 
   /* check for SMD evil */
-  if (pmf->size >= 0x4200 && (pmf->size & 0x3fff) == 0x200) {
-    if (pm_seek(pmf, sms_offsets[0] + 0x200, SEEK_SET) == sms_offsets[0] + 0x200 &&
-        pm_read(buff, 16, pmf) == 16 &&
-        strncmp("TMR SEGA", buff, 8) == 0)
+  if (romsize >= 0x4200 && (romsize & 0x3fff) == 0x200) {
+    buff[0] = '\0';
+
+    if (!rom) {
+      if (pm_seek(pmf, sms_offsets[0] + 0x200, SEEK_SET) == sms_offsets[0] + 0x200)
+        pm_read(buff, 16, pmf);
+    } else {
+      if (romsize >= sms_offsets[0] + 0x200 + 16)
+        memcpy(buff, rom + sms_offsets[0] + 0x200, 16);
+    }
+
+    if (strncmp("TMR SEGA", buff, 8) == 0)
       goto looks_like_sms;
 
     /* could parse further but don't bother */
     goto extension_check;
   }
 
-  if (pm_seek(pmf, 0x100, SEEK_SET) == 0x100 && pm_read(buff, 16, pmf) == 16) {
-    /* PICO header? Almost always appropriately marked */
-    buff[16] = '\0';
-    if (strstr(buff, " PICO "))
-      goto looks_like_pico;
-    /* MD header? Act as TMSS BIOS here */
-    if (strncmp(buff, "SEGA", 4) == 0 || strncmp(buff, " SEG", 4) == 0)
-      goto looks_like_md;
+  /* fetch header info */
+  memset(buff, '\0', 17);
+  if (!rom) {
+    if (pm_seek(pmf, 0x100, SEEK_SET) == 0x100)
+      pm_read(buff, 16, pmf);
+  } else {
+    if (romsize >= 0x100 + 16)
+      memcpy(buff, rom + 0x100, 16);
   }
+  /* PICO header? Almost always appropriately marked */
+  if (strstr(buff, " PICO "))
+    goto looks_like_pico;
+  /* MD header? Act as TMSS BIOS here */
+  if (strncmp(buff, "SEGA", 4) == 0 || strncmp(buff, " SEG", 4) == 0)
+    goto looks_like_md;
 
   for (i = 0; i < ARRAY_SIZE(sms_offsets); i++) {
-    if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
-      continue;
+    if (!rom) {
+      if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
+        continue;
 
-    if (pm_read(buff, 16, pmf) != 16)
-      continue;
+      if (pm_read(buff, 16, pmf) != 16)
+        continue;
+    } else {
+      if (romsize < sms_offsets[i] + 16)
+        continue;
+
+      memcpy(buff, rom + sms_offsets[i], 16);
+    }
 
     if (strncmp("TMR SEGA", buff, 8) == 0)
       goto looks_like_sms;
@@ -103,20 +139,20 @@ static int detect_media(const char *fname)
 extension_check:
   /* probably some headerless thing. Maybe check the extension after all. */
   for (i = 0; i < ARRAY_SIZE(md_exts); i++)
-    if (strcasecmp(pmf->ext, md_exts[i]) == 0)
+    if (strcasecmp(ext, md_exts[i]) == 0)
       goto looks_like_md;
 
   for (i = 0; i < ARRAY_SIZE(sms_exts); i++)
-    if (strcasecmp(pmf->ext, sms_exts[i]) == 0)
+    if (strcasecmp(ext, sms_exts[i]) == 0)
       goto looks_like_sms;
 
   for (i = 0; i < ARRAY_SIZE(pico_exts); i++)
-    if (strcasecmp(pmf->ext, pico_exts[i]) == 0)
+    if (strcasecmp(ext, pico_exts[i]) == 0)
       goto looks_like_pico;
 
   /* If everything else fails, make a guess on the reset vector */
   d16 = (unsigned short *)(buff0 + 4);
-  if ((((d16[0] << 16) | d16[1]) & 0xffffff) >= pmf->size) {
+  if ((((d16[0] << 16) | d16[1]) & 0xffffff) >= romsize) {
     lprintf("bad MD reset vector, assuming SMS\n");
     goto looks_like_sms;
   }
@@ -215,6 +251,7 @@ int PicoCdCheck(const char *fname_in, int *pregion)
 }
 
 enum media_type_e PicoLoadMedia(const char *filename,
+  const unsigned char *rom, unsigned int romsize,
   const char *carthw_cfg_fname,
   const char *(*get_bios_filename)(int *region, const char *cd_fname),
   void (*do_region_override)(const char *media_filename))
@@ -222,13 +259,13 @@ enum media_type_e PicoLoadMedia(const char *filename,
   const char *rom_fname = filename;
   enum media_type_e media_type;
   enum cd_track_type cd_img_type = CT_UNKNOWN;
+  pm_file *rom_file = NULL;
   unsigned char *rom_data = NULL;
   unsigned int rom_size = 0;
-  pm_file *rom = NULL;
   int cd_region = 0;
   int ret;
 
-  media_type = detect_media(filename);
+  media_type = detect_media(filename, rom, romsize);
   if (media_type == PM_BAD_DETECT)
     goto out;
 
@@ -267,14 +304,16 @@ enum media_type_e PicoLoadMedia(const char *filename,
     PicoIn.AHW = PAHW_PICO;
   }
 
-  rom = pm_open(rom_fname);
-  if (rom == NULL) {
-    lprintf("Failed to open ROM\n");
-    media_type = PM_ERROR;
-    goto out;
+  if (!rom) {
+    rom_file = pm_open(rom_fname);
+    if (rom_file == NULL) {
+      lprintf("Failed to open ROM\n");
+      media_type = PM_ERROR;
+      goto out;
+    }
   }
 
-  ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoIn.AHW & PAHW_SMS) ? 1 : 0);
+  ret = PicoCartLoad(rom_file, rom, romsize, &rom_data, &rom_size, (PicoIn.AHW & PAHW_SMS) ? 1 : 0);
   if (ret != 0) {
     if      (ret == 2) lprintf("Out of memory\n");
     else if (ret == 3) lprintf("Read failed\n");
@@ -314,10 +353,19 @@ enum media_type_e PicoLoadMedia(const char *filename,
 
   // simple test for GG. Do this here since m.hardware is nulled in Insert
   if ((PicoIn.AHW & PAHW_SMS) && !PicoIn.hwSelect) {
-    if (!strcmp(rom->ext,"gg")) {
+    const char *ext = NULL;
+    if (rom_file && rom_file->ext && (*rom_file->ext != '\0')) {
+      ext = rom_file->ext;
+    }
+    else if ((ext = strrchr(filename, '.'))) {
+      if (*(++ext) == '\0') {
+        ext = NULL;
+      }
+    }
+    if (ext && !strcmp(ext,"gg") && !PicoIn.hwSelect) {
       Pico.m.hardware |= PMS_HW_GG;
       lprintf("detected GG ROM\n");
-    } else if (!strcmp(rom->ext,"sg")) {
+    } else if (ext && !strcmp(ext,"sg")) {
       Pico.m.hardware |= PMS_HW_SG;
       lprintf("detected SG-1000 ROM\n");
     } else
@@ -340,8 +388,8 @@ enum media_type_e PicoLoadMedia(const char *filename,
     PicoSetInputDevice(0, PICO_INPUT_PAD_6BTN);
 
 out:
-  if (rom)
-    pm_close(rom);
+  if (rom_file)
+    pm_close(rom_file);
   if (rom_data)
     free(rom_data);
   return media_type;

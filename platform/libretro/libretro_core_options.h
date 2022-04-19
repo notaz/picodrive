@@ -266,7 +266,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "picodrive_audio_filter",
       "Audio Filter",
       NULL,
-      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Mega Drive/Genesis. Note that although only the Genesis and its add-on hardware (Sega CD, 32X) employed a physical low pass filter, the filter setting is not restricted to that.",
+      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Mega Drive/Genesis. Note that only Model 1 and its add-ons (Sega CD, 32X) employed a physical low pass filter.",
       NULL,
       "audio",
       {

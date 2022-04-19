@@ -738,65 +738,75 @@ static unsigned char *PicoCartAlloc(int filesize, int is_sms)
   return rom;
 }
 
-int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
+int PicoCartLoad(pm_file *f, const unsigned char *rom, unsigned int romsize,
+  unsigned char **prom, unsigned int *psize, int is_sms)
 {
-  unsigned char *rom;
+  unsigned char *rom_data = NULL;
   int size, bytes_read;
 
-  if (f == NULL)
+  if (!f && !rom)
     return 1;
 
-  size = f->size;
+  if (!rom)
+    size = f->size;
+  else
+    size = romsize;
+
   if (size <= 0) return 1;
   size = (size+3)&~3; // Round up to a multiple of 4
 
   // Allocate space for the rom plus padding
-  rom = PicoCartAlloc(size, is_sms);
-  if (rom == NULL) {
+  rom_data = PicoCartAlloc(size, is_sms);
+  if (rom_data == NULL) {
     elprintf(EL_STATUS, "out of memory (wanted %i)", size);
     return 2;
   }
 
-  if (PicoCartLoadProgressCB != NULL)
-  {
-    // read ROM in blocks, just for fun
-    int ret;
-    unsigned char *p = rom;
-    bytes_read=0;
-    do
+  if (!rom) {
+    if (PicoCartLoadProgressCB != NULL)
     {
-      int todo = size - bytes_read;
-      if (todo > 256*1024) todo = 256*1024;
-      ret = pm_read(p,todo,f);
-      bytes_read += ret;
-      p += ret;
-      PicoCartLoadProgressCB(bytes_read * 100LL / size);
+      // read ROM in blocks, just for fun
+      int ret;
+      unsigned char *p = rom_data;
+      bytes_read=0;
+      do
+      {
+        int todo = size - bytes_read;
+        if (todo > 256*1024) todo = 256*1024;
+        ret = pm_read(p,todo,f);
+        bytes_read += ret;
+        p += ret;
+        PicoCartLoadProgressCB(bytes_read * 100LL / size);
+      }
+      while (ret > 0);
     }
-    while (ret > 0);
+    else
+      bytes_read = pm_read(rom_data,size,f); // Load up the rom
+
+    if (bytes_read <= 0) {
+      elprintf(EL_STATUS, "read failed");
+      plat_munmap(rom_data, rom_alloc_size);
+      return 3;
+    }
   }
   else
-    bytes_read = pm_read(rom,size,f); // Load up the rom
-  if (bytes_read <= 0) {
-    elprintf(EL_STATUS, "read failed");
-    plat_munmap(rom, rom_alloc_size);
-    return 3;
-  }
+    memcpy(rom_data, rom, romsize);
 
   if (!is_sms)
   {
     // maybe we are loading MegaCD BIOS?
-    if (!(PicoIn.AHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
-         !strncmp((char *)rom+0x128, "BOOT", 4))) {
+    if (!(PicoIn.AHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom_data+0x124, "BOOT", 4) ||
+         !strncmp((char *)rom_data+0x128, "BOOT", 4))) {
       PicoIn.AHW |= PAHW_MCD;
     }
 
     // Check for SMD:
     if (size >= 0x4200 && (size&0x3fff) == 0x200 &&
-        ((rom[0x2280] == 'S' && rom[0x280] == 'E') || (rom[0x280] == 'S' && rom[0x2281] == 'E'))) {
+        ((rom_data[0x2280] == 'S' && rom_data[0x280] == 'E') || (rom_data[0x280] == 'S' && rom_data[0x2281] == 'E'))) {
       elprintf(EL_STATUS, "SMD format detected.");
-      DecodeSmd(rom,size); size-=0x200; // Decode and byteswap SMD
+      DecodeSmd(rom_data,size); size-=0x200; // Decode and byteswap SMD
     }
-    else Byteswap(rom, rom, size); // Just byteswap
+    else Byteswap(rom_data, rom_data, size); // Just byteswap
   }
   else
   {
@@ -804,11 +814,11 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
       elprintf(EL_STATUS, "SMD format detected.");
       // at least here it's not interleaved
       size -= 0x200;
-      memmove(rom, rom + 0x200, size);
+      memmove(rom_data, rom_data + 0x200, size);
     }
   }
 
-  if (prom)  *prom = rom;
+  if (prom)  *prom = rom_data;
   if (psize) *psize = size;
 
   return 0;

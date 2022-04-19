@@ -54,12 +54,21 @@ endif
 include $(COMMON_DIR)/common.mak
 
 SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
+             $(LIBRETRO_COMM_DIR)/compat/compat_strcasestr.c \
              $(COMMON_DIR)/mp3.c \
              $(COMMON_DIR)/mp3_sync.c \
              $(COMMON_DIR)/mp3_dummy.c \
-             $(UNZIP_DIR)/unzip.c
+             $(UNZIP_DIR)/unzip.c \
+             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_bitstream.c \
+             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_cdrom.c \
+             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_chd.c \
+             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_flac.c \
+             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_huffman.c \
+             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzFind.c \
+             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzmaDec.c \
+             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzmaEnc.c
 
-COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing
+COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing -DUSE_LIBCHDR=1 -D_7ZIP_ST -I$(CORE_DIR)/pico/cd/libchdr/include -I$(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/include
 
 GIT_VERSION := $(shell git rev-parse --short HEAD || echo unknown)
 ifneq ($(GIT_VERSION),"unknown")

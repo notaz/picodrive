@@ -451,7 +451,7 @@ int emu_reload_rom(const char *rom_fname_in)
 
 	emu_make_path(carthw_path, "carthw.cfg", sizeof(carthw_path));
 
-	media_type = PicoLoadMedia(rom_fname, carthw_path,
+	media_type = PicoLoadMedia(rom_fname, NULL, 0, carthw_path,
 			find_bios, do_region_override);
 
 	switch (media_type) {

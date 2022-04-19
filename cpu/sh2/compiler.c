@@ -483,7 +483,7 @@ static void rcache_free_tmp(int hr);
 #include "../drc/emit_mips.c"
 #elif defined(__riscv__) || defined(__riscv)
 #include "../drc/emit_riscv.c"
-#elif defined(__powerpc__) || defined(__ppc__) || defined(_M_PPC)
+#elif defined(__powerpc__) || defined(__PPC__) || defined(__ppc__) || defined(_M_PPC)
 #include "../drc/emit_ppc.c"
 #elif defined(__i386__) || defined(_M_X86)
 #include "../drc/emit_x86.c"
