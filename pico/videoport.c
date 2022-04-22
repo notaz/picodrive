@@ -984,14 +984,15 @@ static u32 VideoSr(const struct PicoVideo *pv)
 {
   unsigned int hp = pv->reg[12]&1 ? hboff40*488/slots40 : hboff32*488/slots32;
   unsigned int hl = pv->reg[12]&1 ? hblen40*488/slots40 : hblen32*488/slots32;
-  unsigned int c;
-  u32 d = (u16)pv->status;
+  unsigned int c = SekCyclesDone() - Pico.t.m68c_line_start;
+  u32 d;
 
-  c = SekCyclesDone() - Pico.t.m68c_line_start;
+  PicoVideoFIFOSync(c);
+  d = (u16)pv->status;
+
   if (c - hp < hl)
     d |= SR_HB;
 
-  PicoVideoFIFOSync(c);
   if (VdpFIFO.fifo_total >= 4)
     d |= SR_FULL;
   else if (!VdpFIFO.fifo_total)
