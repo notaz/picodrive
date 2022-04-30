@@ -89,7 +89,7 @@ static void YM2612_setup_FIR(int inrate, int outrate, int stereo)
       mindiff = diff;
       Pico.snd.fm_fir_mul = mul;
       Pico.snd.fm_fir_div = div;
-      if (abs(mindiff) <= inrate/1000) break; // below error limit
+      if (abs(mindiff) <= inrate/1000+1) break; // below error limit
     }
   }
   printf("FM polyphase FIR ratio=%d/%d error=%.3f%%\n",
