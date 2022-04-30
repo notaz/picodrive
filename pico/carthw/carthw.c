@@ -731,9 +731,14 @@ static struct {
   u32 mask;
   u16 val;
   u16 readonly;
-} *sprot_items;
-static int sprot_item_alloc;
+} sprot_items[8];
 static int sprot_item_count;
+
+static carthw_state_chunk carthw_sprot_state[] =
+{
+  { CHUNK_CARTHW, sizeof(sprot_items), &sprot_items },
+  { 0,            0,                         NULL }
+};
 
 static u16 *carthw_sprot_get_val(u32 a, int rw_only)
 {
@@ -752,9 +757,6 @@ static u32 PicoRead8_sprot(u32 a)
   u16 *val;
   u32 d;
 
-  if (0xa10000 <= a && a < 0xa12000)
-    return PicoRead8_io(a);
-
   val = carthw_sprot_get_val(a, 0);
   if (val != NULL) {
     d = *val;
@@ -763,38 +765,32 @@ static u32 PicoRead8_sprot(u32 a)
     elprintf(EL_UIO, "prot r8  [%06x]   %02x @%06x", a, d, SekPc);
     return d;
   }
-  else {
-    elprintf(EL_UIO, "prot r8  [%06x] MISS @%06x", a, SekPc);
-    return 0;
-  }
+  else if (0xa10000 <= a && a <= 0xa1ffff)
+    return PicoRead8_io(a);
+
+  elprintf(EL_UIO, "prot r8  [%06x] MISS @%06x", a, SekPc);
+  return 0;
 }
 
 static u32 PicoRead16_sprot(u32 a)
 {
   u16 *val;
 
-  if (0xa10000 <= a && a < 0xa12000)
-    return PicoRead16_io(a);
-
   val = carthw_sprot_get_val(a, 0);
   if (val != NULL) {
     elprintf(EL_UIO, "prot r16 [%06x] %04x @%06x", a, *val, SekPc);
     return *val;
   }
-  else {
-    elprintf(EL_UIO, "prot r16 [%06x] MISS @%06x", a, SekPc);
-    return 0;
-  }
+  else if (0xa10000 <= a && a <= 0xa1ffff)
+    return PicoRead16_io(a);
+
+  elprintf(EL_UIO, "prot r16 [%06x] MISS @%06x", a, SekPc);
+  return 0;
 }
 
 static void PicoWrite8_sprot(u32 a, u32 d)
 {
   u16 *val;
-
-  if (0xa10000 <= a && a < 0xa12000) {
-    PicoWrite8_io(a, d);
-    return;
-  }
 
   val = carthw_sprot_get_val(a, 1);
   if (val != NULL) {
@@ -804,45 +800,33 @@ static void PicoWrite8_sprot(u32 a, u32 d)
       *val = (*val & 0x00ff) | (d << 8);
     elprintf(EL_UIO, "prot w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
   }
-  else
-    elprintf(EL_UIO, "prot w8  [%06x]   %02x MISS @%06x", a, d & 0xff, SekPc);
+  else if (0xa10000 <= a && a <= 0xa1ffff)
+    return PicoWrite8_io(a, d);
+
+  elprintf(EL_UIO, "prot w8  [%06x]   %02x MISS @%06x", a, d & 0xff, SekPc);
 }
 
 static void PicoWrite16_sprot(u32 a, u32 d)
 {
   u16 *val;
 
-  if (0xa10000 <= a && a < 0xa12000) {
-    PicoWrite16_io(a, d);
-    return;
-  }
-
   val = carthw_sprot_get_val(a, 1);
   if (val != NULL) {
     *val = d;
     elprintf(EL_UIO, "prot w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
   }
-  else
-    elprintf(EL_UIO, "prot w16 [%06x] %04x MISS @%06x", a, d & 0xffff, SekPc);
+  else if (0xa10000 <= a && a <= 0xa1ffff)
+    return PicoWrite16_io(a, d);
+
+  elprintf(EL_UIO, "prot w16 [%06x] %04x MISS @%06x", a, d & 0xffff, SekPc);
 }
 
 void carthw_sprot_new_location(unsigned int a, unsigned int mask, unsigned short val, int is_ro)
 {
-  if (sprot_items == NULL) {
-    sprot_items = calloc(8, sizeof(sprot_items[0]));
-    sprot_item_alloc = 8;
-    sprot_item_count = 0;
-  }
-
-  if (sprot_item_count == sprot_item_alloc) {
-    void *tmp;
-    sprot_item_alloc *= 2;
-    tmp = realloc(sprot_items, sprot_item_alloc);
-    if (tmp == NULL) {
-      elprintf(EL_STATUS, "OOM");
-      return;
-    }
-    sprot_items = tmp;
+  int sprot_elems = sizeof(sprot_items)/sizeof(sprot_items[0]);
+  if (sprot_item_count == sprot_elems) {
+    elprintf(EL_STATUS, "too many sprot items");
+    return;
   }
 
   sprot_items[sprot_item_count].addr = a;
@@ -854,17 +838,17 @@ void carthw_sprot_new_location(unsigned int a, unsigned int mask, unsigned short
 
 static void carthw_sprot_unload(void)
 {
-  free(sprot_items);
-  sprot_items = NULL;
-  sprot_item_count = sprot_item_alloc = 0;
+  sprot_item_count = 0;
 }
 
 static void carthw_sprot_mem_setup(void)
 {
   int start;
 
-  // map ROM - 0x7fffff, /TIME areas (which are tipically used)
+  // map 0x400000 - 0x7fffff, /TIME areas (which are tipically used)
   start = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
+  if (start < 0x400000) start = 0x400000;
+
   cpu68k_map_set(m68k_read8_map,   start, 0x7fffff, PicoRead8_sprot, 1);
   cpu68k_map_set(m68k_read16_map,  start, 0x7fffff, PicoRead16_sprot, 1);
   cpu68k_map_set(m68k_write8_map,  start, 0x7fffff, PicoWrite8_sprot, 1);
@@ -882,32 +866,41 @@ void carthw_sprot_startup(void)
 
   PicoCartMemSetup   = carthw_sprot_mem_setup;
   PicoCartUnloadHook = carthw_sprot_unload;
+  carthw_chunks      = carthw_sprot_state;
 }
 
 /* Protection emulation for Lion King 3. Credits go to Haze */
-static u8 prot_lk3_cmd, prot_lk3_data;
+static struct {
+  u32 bank;
+  u8 cmd, data;
+} carthw_lk3_regs;
+
+static carthw_state_chunk carthw_lk3_state[] =
+{
+  { CHUNK_CARTHW, sizeof(carthw_lk3_regs), &carthw_lk3_regs },
+  { 0,            0,                         NULL }
+};
+
+static u8 *carthw_lk3_mem; // shadow copy memory
+static u32 carthw_lk3_madr[0x100000/M68K_BANK_SIZE];
 
 static u32 PicoRead8_plk3(u32 a)
 {
   u32 d = 0;
-  switch (prot_lk3_cmd) {
-    case 1: d = prot_lk3_data >> 1; break;
+  switch (carthw_lk3_regs.cmd) {
+    case 0: d = carthw_lk3_regs.data << 1; break;
+    case 1: d = carthw_lk3_regs.data >> 1; break;
     case 2: // nibble rotate
-      d = ((prot_lk3_data >> 4) | (prot_lk3_data << 4)) & 0xff;
+      d = ((carthw_lk3_regs.data >> 4) | (carthw_lk3_regs.data << 4)) & 0xff;
       break;
     case 3: // bit rotate
-      d = prot_lk3_data;
+      d = carthw_lk3_regs.data;
       d = (d >> 4) | (d << 4);
       d = ((d & 0xcc) >> 2) | ((d & 0x33) << 2);
       d = ((d & 0xaa) >> 1) | ((d & 0x55) << 1);
       break;
-/* Top Fighter 2000 MK VIII (Unl)
-      case 0x98: d = 0x50; break; // prot_lk3_data == a8 here
-      case 0x67: d = 0xde; break; // prot_lk3_data == 7b here (rot!)
-      case 0xb5: d = 0x9f; break; // prot_lk3_data == 4a
-*/
     default:
-      elprintf(EL_UIO, "unhandled prot cmd %02x @%06x", prot_lk3_cmd, SekPc);
+      elprintf(EL_UIO, "unhandled prot cmd %02x @%06x", carthw_lk3_regs.cmd, SekPc);
       break;
   }
 
@@ -919,49 +912,207 @@ static void PicoWrite8_plk3p(u32 a, u32 d)
 {
   elprintf(EL_UIO, "prot w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
   if (a & 2)
-    prot_lk3_cmd = d;
+    carthw_lk3_regs.cmd = d & 0x3;
   else
-    prot_lk3_data = d;
+    carthw_lk3_regs.data = d;
 }
 
 static void PicoWrite8_plk3b(u32 a, u32 d)
 {
-  int addr;
+  u32 addr;
 
   elprintf(EL_UIO, "prot w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
   addr = d << 15;
-  if (addr + 0x8000 > Pico.romsize) {
-    elprintf(EL_UIO|EL_ANOMALY, "prot_lk3: bank too large: %02x", d);
+  if (addr+0x10000 >= Pico.romsize) {
+    elprintf(EL_UIO|EL_ANOMALY, "lk3_mapper: bank too large: %02x", d);
     return;
   }
-  if (addr == 0)
-    memcpy(Pico.rom, Pico.rom + Pico.romsize, 0x8000);
-  else
-    memcpy(Pico.rom, Pico.rom + addr, 0x8000);
+
+  if (addr != carthw_lk3_regs.bank) {
+    // banking is by or'ing the bank address in the 1st megabyte, not adding.
+    // only do linear mapping if map addresses aren't overlapping bank address
+    u32 len = M68K_BANK_SIZE;
+    u32 a, b;
+    for (b = 0x000000; b < 0x0100000; b += len) {
+      if (!((b + (len-1)) & addr)) {
+        cpu68k_map_set(m68k_read8_map,  b, b + (len-1), Pico.rom+addr + b, 0);
+        cpu68k_map_set(m68k_read16_map, b, b + (len-1), Pico.rom+addr + b, 0);
+      } else {
+        // overlap. ugh, need a shadow copy since banks can contain code and
+        // 68K cpu emulator cores need mapped access to code memory
+        if (carthw_lk3_madr[b/len] != addr) // only if shadow isn't the same
+          for (a = b; a < b+M68K_BANK_SIZE; a += 0x8000)
+            memcpy(carthw_lk3_mem + a, Pico.rom + (addr|a), 0x8000);
+        carthw_lk3_madr[b/len] = addr;
+        cpu68k_map_set(m68k_read8_map,  b, b + (len-1), carthw_lk3_mem + b, 0);
+        cpu68k_map_set(m68k_read16_map, b, b + (len-1), carthw_lk3_mem + b, 0);
+      }
+    }
+  }
+  carthw_lk3_regs.bank = addr;
 }
 
-static void carthw_prot_lk3_mem_setup(void)
+static void carthw_lk3_mem_setup(void)
 {
   cpu68k_map_set(m68k_read8_map,   0x600000, 0x7fffff, PicoRead8_plk3, 1);
   cpu68k_map_set(m68k_write8_map,  0x600000, 0x6fffff, PicoWrite8_plk3p, 1);
   cpu68k_map_set(m68k_write8_map,  0x700000, 0x7fffff, PicoWrite8_plk3b, 1);
+  carthw_lk3_regs.bank = 0;
 }
 
-void carthw_prot_lk3_startup(void)
+static void carthw_lk3_statef(void)
 {
-  int ret;
+  PicoWrite8_plk3b(0x700000, carthw_lk3_regs.bank >> 15);
+}
 
+static void carthw_lk3_unload(void)
+{
+  free(carthw_lk3_mem);
+  carthw_lk3_mem = NULL;
+  memset(carthw_lk3_madr, 0, sizeof(carthw_lk3_madr));
+}
+
+void carthw_lk3_startup(void)
+{
   elprintf(EL_STATUS, "lk3 prot emu startup");
 
-  // allocate space for bank0 backup
-  ret = PicoCartResize(Pico.romsize + 0x8000);
-  if (ret != 0) {
+  // allocate space for shadow copy
+  if (carthw_lk3_mem == NULL)
+    carthw_lk3_mem = malloc(0x100000);
+  if (carthw_lk3_mem == NULL) {
     elprintf(EL_STATUS, "OOM");
     return;
   }
-  memcpy(Pico.rom + Pico.romsize, Pico.rom, 0x8000);
 
-  PicoCartMemSetup = carthw_prot_lk3_mem_setup;
+  PicoCartMemSetup   = carthw_lk3_mem_setup;
+  PicoLoadStateHook  = carthw_lk3_statef;
+  PicoCartUnloadHook = carthw_lk3_unload;
+  carthw_chunks      = carthw_lk3_state;
+}
+
+/* SMW64 mapper, based on mame source */
+static struct {
+  u32 bank60, bank61;
+  u16 data[8], ctrl[4];
+} carthw_smw64_regs;
+
+static carthw_state_chunk carthw_smw64_state[] =
+{
+  { CHUNK_CARTHW, sizeof(carthw_smw64_regs), &carthw_smw64_regs },
+  { 0,            0,                         NULL }
+};
+
+static u32 PicoRead8_smw64(u32 a)
+{
+  u16 *data = carthw_smw64_regs.data, *ctrl = carthw_smw64_regs.ctrl;
+  u32 d = 0;
+
+  if (a & 1) {
+    if (a>>16 == 0x66) switch ((a>>1) & 7) {
+      case 0: d = carthw_smw64_regs.data[0]  ; break;
+      case 1: d = carthw_smw64_regs.data[0]+1; break;
+      case 2: d = carthw_smw64_regs.data[1]  ; break;
+      case 3: d = carthw_smw64_regs.data[1]+1; break;
+      case 4: d = carthw_smw64_regs.data[2]  ; break;
+      case 5: d = carthw_smw64_regs.data[2]+1; break;
+      case 6: d = carthw_smw64_regs.data[2]+2; break;
+      case 7: d = carthw_smw64_regs.data[2]+3; break;
+    } else /*0x67*/ { // :-O
+      if (ctrl[1] & 0x80)
+        d = ctrl[2] & 0x40 ? data[4]&data[5] : data[4]^0xff;
+      if (a & 2)
+        d &= 0x7f;
+      else if (ctrl[2] & 0x80) {
+        if (ctrl[2] & 0x20)
+          data[2] = (data[5] << 2) & 0xfc;
+        else
+          data[0] = ((data[4] << 1) ^ data[3]) & 0xfe;
+      }
+    }
+  }
+
+  elprintf(EL_UIO, "prot r8  [%06x]   %02x @%06x", a, d, SekPc);
+  return d;
+}
+
+static u32 PicoRead16_smw64(u32 a)
+{
+  return PicoRead8_smw64(a+1);
+}
+
+static void PicoWrite8_smw64(u32 a, u32 d)
+{
+  u16 *data = carthw_smw64_regs.data, *ctrl = carthw_smw64_regs.ctrl;
+
+  if ((a & 3) == 1) {
+    switch (a >> 16) {
+    case 0x60: ctrl[0] = d; break;
+    case 0x64: data[4] = d; break;
+    case 0x67:
+      if (ctrl[1] & 0x80) {
+        carthw_smw64_regs.bank60 = 0x80000 + ((d<<14) & 0x70000);
+        cpu68k_map_set(m68k_read8_map,  0x600000, 0x60ffff, Pico.rom + carthw_smw64_regs.bank60, 0);
+        cpu68k_map_set(m68k_read16_map, 0x600000, 0x60ffff, Pico.rom + carthw_smw64_regs.bank60, 0);
+      }
+      ctrl[2] = d;
+    }
+  } else if ((a & 3) == 3) {
+    switch (a >> 16) {
+    case 0x61: ctrl[1] = d; break;
+    case 0x64: data[5] = d; break;
+    case 0x60:
+      switch (ctrl[0] & 7) { // :-O
+      case 0: data[0] = (data[0]^data[3] ^ d) & 0xfe; break;
+      case 1: data[1] = (                  d) & 0xfe; break;
+      case 7:
+        carthw_smw64_regs.bank61 = 0x80000 + ((d<<14) & 0x70000);
+        cpu68k_map_set(m68k_read8_map,  0x610000, 0x61ffff, Pico.rom + carthw_smw64_regs.bank61, 0);
+        cpu68k_map_set(m68k_read16_map, 0x610000, 0x61ffff, Pico.rom + carthw_smw64_regs.bank61, 0);
+        break;
+      }
+      data[3] = d;
+    }
+  }
+}
+
+static void PicoWrite16_smw64(u32 a, u32 d)
+{
+  PicoWrite8_smw64(a+1, d);
+}
+
+static void carthw_smw64_mem_setup(void)
+{
+  // 1st 512 KB mirrored
+  cpu68k_map_set(m68k_read8_map,   0x080000, 0x0fffff, Pico.rom, 0);
+  cpu68k_map_set(m68k_read16_map,  0x080000, 0x0fffff, Pico.rom, 0);
+
+  cpu68k_map_set(m68k_read8_map,   0x660000, 0x67ffff, PicoRead8_smw64, 1);
+  cpu68k_map_set(m68k_read16_map,  0x660000, 0x67ffff, PicoRead16_smw64, 1);
+  cpu68k_map_set(m68k_write8_map,  0x600000, 0x67ffff, PicoWrite8_smw64, 1);
+  cpu68k_map_set(m68k_write16_map, 0x600000, 0x67ffff, PicoWrite16_smw64, 1);
+}
+
+static void carthw_smw64_statef(void)
+{
+  cpu68k_map_set(m68k_read8_map,   0x600000, 0x60ffff, Pico.rom + carthw_smw64_regs.bank60, 0);
+  cpu68k_map_set(m68k_read16_map,  0x600000, 0x60ffff, Pico.rom + carthw_smw64_regs.bank60, 0);
+  cpu68k_map_set(m68k_read8_map,   0x610000, 0x61ffff, Pico.rom + carthw_smw64_regs.bank61, 0);
+  cpu68k_map_set(m68k_read16_map,  0x610000, 0x61ffff, Pico.rom + carthw_smw64_regs.bank61, 0);
+}
+
+static void carthw_smw64_reset(void)
+{
+  memset(&carthw_smw64_regs, 0, sizeof(carthw_smw64_regs));
+}
+
+void carthw_smw64_startup(void)
+{
+  elprintf(EL_STATUS, "SMW64 mapper startup");
+
+  PicoCartMemSetup  = carthw_smw64_mem_setup;
+  PicoResetHook     = carthw_smw64_reset;
+  PicoLoadStateHook = carthw_smw64_statef;
+  carthw_chunks     = carthw_smw64_state;
 }
 
 // vim:ts=2:sw=2:expandtab

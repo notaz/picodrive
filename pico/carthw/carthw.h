@@ -34,4 +34,5 @@ void carthw_sprot_startup(void);
 void carthw_sprot_new_location(unsigned int a,
 	unsigned int mask, unsigned short val, int is_ro);
 
-void carthw_prot_lk3_startup(void);
+void carthw_lk3_startup(void);
+void carthw_smw64_startup(void);
