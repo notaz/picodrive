@@ -1105,8 +1105,9 @@ void PicoVideoCacheSAT(int load)
 
   // rebuild SAT cache XXX wrong since cache and memory can differ
   for (l = 0; load && l < 80; l++) {
-    ((u16 *)VdpSATCache)[l*2    ] = PicoMem.vram[(SATaddr>>1) + l*4    ];
-    ((u16 *)VdpSATCache)[l*2 + 1] = PicoMem.vram[(SATaddr>>1) + l*4 + 1];
+    u16 addr = SATaddr + l*8;
+    ((u16 *)VdpSATCache)[l*2    ] = PicoMem.vram[(addr>>1)    ];
+    ((u16 *)VdpSATCache)[l*2 + 1] = PicoMem.vram[(addr>>1) + 1];
   }
 
   Pico.est.rendstatus |= PDRAW_SPRITES_MOVED;
