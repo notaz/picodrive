@@ -344,7 +344,7 @@ static void write_bank_codem(unsigned short a, unsigned char d)
 // MSX mapper. 4 selectable 8KB banks at the top
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
-  if (a > 0x0003) return;
+  if (a > 0x0003 || !(Pico.m.hardware & PMS_HW_JAP)) return;
   // don't detect linear mapping to avoid confusing with Codemasters
   if (Pico.ms.mapper != PMS_MAP_MSX && (Pico.ms.mapper || (a|d) == 0 || d >= 0x80)) return;
   elprintf(EL_Z80BNK, "bank msx %04x %02x @ %04x", a, d, z80_pc());
@@ -462,7 +462,7 @@ static void write_bank_x8k(unsigned short a, unsigned char d)
   if (Pico.ms.mapper != PMS_MAP_8KBRAM && Pico.ms.mapper) return;
 
   elprintf(EL_Z80BNK, "bank x8k %04x %02x @ %04x", a, d, z80_pc());
-  ((unsigned char *)PicoMem.vram)[(a&0x1fff)+0x8000] = d;
+  ((unsigned char *)(PicoMem.vram+0x4000))[a&0x1fff] = d;
   Pico.ms.mapper = PMS_MAP_8KBRAM;
 
   a &= 0xe000;
@@ -631,6 +631,8 @@ void PicoPowerMS(void)
 
 void PicoMemSetupMS(void)
 {
+  u8 mapper = Pico.ms.mapper;
+
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
   z80_map_set(z80_read_map, 0xc000, 0xdfff, PicoMem.zram, 0);
   z80_map_set(z80_read_map, 0xe000, 0xffff, PicoMem.zram, 0);
@@ -640,7 +642,7 @@ void PicoMemSetupMS(void)
   z80_map_set(z80_write_map, 0xe000, 0xffff, xwrite, 1);
 
   // Nemesis mapper maps last 8KB rom bank #15 to adress 0
-  if (Pico.ms.mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
+  if (mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
     z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.rom + 0x1e000, 0);
 #ifdef _USE_DRZ80
   drZ80.z80_in = z80_sms_in;
@@ -652,12 +654,14 @@ void PicoMemSetupMS(void)
 #endif
 
   // memory mapper setup, linear mapping of 1st 48KB
-  u8 mapper = Pico.ms.mapper;
+  memset(Pico.ms.carthw, 0, sizeof(Pico.ms.carthw));
   if (mapper == PMS_MAP_MSX || mapper == PMS_MAP_NEMESIS) {
     xwrite(0x0000, 4);
     xwrite(0x0001, 5);
     xwrite(0x0002, 2);
     xwrite(0x0003, 3);
+  } else if (mapper == PMS_MAP_KOREA) {
+    xwrite(0xa000, 2);
   } else if (mapper == PMS_MAP_N32K) {
     xwrite(0xffff, 0);
   } else if (mapper == PMS_MAP_N16K) {
@@ -671,47 +675,50 @@ void PicoMemSetupMS(void)
     xwrite(0x0000, 0);
     xwrite(0x4000, 1);
     xwrite(0x8000, 2);
-  } else if (mapper) {
+  } else if (mapper != PMS_MAP_8KBRAM) {
+    // pre-initialize Sega mapper to linear mapping (else state load may fail)
     xwrite(0xfffc, 0);
     xwrite(0xfffd, 0);
     xwrite(0xfffe, 1);
     xwrite(0xffff, 2);
+    Pico.ms.mapper = mapper;
   }
 }
 
 void PicoStateLoadedMS(void)
 {
   u8 mapper = Pico.ms.mapper;
-  if (Pico.ms.mapper == PMS_MAP_8KBRAM) {
+  if (mapper == PMS_MAP_8KBRAM) {
     u16 a = Pico.ms.carthw[0] << 12;
-    xwrite(a+0x888, *((unsigned char *)PicoMem.vram+0x8888));
-  } else if (Pico.ms.mapper == PMS_MAP_MSX || Pico.ms.mapper == PMS_MAP_NEMESIS) {
+    xwrite(a, *(unsigned char *)(PicoMem.vram+0x4000));
+  } else if (mapper == PMS_MAP_MSX || mapper == PMS_MAP_NEMESIS) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x0001, Pico.ms.carthw[1]);
     xwrite(0x0002, Pico.ms.carthw[2]);
     xwrite(0x0003, Pico.ms.carthw[3]);
-  } else if (Pico.ms.mapper == PMS_MAP_N32K) {
+  } else if (mapper == PMS_MAP_KOREA) {
+    xwrite(0xa000, Pico.ms.carthw[0x0f]);
+  } else if (mapper == PMS_MAP_N32K) {
     xwrite(0xffff, Pico.ms.carthw[0x0f]);
-  } else if (Pico.ms.mapper == PMS_MAP_N16K) {
+  } else if (mapper == PMS_MAP_N16K) {
     xwrite(0x3ffe, Pico.ms.carthw[0]);
     xwrite(0x7fff, Pico.ms.carthw[1]);
     xwrite(0xbfff, Pico.ms.carthw[2]);
-  } else if (Pico.ms.mapper == PMS_MAP_JANGGUN) {
+  } else if (mapper == PMS_MAP_JANGGUN) {
     xwrite(0x4000, Pico.ms.carthw[2]);
     xwrite(0x6000, Pico.ms.carthw[3]);
     xwrite(0x8000, Pico.ms.carthw[4]);
     xwrite(0xa000, Pico.ms.carthw[5]);
-  } else if (Pico.ms.mapper == PMS_MAP_CODEM) {
+  } else if (mapper == PMS_MAP_CODEM) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x4000, Pico.ms.carthw[1]);
     xwrite(0x8000, Pico.ms.carthw[2]);
-  } else {
+  } else if (mapper == PMS_MAP_SEGA) {
     xwrite(0xfffc, Pico.ms.carthw[0x0c]);
     xwrite(0xfffd, Pico.ms.carthw[0x0d]);
     xwrite(0xfffe, Pico.ms.carthw[0x0e]);
     xwrite(0xffff, Pico.ms.carthw[0x0f]);
   }
-  Pico.ms.mapper = mapper;
 }
 
 void PicoFrameMS(void)
