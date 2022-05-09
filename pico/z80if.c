@@ -194,9 +194,6 @@ void z80_pack(void *data)
   s->irq_vector[0] = drZ80.z80irqvector >> 16;
   s->irq_vector[1] = drZ80.z80irqvector >> 8;
   s->irq_vector[2] = drZ80.z80irqvector;
-  // NB hack, swap Flag3 and NFlag for save file compatibility
-  s->m.f = (s->m.f & 0x9f)|((s->m.f & 0x40)>>1)|((s->m.f & 0x20)<<1);
-  s->a.f = (s->a.f & 0x9f)|((s->a.f & 0x40)>>1)|((s->a.f & 0x20)<<1);
 #elif defined(_USE_CZ80)
   {
     const cz80_struc *CPU = &CZ80;
