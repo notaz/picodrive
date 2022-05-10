@@ -16,7 +16,6 @@
 
 // sn76496 & ym2413
 extern int *sn76496_regs;
-extern OPLL old_opll;
 
 static arearw    *areaRead;
 static arearw    *areaWrite;
@@ -125,7 +124,6 @@ typedef enum {
   CHUNK_DRAM,
   CHUNK_32XPAL,
   CHUNK_32X_EVT,
-  CHUNK_YM2413,   //40
   //rename
   CHUNK_32X_FIRST = CHUNK_MSH2,
   CHUNK_32X_LAST = CHUNK_32X_EVT,
@@ -134,6 +132,7 @@ typedef enum {
   CHUNK_CD_GFX,
   CHUNK_CD_CDC,
   CHUNK_CD_CDD,
+  CHUNK_YM2413,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -225,7 +224,7 @@ static int state_save(void *file)
 {
   char sbuff[32] = "Saving.. ";
   unsigned char buff[0x60], buff_z80[Z80_STATE_SIZE];
-  void *ym2612_regs = YM2612GetRegs();
+  void *ym_regs = YM2612GetRegs();
   void *buf2 = NULL;
   int ver = 0x0191; // not really used..
   int retval = -1;
@@ -245,14 +244,16 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_VSRAM, PicoMem.vsram);
     CHECKED_WRITE_BUFF(CHUNK_IOPORTS, PicoMem.ioports);
     ym2612_pack_state();
-    CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
+    ym_regs = YM2612GetRegs();
+    CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
 
     if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
       SekInitIdleDet();
   }
   else {
     CHECKED_WRITE_BUFF(CHUNK_SMS, Pico.ms);
-    CHECKED_WRITE_BUFF(CHUNK_YM2413, old_opll);
+    ym_regs = YM2413GetRegs();
+    CHECKED_WRITE(CHUNK_YM2413, 0x40+4, ym_regs);
   }
 
   CHECKED_WRITE_BUFF(CHUNK_VRAM,  PicoMem.vram);
@@ -395,7 +396,7 @@ static int state_load(void *file)
   unsigned char buff_sh2[SH2_STATE_SIZE];
   unsigned char *buf = NULL;
   unsigned char chunk;
-  void *ym2612_regs;
+  void *ym_regs;
   int len_check;
   int retval = -1;
   char header[8];
@@ -452,10 +453,14 @@ static int state_load(void *file)
 
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
-      case CHUNK_YM2413:  CHECKED_READ_BUFF(old_opll); break;
+      case CHUNK_YM2413:
+        ym_regs = YM2413GetRegs();
+        CHECKED_READ2(0x40+4, ym_regs);
+        YM2413UnpackState();
+        break;
       case CHUNK_FM:
-        ym2612_regs = YM2612GetRegs();
-        CHECKED_READ2(0x200+4, ym2612_regs);
+        ym_regs = YM2612GetRegs();
+        CHECKED_READ2(0x200+4, ym_regs);
         ym2612_unpack_state();
         break;
 

@@ -29,11 +29,33 @@ extern int *sn76496_regs;
 
 // ym2413
 #define YM2413_CLK 3579545
-OPLL old_opll;
 static OPLL *opll = NULL;
-unsigned YM2413_reg;
+static OPLL old_opll;
+static struct {
+  uint32_t adr;
+  uint8_t reg[sizeof(opll->reg)];
+} opll_buf;
+
+PICO_INTERNAL void *YM2413GetRegs(void)
+{
+  memcpy(opll_buf.reg, opll->reg, sizeof(opll->reg));
+  opll_buf.adr = opll->adr;
+  return &opll_buf;
+}
+
+PICO_INTERNAL void YM2413UnpackState(void)
+{
+  int i;
+
+  for (i = sizeof(opll->reg)-1; i >= 0; i--) {
+    OPLL_writeIO(opll, 0, i);
+    OPLL_writeIO(opll, 1, opll_buf.reg[i]);
+  }
+  opll->adr = opll_buf.adr;
+}
 
 static resampler_t *fmresampler;
+static int (*PsndFMUpdate)(s32 *buffer, int length, int stereo, int is_buf_empty);
 
 PICO_INTERNAL void PsndInit(void)
 {
@@ -56,8 +78,6 @@ PICO_INTERNAL void PsndReset(void)
   PsndRerate(0);
   timers_reset();
 }
-
-int (*PsndFMUpdate)(s32 *buffer, int length, int stereo, int is_buf_empty);
 
 // FM polyphase FIR resampling
 #define FMFIR_TAPS	9
@@ -142,6 +162,8 @@ void PsndRerate(int preserve_state)
     if (preserve_state) memcpy(&old_opll, opll, sizeof(OPLL)); // remember old state
     OPLL_setRate(opll, PicoIn.sndRate);
     OPLL_reset(opll);
+    if (preserve_state) memcpy(&opll->adr, &old_opll.adr, sizeof(OPLL)-20); // restore old state
+    OPLL_forceRefresh(opll);
   }
 
   if (state)
