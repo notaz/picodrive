@@ -18,6 +18,7 @@ const char *men_scaling_opts[] = { "OFF", "software", "hardware", NULL };
 
 static menu_entry e_menu_adv_options[];
 static menu_entry e_menu_gfx_options[];
+static menu_entry e_menu_sms_options[];
 static menu_entry e_menu_options[];
 static menu_entry e_menu_keyconfig[];
 

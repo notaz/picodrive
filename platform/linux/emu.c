@@ -303,7 +303,8 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	emu_cmn_forced_frame(no_scale, do_emu, screen_buffer(g_screen_ptr));
 	render_bg = 0;
 
-	g_menubg_src_ptr = g_screen_ptr;
+	g_menubg_src_ptr = realloc(g_menubg_src_ptr, g_screen_height * g_screen_ppitch * 2);
+	memcpy(g_menubg_src_ptr, g_screen_ptr, g_screen_height * g_screen_ppitch * 2);
 	currentConfig.scaling = hs, currentConfig.vscaling = vs;
 }
 
@@ -365,6 +366,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
+	plat_video_loop_prepare(); // recalculates g_screen_w/h
 	PicoDrawSetCallbacks(NULL, NULL);
 	// center output in screen
 	screen_w = g_screen_width,  screen_x = (screen_w - out_w)/2;
@@ -402,7 +404,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	}
 
 	plat_video_set_size(screen_w, screen_h);
-	plat_video_set_buffer(g_screen_ptr);
 
 	if (screen_w < g_screen_width)
 		screen_x = (g_screen_width  - screen_w)/2;
@@ -412,6 +413,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		if (out_h < 224 && out_h > 144)
 			screen_y += (224 - out_h)/2;
 	}
+
+	plat_video_set_buffer(g_screen_ptr);
 
 	// create a backing buffer for emulating the bad GG lcd display
 	if (currentConfig.ghosting && out_h == 144) {

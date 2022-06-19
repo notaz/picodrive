@@ -50,6 +50,7 @@ have_arm_oabi=""
 have_arm_neon=""
 have_libavcodec=""
 have_libchdr=""
+have_gles="no"
 need_sdl="no"
 need_zlib="no"
 
@@ -74,9 +75,11 @@ set_platform()
   case "$platform" in
   rpi1)
     MFLAGS="mcpu=arm1176jzf-s -mfpu=vfp"
+    have_gles="yes"
     ;;
   rpi2)
     MFLAGS="mcpu=cortex-a7 -mfpu=neon"
+    have_gles="yes"
     ;;
   generic)
     ;;
@@ -155,6 +158,8 @@ for opt do
   ;;
   --with-libavcodec=*) have_libavcodec="$optarg"
   ;;
+  --with-sdl-gles=*) have_gles="$optarg"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -168,6 +173,7 @@ if [ "$show_help" = "yes" ]; then
   echo "  --sound-drivers=LIST     sound output drivers [guessed]"
   echo "                           available: $sound_driver_list"
   echo "  --with-libavcodec=yes|no use libavcodec for mp3 decoding"
+  echo "  --with-sdl-gles=yes|no   enable GLES usage for SDL"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS STRIP CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
@@ -447,6 +453,9 @@ echo >> $config_mak
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
+if [ "$have_gles" = "yes" ]; then
+  echo "HAVE_GLES = 1" >> $config_mak
+fi
 if [ "$have_libavcodec" = "yes" ]; then
   echo "HAVE_LIBAVCODEC = 1" >> $config_mak
 fi

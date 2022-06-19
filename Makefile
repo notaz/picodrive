@@ -159,11 +159,14 @@ OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o platform/common/input_sdlkbd.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 OBJS += platform/libpicofe/plat_dummy.o platform/libpicofe/linux/plat.o
-OBJS += platform/libpicofe/gl.o
-OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
+#ifeq (y,$(shell echo "\#include <GLES/gl.h>" | $(CC) -E -xc - >/dev/null 2>&1 && echo y))
+ifeq "$(HAVE_GLES)" "1"
+CFLAGS += -DHAVE_GLES -DSDL_REDRAW_EVT
+LDFLAGS += -lEGL -lGLESv1_CM
+endif
 CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 ifeq "$(use_inputmap)" "1"
@@ -254,6 +257,9 @@ OBJS += platform/common/main.o platform/common/emu.o platform/common/upscale.o \
 # libpicofe
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
 	platform/libpicofe/fonts.o
+ifneq (,$(filter %HAVE_GLES, $(CFLAGS)))
+OBJS += platform/libpicofe/gl.o platform/libpicofe/gl_platform.o
+endif
 
 # libpicofe - sound
 OBJS += platform/libpicofe/sndout.o
