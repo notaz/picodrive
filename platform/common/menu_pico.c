@@ -375,6 +375,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
 	{ "Pico Pen state ", PEV_PICO_PENST },
+	{ "Pico Keyboard  ", PEV_PICO_SWPS2 },
 	{ NULL,                0 }
 };
 

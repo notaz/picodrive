@@ -511,6 +511,7 @@ void plat_init(void)
 	in_sdl_platform_data.jmap_size = in_sdl_joy_map_sz,
 	in_sdl_platform_data.joy_map = in_sdl_joy_map,
 	in_sdl_platform_data.key_names = in_sdl_key_names,
+	in_sdl_platform_data.pico_ps2_map = in_sdl_pico_ps2_map,
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
 

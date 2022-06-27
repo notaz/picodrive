@@ -132,6 +132,8 @@ typedef struct PicoInterface
 
 	void (*mcdTrayOpen)(void);
 	void (*mcdTrayClose)(void);
+
+	unsigned int ps2;   // PS/2 peripherals, e.g. Pico Keyboard
 } PicoInterface;
 
 extern PicoInterface PicoIn;
@@ -151,6 +153,32 @@ struct PicoEState;
 
 // pico.c
 #define XPCM_BUFFER_SIZE 64
+enum {
+  KEY_RELEASED = 0,
+  KEY_DOWN,
+  KEY_UP,
+};
+enum {
+  SHIFT_RELEASED = 0,
+  SHIFT_DOWN,
+  SHIFT_UP_HELD_DOWN,
+  SHIFT_RELEASED_HELD_DOWN,
+  SHIFT_UP
+};
+typedef struct
+{
+    uint8_t i;
+    uint8_t mode;
+    uint8_t neg;
+    uint8_t has_read;
+    uint8_t caps_lock;
+    uint8_t has_caps_lock;
+    uint32_t mem;
+    uint64_t start_time_keydown;
+    uint64_t time_keydown;
+    uint8_t key_state;
+    uint8_t shift_state;
+} picohw_kb;
 typedef struct
 {
 	int pen_pos[2];
@@ -160,6 +188,9 @@ typedef struct
 	unsigned int reserved[3];
 	unsigned char xpcm_buffer[XPCM_BUFFER_SIZE+4];
 	unsigned char *xpcm_ptr;
+	int is_kb_active;
+	int inp_mode;
+	picohw_kb kb;
 } picohw_state;
 extern picohw_state PicoPicohw;
 
