@@ -230,6 +230,10 @@ static u32 PicoRead8_pico_kb(u32 a)
            else
               elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: SHIFT DOWN\n");
           }
+          // Must register key up while typematic not active (expected by Kibodeu Piko)
+          if ((d & 8) == 0) {
+            d |= 1; // Send key up a.k.a. break
+          }
         }
         if (PicoPicohw.kb.key_state == KEY_UP
             || PicoPicohw.kb.shift_state == SHIFT_UP_HELD_DOWN
