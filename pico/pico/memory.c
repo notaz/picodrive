@@ -57,12 +57,10 @@ static u32 PicoRead16_pico(u32 a)
     case 0x08: d = (PicoPicohw.pen_pos[1] >> 8);  break;
     case 0x0a: d =  PicoPicohw.pen_pos[1] & 0xff; break;
     case 0x0c: d = (1 << (PicoPicohw.page & 7)) - 1;
-               if (PicoPicohw.is_kb_active) {
-                 // Apply 1 of 2 bitmasks, depending on which one preserves the highest set bit.
-                 if (PicoPicohw.page % 2 == 0)
-                   d &= 0x2a; // 0b00101010
-                 else
-                   d &= 0x15; // 0b00010101
+               if (PicoPicohw.page == 7) {
+                 d = 0x2a; // 0b00101010
+               } else {
+                 d = ((1 << (PicoPicohw.page & 7)) - 1);
                }
                break;
     case 0x10: d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes); break;

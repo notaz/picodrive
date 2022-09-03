@@ -1127,9 +1127,15 @@ void run_events_pico(unsigned int events)
 	}
 	if (events & PEV_PICO_PNEXT) {
 		PicoPicohw.page++;
-		if (PicoPicohw.page > 6)
-			PicoPicohw.page = 6;
-		emu_status_msg("Page %i", PicoPicohw.page);
+		if (PicoPicohw.page > 7)
+			PicoPicohw.page = 7;
+        if (PicoPicohw.page == 7) {
+            // Used in games that require the Keyboard Pico peripheral
+            emu_status_msg("Test Page");
+        }
+        else {
+            emu_status_msg("Page %i", PicoPicohw.page);
+        }
 	}
 	if (events & PEV_PICO_STORY) {
 		if (pico_inp_mode == 1) {
