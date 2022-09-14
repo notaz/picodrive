@@ -19,7 +19,7 @@
 #include <zlib.h>
 
 static int rom_alloc_size;
-static const char *rom_exts[] = { "bin", "gen", "smd", "iso", "sms", "gg", "sg" };
+static const char *rom_exts[] = { "bin", "gen", "smd", "md", "32x", "pco", "iso", "sms", "gg", "sg", "sc" };
 
 void (*PicoCartUnloadHook)(void);
 void (*PicoCartMemSetup)(void);

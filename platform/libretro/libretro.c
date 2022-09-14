@@ -616,7 +616,7 @@ void retro_set_environment(retro_environment_t cb)
 
    static const struct retro_system_content_info_override content_overrides[] = {
       {
-         "gen|smd|md|32x|sms|gg|sg|68k|sgd|pco", /* extensions */
+         "gen|smd|md|32x|sms|gg|sg|sc|68k|sgd|pco", /* extensions */
 #if defined(LOW_MEMORY)
          true,                         /* need_fullpath */
 #else
@@ -667,7 +667,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define _GIT_VERSION "-" GIT_VERSION
 #endif
    info->library_version = VERSION _GIT_VERSION;
-   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg|m3u|68k|sgd|pco";
+   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg|sg|sc|m3u|68k|sgd|pco";
    info->need_fullpath = true;
 }
 
