@@ -454,6 +454,23 @@ static void write_bank_jang(unsigned short a, unsigned char d)
   }
 }
 
+// Korean 188-in-1. 4 8KB banks from 0x4000, selected by xor'd bank index
+static void write_bank_xor(unsigned short a, unsigned char d)
+{
+  // 4x8KB bank select @0x2000
+  if ((a&0x6000) != 0x2000) return;
+  if (Pico.ms.mapper != PMS_MAP_XOR && Pico.ms.mapper) return;
+
+  elprintf(EL_Z80BNK, "bank 32k %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.mapper = PMS_MAP_XOR;
+
+  Pico.ms.carthw[0] = d;
+  z80_map_set(z80_read_map,  0x4000, 0x5fff, Pico.rom + ((d^0x1f) << 13), 0);
+  z80_map_set(z80_read_map,  0x6000, 0x7fff, Pico.rom + ((d^0x1e) << 13), 0);
+  z80_map_set(z80_read_map,  0x8000, 0x9fff, Pico.rom + ((d^0x1d) << 13), 0);
+  z80_map_set(z80_read_map,  0xa000, 0xbfff, Pico.rom + ((d^0x1c) << 13), 0);
+}
+
 // SG-1000 8KB RAM Adaptor mapper. 8KB RAM at address 0x2000
 static void write_bank_x8k(unsigned short a, unsigned char d)
 {
@@ -481,6 +498,7 @@ char *mappers[] = {
   [PMS_MAP_JANGGUN]  = "Korea Janggun",
   [PMS_MAP_NEMESIS]  = "Korea Nemesis",
   [PMS_MAP_8KBRAM]   = "Taiwan 8K RAM",
+  [PMS_MAP_XOR]      = "Korea XOR",
 };
 
 // TODO auto-selecting is not really reliable.
@@ -501,6 +519,7 @@ static void xwrite(unsigned int a, unsigned char d)
   case PMS_MAP_JANGGUN: write_bank_jang(a, d);  break;
   case PMS_MAP_NEMESIS: write_bank_msxn(a, d);  break;
   case PMS_MAP_8KBRAM:  write_bank_x8k(a, d);   break;
+  case PMS_MAP_XOR:     write_bank_xor(a, d);   break;
 
   case PMS_MAP_AUTO:
         // disable autodetection after some time
@@ -515,6 +534,7 @@ static void xwrite(unsigned int a, unsigned char d)
           write_bank_codem(a, d);
           write_bank_korea(a, d);
           write_bank_n16k(a, d);
+          write_bank_xor(a, d);
         }
 
         Pico.ms.mapcnt ++;
@@ -671,17 +691,21 @@ void PicoMemSetupMS(void)
   } else if (mapper == PMS_MAP_JANGGUN) {
     xwrite(0xfffe, 1);
     xwrite(0xffff, 2);
+  } else if (mapper == PMS_MAP_XOR) {
+    xwrite(0x2000, 0);
   } else if (mapper == PMS_MAP_CODEM) {
     xwrite(0x0000, 0);
     xwrite(0x4000, 1);
     xwrite(0x8000, 2);
-  } else if (mapper != PMS_MAP_8KBRAM) {
-    // pre-initialize Sega mapper to linear mapping (else state load may fail)
+  } else if (mapper == PMS_MAP_SEGA) {
     xwrite(0xfffc, 0);
     xwrite(0xfffd, 0);
     xwrite(0xfffe, 1);
     xwrite(0xffff, 2);
-    Pico.ms.mapper = mapper;
+  } else if (mapper == PMS_MAP_AUTO) {
+    // pre-initialize Sega mapper to linear mapping (else state load may fail)
+    Pico.ms.carthw[0xe] = 0x1;
+    Pico.ms.carthw[0xf] = 0x2;
   }
 }
 
@@ -709,6 +733,8 @@ void PicoStateLoadedMS(void)
     xwrite(0x6000, Pico.ms.carthw[3]);
     xwrite(0x8000, Pico.ms.carthw[4]);
     xwrite(0xa000, Pico.ms.carthw[5]);
+  } else if (mapper == PMS_MAP_XOR) {
+    xwrite(0x2000, Pico.ms.carthw[0]);
   } else if (mapper == PMS_MAP_CODEM) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x4000, Pico.ms.carthw[1]);

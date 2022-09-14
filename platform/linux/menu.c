@@ -2,7 +2,6 @@
 
 static const char *men_scaling_opts[] = { "OFF", "software", "hardware", NULL };
 static const char *men_filter_opts[] = { "nearest", "smoother", "bilinear 1", "bilinear 2", NULL };
-static const char *men_ghosting_opts[] = { "OFF", "weak", "normal", NULL };
 
 static const char h_scale[] = "hardware scaling might not work on some devices";
 static const char h_stype[] = "scaler algorithm for software scaling";
