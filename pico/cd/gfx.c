@@ -43,6 +43,7 @@ typedef struct
   //uint32 cycles;                    /* current cycles count for graphics operation */
   //uint32 cyclesPerLine;             /* current graphics operation timings */
   uint32 dotMask;                   /* stamp map size mask */
+  uint32 stampMask;                 /* stamp number mask */
   uint16 *tracePtr;                 /* trace vector pointer */
   uint16 *mapPtr;                   /* stamp map table base address */
   uint8 stampShift;                 /* stamp pixel shift value (related to stamp size) */
@@ -193,7 +194,7 @@ static inline int gfx_pixel(uint32 xpos, uint32 ypos, uint16 *lut_cell)
     /*        c = cell offset  (0-3 for 16x16, 0-15 for 32x32)        */
     /*      yyy = line offset  (0-7)                                  */
     /*      xxx = pixel offset (0-7)                                  */
-    stamp_index = (stamp_data & 0x7ff) << 8;
+    stamp_index = (stamp_data & gfx.stampMask) << 8;
 
     if (stamp_index)
     {
@@ -355,28 +356,32 @@ void gfx_start(uint32 base)
     {
       case 0:
         gfx.dotMask = 0x07ffff;   /* 256x256 dots/map  */
-        gfx.stampShift = 11 + 4;  /* 16x16 dots/stamps */
+        gfx.stampMask = 0x7ff;    /* 16x16 dots/stamp  */
+        gfx.stampShift = 11 + 4;  /* 16x16 dots/stamp  */
         gfx.mapShift = 4;         /* 16x16 stamps/map  */
         mask = 0x3fe00;           /* 512 bytes/table   */
         break;
 
       case 1:
         gfx.dotMask = 0x07ffff;   /* 256x256 dots/map  */
-        gfx.stampShift = 11 + 5;  /* 32x32 dots/stamps */
+        gfx.stampMask = 0x7fc;    /* 16x16 dots/stamp  */
+        gfx.stampShift = 11 + 5;  /* 32x32 dots/stamp  */
         gfx.mapShift = 3;         /* 8x8 stamps/map    */
         mask = 0x3ff80;           /* 128 bytes/table   */
         break;
 
       case 2:
         gfx.dotMask = 0x7fffff;   /* 4096*4096 dots/map */
-        gfx.stampShift = 11 + 4;  /* 16x16 dots/stamps  */
+        gfx.stampMask = 0x7ff;    /* 16x16 dots/stamp   */
+        gfx.stampShift = 11 + 4;  /* 16x16 dots/stamp   */
         gfx.mapShift = 8;         /* 256x256 stamps/map */
         mask = 0x20000;           /* 131072 bytes/table */
         break;
 
       case 3:
         gfx.dotMask = 0x7fffff;   /* 4096*4096 dots/map */
-        gfx.stampShift = 11 + 5;  /* 32x32 dots/stamps  */
+        gfx.stampMask = 0x7fc;    /* 16x16 dots/stamp   */
+        gfx.stampShift = 11 + 5;  /* 32x32 dots/stamp   */
         gfx.mapShift = 7;         /* 128x128 stamps/map */
         mask = 0x38000;           /* 32768 bytes/table  */
         break;
