@@ -146,12 +146,6 @@ static void copy_bg(int dir)
 	}
 }
 
-static void menu_enter(int is_rom_loaded)
-{
-	plat_video_menu_enter(is_rom_loaded);
-	menu_w = menu_h = 0;
-}
-
 static void menu_draw_prep(void)
 {
 	if (menu_w == g_menuscreen_w && menu_h == g_menuscreen_h)
@@ -196,6 +190,13 @@ static void draw_savestate_bg(int slot)
 	make_bg(0, 1);
 
 	PicoTmpStateRestore(tmp_state);
+}
+
+static void menu_enter(int is_rom_loaded)
+{
+	plat_video_menu_enter(is_rom_loaded);
+	menu_w = menu_h = 0;
+	menu_draw_prep();
 }
 
 // --------- loading ROM screen ----------

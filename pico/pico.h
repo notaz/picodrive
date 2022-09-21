@@ -227,6 +227,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 #define PDRAW_SKIP_FRAME   (1<<10) // frame is skipped
 #define PDRAW_30_ROWS      (1<<11) // 30 rows mode (240 lines)
 #define PDRAW_32X_SCALE    (1<<12) // scale CLUT layer for 32X
+#define PDRAW_SMS_BLANK_1  (1<<13) // 1st column blanked
 extern int rendstatus_old;
 extern int rendlines;
 

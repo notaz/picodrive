@@ -535,7 +535,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
    // calculate the borders of the real image inside the picodrive image
    vout_width = (vout_16bit ? VOUT_MAX_WIDTH : VOUT_8BIT_WIDTH);
    vout_height = (vout_16bit ? VOUT_MAX_HEIGHT : VOUT_8BIT_HEIGHT);
-   vout_offset = (vout_16bit ? 0 : 8); // 8bit has 8 px overlap area on the left
+   vout_offset = (vout_16bit ? 0 : col_count == 248 ? 16 : 8); // 8bit has overlap area on the left
    padding = (struct retro_hw_ps2_insets){start_line, vout_offset, vout_height - line_count - start_line, vout_width - col_count - vout_offset};
 
    int pxsz = (vout_16bit ? 2 : 1); // pixel size: RGB = 16 bits, CLUT = 8 bits
@@ -2247,6 +2247,9 @@ void retro_run(void)
       int x;
       if (Pico.m.dirtyPal)
          PicoDrawUpdateHighPal();
+      /* 8 bit renderers have an extra offset for SMS wíth 1st tile blanked */
+      if (vout_width == 248)
+         ps += 8;
       /* Copy, and skip the leftmost 8 columns again */
       for (i = 0; i < vout_height; i++, ps += 8) {
          for (x = 0; x < vout_width; x+=4) {

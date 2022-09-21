@@ -13,6 +13,8 @@ static const char *men_filter_opts[] = { "nearest", "bilinear" };
 
 #define MENU_OPTIONS_ADV
 
+static menu_entry e_menu_sms_options[];
+
 void psp_menu_init(void)
 {
 	me_enable(e_menu_sms_options, MA_SMSOPT_GHOSTING, 0);

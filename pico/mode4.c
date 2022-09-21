@@ -154,15 +154,14 @@ static void ParseSpritesM4(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 *sat;
-  int xoff = 8; // relative to HighCol, which is (screen - 8)
+  int xoff = line_offset;
   int sprite_base, addr_mask;
   int zoomed = pv->reg[1] & 0x1; // zoomed sprites, e.g. Earthworm Jim
   unsigned int pack;
   int i, s, h, m;
 
   if (pv->reg[0] & 8)
-    xoff = 0;
-  xoff += line_offset;
+    xoff -= 8;  // sprite shift
   if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
     xoff -= 48; // GG LCD, adjust to center 160 px
 
@@ -204,6 +203,9 @@ static void ParseSpritesM4(int scanline)
         // make sprite pixel map by merging the 4 bitplanes
         pack = ((pack | (pack>>16)) | ((pack | (pack>>16))>>8)) & 0xff;
         if (!m) m = CollisionDetect(sprites_map, sprites_x[s], pack, zoomed);
+        // no collision detection in 1st column if it's masked
+        if (pv->reg[0] & 0x20)
+          sprites_map[1] = 0;
       }
       s++;
     }
@@ -290,28 +292,26 @@ static void DrawDisplayM4(int scanline)
   if (scanline < 16 && (pv->reg[0] & 0x40))
     dx = 0; // hscroll disabled for top 2 rows (e.g. Fantasy Zone II)
 
-  tilex = ((-dx >> 3) + cellskip) & 0x1f;
+  tilex = (32 - (dx >> 3) + cellskip) & 0x1f;
   ty = (line & 7) << 1; // Y-Offset into tile
   cells = maxcells - cellskip;
 
-  dx = ((dx - 1) & 7) + 1;
-  if (dx != 8)
-    cells++; // have hscroll, need to draw 1 cell more
+  dx = (dx & 7);
   dx += cellskip << 3;
   dx += line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B)) {
     if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD)) {
-      // on GG render only the center 160 px
-      DrawStripM4(nametab , dx | ((cells-12)<< 16),(tilex+6) | (ty  << 16));
+      // on GG render only the center 160 px, but mind hscroll
+      DrawStripM4(nametab , (dx-8) | ((cells-11)<< 16),(tilex+5) | (ty  << 16));
     } else if (pv->reg[0] & 0x80) {
       // vscroll disabled for rightmost 8 columns (e.g. Gauntlet)
       int dx2 = dx + (cells-8)*8, tilex2 = tilex + (cells-8), ty2 = scanline&7;
-      DrawStripM4(nametab,  dx | ((cells-8) << 16), tilex  | (ty  << 16));
-      DrawStripM4(nametab2, dx2 |       (8  << 16), tilex2 | (ty2 << 17));
+      DrawStripM4(nametab,   dx    | ((cells-8) << 16), tilex    | (ty  << 16));
+      DrawStripM4(nametab2,  dx2   |        (8  << 16), tilex2   | (ty2 << 17));
     } else
-      DrawStripM4(nametab , dx | ( cells    << 16), tilex  | (ty  << 16));
+      DrawStripM4(nametab ,  dx    | ( cells    << 16), tilex    | (ty  << 16));
   }
 
   // sprites
@@ -320,9 +320,9 @@ static void DrawDisplayM4(int scanline)
 
   if ((pv->reg[0] & 0x20) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) != (PMS_HW_GG|PMS_HW_LCD)) {
     // first column masked with background, caculate offset to start of line
-    dx = (dx&~0x1f) / 4;
+    dx = line_offset / 4;
     ty = ((pv->reg[7]&0x0f)|0x10) * 0x01010101;
-    ((u32 *)Pico.est.HighCol)[dx+2] = ((u32 *)Pico.est.HighCol)[dx+3] = ty;
+    ((u32 *)Pico.est.HighCol)[dx] = ((u32 *)Pico.est.HighCol)[dx+1] = ty;
   }
 }
 
@@ -432,12 +432,12 @@ static void ParseSpritesTMS(int scanline)
   struct PicoVideo *pv = &Pico.video;
   unsigned int pack;
   u8 *sat;
-  int xoff = 8; // relative to HighCol, which is (screen - 8)
+  int xoff;
   int sprite_base, addr_mask;
   int zoomed = pv->reg[1] & 0x1; // zoomed sprites
   int i, s, h, m;
 
-  xoff += line_offset;
+  xoff = line_offset;
 
   sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -561,7 +561,7 @@ static void DrawDisplayM1(int scanline)
 
   tilex = cellskip & 0x1f;
   cells = maxcells - cellskip;
-  dx = (cellskip << 3) + line_offset + 8;
+  dx = (cellskip << 3) + line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -607,7 +607,7 @@ static void DrawDisplayM2(int scanline)
 
   tilex = cellskip & 0x1f;
   cells = maxcells - cellskip;
-  dx = (cellskip << 3) + line_offset + 8;
+  dx = (cellskip << 3) + line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -658,7 +658,7 @@ static void DrawDisplayM3(int scanline)
 
   tilex = cellskip & 0x1f;
   cells = maxcells - cellskip;
-  dx = (cellskip << 3) + line_offset + 8;
+  dx = (cellskip << 3) + line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -708,7 +708,7 @@ static void DrawDisplayM0(int scanline)
 
   tilex = cellskip & 0x1f;
   cells = maxcells - cellskip;
-  dx = (cellskip << 3) + line_offset + 8;
+  dx = (cellskip << 3) + line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -729,6 +729,7 @@ static void FinalizeLine8bitSMS(int line);
 void PicoFrameStartSMS(void)
 {
   int lines = 192, columns = 256, loffs, coffs;
+
   skip_next_line = 0;
   loffs = screen_offset = 24; // 192 lines is really 224 with top/bottom bars
   Pico.est.rendstatus = PDRAW_32_COLS;
@@ -741,9 +742,14 @@ void PicoFrameStartSMS(void)
 
   // Copy LCD enable flag for easier handling
   Pico.m.hardware &= ~PMS_HW_LCD;
-  if (PicoIn.opt & POPT_EN_GG_LCD)
+  if ((PicoIn.opt & POPT_EN_GG_LCD) && (Pico.m.hardware & PMS_HW_GG))
     Pico.m.hardware |= PMS_HW_LCD;
 
+  if (!(Pico.m.hardware & PMS_HW_LCD) && (mode & 4) && (Pico.video.reg[0] & 0x20)) {
+    // SMS mode 4 with 1st column blanked
+    columns = 248;
+    Pico.est.rendstatus |= PDRAW_SMS_BLANK_1;
+  }
   if ((Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD)) {
     // GG LCD always has 160x144 regardless of settings
     screen_offset = 24; // nonetheless the vdp timing has 224 lines
@@ -761,15 +767,20 @@ void PicoFrameStartSMS(void)
       lines = 224;
       break;
   }
-  if (PicoIn.opt & POPT_EN_SOFTSCALE) {
+
+  line_offset = 8; // FinalizeLine requires HighCol+8
+  // ugh... nonetheless has offset in 8-bit fast mode if 1st col blanked!
+  coffs = (FinalizeLineSMS == NULL && columns == 248 ? 8 : 0);
+  if (FinalizeLineSMS != NULL && (PicoIn.opt & POPT_EN_SOFTSCALE)) {
+    // softscaling always generates 320px, but no scaling in 8bit fast
     coffs = 0;
     columns = 320;
-  } else
-    coffs = PicoIn.opt & POPT_DIS_32C_BORDER ? 0:(320-columns)/2;
-  line_offset = (FinalizeLineSMS == NULL ? coffs : 0);
-
-  if (FinalizeLineSMS == FinalizeLineRGB555SMS)
-    line_offset = 0 /* done in FinalizeLine */;
+  } else if (!(PicoIn.opt & POPT_DIS_32C_BORDER)) {
+    line_offset -= coffs;
+    coffs = (320-columns) / 2;
+    if (FinalizeLineSMS == NULL)
+      line_offset += coffs; // ... else centering done in FinalizeLine
+  }
 
   if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
     emu_video_mode_change(loffs, lines, coffs, columns);
@@ -836,13 +847,16 @@ norender:
 /* Palette for TMS9918 mode, see https://www.smspower.org/Development/Palette */
 // RGB values: #000000 #000000 #21c842 #5edc78 #5455ed #7d76fc #d4524d #42ebf5
 //             #fc5554 #ff7978 #d4c154 #e6ce80 #21b03b #c95bba #cccccc #ffffff
-static u16 tmspal[32] = {
+static u16 tmspal[] = {
   // SMS palette
   0x0000, 0x0000, 0x00a0, 0x00f0, 0x0a00, 0x0f00, 0x0005, 0x0ff0,
   0x000a, 0x000f, 0x00aa, 0x00ff, 0x0050, 0x0f0f, 0x0aaa, 0x0fff,
-  // GG palette
+  // TMS palette
   0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055c, 0x0ee4,
   0x055f, 0x077f, 0x05bc, 0x08ce, 0x03a2, 0x0b5c, 0x0ccc, 0x0fff,
+  // SMS palette, closer to the TMS one
+  0x0000, 0x0000, 0x05f0, 0x05f5, 0x0a50, 0x0f55, 0x055a, 0x0ff0,
+  0x055f, 0x0aaf, 0x05aa, 0x05af, 0x00a0, 0x0f5f, 0x0aaa, 0x0fff,
 };
 
 void PicoDoHighPal555SMS(void)
@@ -853,11 +867,11 @@ void PicoDoHighPal555SMS(void)
   unsigned int t;
   int i, j;
  
-  if (FinalizeLineSMS != FinalizeLine8bitSMS || Pico.m.dirtyPal == 2)
+  if (FinalizeLineSMS == FinalizeLineRGB555SMS || Pico.m.dirtyPal == 2)
     Pico.m.dirtyPal = 0;
 
-  // use hardware palette for 16bit accurate mode
-  if (FinalizeLineSMS == FinalizeLineRGB555SMS)
+  // use hardware palette if not in 8bit accurate mode
+  if (FinalizeLineSMS != FinalizeLine8bitSMS)
     spal = (void *)PicoMem.cram;
 
   /* SMS 6 bit cram data was already converted to MD/GG format by vdp write,
@@ -906,8 +920,7 @@ void PicoDrawSetOutputSMS(pdso_t which)
   {
     case PDF_8BIT:   FinalizeLineSMS = FinalizeLine8bitSMS; break;
     case PDF_RGB555: FinalizeLineSMS = FinalizeLineRGB555SMS; break;
-    // there's no fast renderer yet, just treat it like PDF_8BIT
-    default:         FinalizeLineSMS = FinalizeLine8bitSMS;
+    default:         FinalizeLineSMS = NULL; // no multiple palettes, no scaling
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }
   rendstatus_old = -1;

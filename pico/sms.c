@@ -461,7 +461,7 @@ static void write_bank_xor(unsigned short a, unsigned char d)
   if ((a&0x6000) != 0x2000) return;
   if (Pico.ms.mapper != PMS_MAP_XOR && Pico.ms.mapper) return;
 
-  elprintf(EL_Z80BNK, "bank 32k %04x %02x @ %04x", a, d, z80_pc());
+  elprintf(EL_Z80BNK, "bank xor %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_XOR;
 
   Pico.ms.carthw[0] = d;
@@ -544,7 +544,7 @@ static void xwrite(unsigned int a, unsigned char d)
   }
 }
 
-// TMR product codes and hardware type for know 50Hz-only games
+// TMR product codes and hardware type for known 50Hz-only games
 static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
   0x40207067 /* Addams Family */, 0x40207020 /* Back.Future 3 */,
   0x40207058 /* Battlemaniacs */, 0x40007105 /* Cal.Games 2 */,

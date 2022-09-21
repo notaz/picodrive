@@ -85,8 +85,6 @@ static int get_renderer(void)
 {
 	if (doing_bg_frame)
 		return RT_16BIT;
-	if ((PicoIn.AHW & PAHW_SMS) && currentConfig.renderer == RT_8BIT_FAST)
-		return RT_8BIT_ACC;	// 8bpp fast is not there (yet?)
 	if (PicoIn.AHW & PAHW_32X)
 		return currentConfig.renderer32x;
 	else
@@ -217,6 +215,26 @@ static void draw_pico_ptr(void)
 	p[pitch*2] ^= 0xffff;
 }
 
+static void clear_1st_column(int firstcol, int firstline, int linecount)
+{
+	int size = is_16bit_mode() ? 2 : 1;
+	int black = is_16bit_mode() ? 0 : 0xe0;
+	int i;
+
+	// SMS 1st column blanked, replace with black
+	if ((currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) && !doing_bg_frame) {
+		int pitch = 240*size;
+		char *p = (char *)g_screen_ptr + (319-(firstcol-8))*pitch;
+		for (i = 0; i < 8; i++, p -= pitch)
+			memset(p+(firstline)*size, black, linecount*size);
+	} else {
+		int pitch = 320*size;
+		char *p = (char *)g_screen_ptr + (firstline)*pitch;
+		for (i = 0; i < linecount; i++, p += pitch)
+			memset(p+(firstcol-8)*size, black, 8*size);
+	}
+}
+
 /* rot thing for Wiz */
 static unsigned char __attribute__((aligned(4))) rot_buff[320*4*2];
 
@@ -246,7 +264,7 @@ static int EmuScanEnd8_rot(unsigned int num)
 	if ((num & 3) != 3)
 		return 0;
 	rotated_blit8(g_screen_ptr, rot_buff, num + 1,
-		!(Pico.video.reg[12] & 1));
+		!(Pico.video.reg[12] & 1) && !(PicoIn.opt & POPT_EN_SOFTSCALE));
 	return 0;
 }
 
@@ -296,7 +314,7 @@ static int EmuScanEnd16_ld(unsigned int num)
 static int localPal[0x100];
 static int localPalSize;
 
-static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border);
+static void (*vidcpy8bit)(void *dest, void *src, int x_y, int w_h);
 static int (*make_local_pal)(int fast_mode);
 
 static int make_local_pal_md(int fast_mode)
@@ -351,6 +369,11 @@ static int make_local_pal_sms(int fast_mode)
 			bgr444_to_rgb32(localPal+i*0x40, tmspal, 32);
 			memcpy(localPal+i*0x40+0x20, localPal+i*0x40, 0x20*4);
 		}
+	} else if (fast_mode) {
+		for (i = 0;i >= 0; i--) {
+			bgr444_to_rgb32(localPal+i*0x40, PicoMem.cram+i*0x40, 32);
+			memcpy(localPal+i*0x40+0x20, localPal+i*0x40, 0x20*4);
+		}
 	} else {
 		for (i = Pico.est.SonicPalCount; i >= 0; i--) {
 			bgr444_to_rgb32(localPal+i*0x40, Pico.est.SonicPal+i*0x40, 32);
@@ -362,11 +385,15 @@ static int make_local_pal_sms(int fast_mode)
 	return (Pico.est.SonicPalCount+1)*0x40;
 }
 
+static int is_1stblanked;
+static int firstline, linecount;
+static int firstcol, colcount;
+
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoIn.AHW & PAHW_32X)
+	if (is_16bit_mode())
 		localPalSize = 0; // nothing to do
 	else if (get_renderer() == RT_8BIT_FAST)
 	{
@@ -377,13 +404,14 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		if (PicoIn.AHW & PAHW_SVP)
 			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328/4);
 		// clear top and bottom of overlap trash
-		if (!(Pico.est.rendstatus & PDRAW_30_ROWS)) {
-			memset32((int *)(Pico.est.Draw2FB+8*(224+8)), 0xe0e0e0e0, 328*8/4);
-			memset32((int *)(Pico.est.Draw2FB), 0xe0e0e0e0, 328*8/4);
+		if (firstline >= 8) {
+			unsigned char *p = Pico.est.Draw2FB + firstline*328;
+			memset32((int *)(p-        8*328), 0xe0e0e0e0, 328*8/4);
+			memset32((int *)(p+linecount*328), 0xe0e0e0e0, 328*8/4);
 		}
 		// do actual copy
-		vidcpyM2(g_screen_ptr, Pico.est.Draw2FB+328*8,
-			!(Pico.video.reg[12] & 1), !(PicoIn.opt & POPT_DIS_32C_BORDER));
+		vidcpy8bit(g_screen_ptr, Pico.est.Draw2FB,
+			(firstcol << 16) | firstline, (colcount << 16) | linecount);
 	}
 	else if (get_renderer() == RT_8BIT_ACC)
 	{
@@ -391,7 +419,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		if (Pico.m.dirtyPal)
 			localPalSize = make_local_pal(0);
 	}
-	else	localPalSize = 0; // no palette in 16bit mode
+
+	if (is_1stblanked)
+		clear_1st_column(firstcol, firstline, linecount);
 
 	if (notice)
 		osd_text(4, osd_y, notice);
@@ -522,7 +552,7 @@ static void vid_reset_mode(void)
 	case RT_8BIT_FAST:
 		PicoIn.opt |= POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_NONE, 0);
-		vidcpyM2 = vidcpy_m2;
+		vidcpy8bit = vidcpy_8bit;
 		gp2x_mode = 8;
 		break;
 	default:
@@ -546,13 +576,15 @@ static void vid_reset_mode(void)
 		if ((PicoIn.AHW & PAHW_32X) || renderer == RT_16BIT) {
 			emu_scan_begin = EmuScanBegin16_rot;
 			emu_scan_end = EmuScanEnd16_rot;
+			memset(rot_buff, 0, 320*4*2);
 		}
 		else if (renderer == RT_8BIT_ACC) {
 			emu_scan_begin = EmuScanBegin8_rot;
 			emu_scan_end = EmuScanEnd8_rot;
+			memset(rot_buff, 0xe0, 320*4);
 		}
 		else if (renderer == RT_8BIT_FAST)
-			vidcpyM2 = vidcpy_m2_rot;
+			vidcpy8bit = vidcpy_8bit_rot;
 	}
 
 	PicoDrawSetCallbacks(emu_scan_begin, emu_scan_end);
@@ -588,17 +620,25 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	int scalex = 320, scaley = 240;
 	int ln_offs = 0;
 
-	/* NTSC always has 224 visible lines, anything smaller has bars */
-	if (line_count < 224 && line_count > 144) {
-		start_line -= (224-line_count) /2;
-		line_count = 224;
+	if (currentConfig.vscaling != EOPT_SCALE_NONE &&
+			(is_16bit_mode() || get_renderer() != RT_8BIT_FAST)) {
+		/* NTSC always has 224 visible lines, anything smaller has bars */
+		if (line_count < 224 && line_count > 144) {
+			start_line -= (224-line_count) /2;
+			line_count = 224;
+		}
+
+		/* line doubling for swscaling, also needed for bg frames */
+		if (currentConfig.vscaling == EOPT_SCALE_SW && line_count < 240) {
+			ld_lines = ld_left = 2*line_count / (240 - line_count);
+			PicoDrawSetCallbacks(EmuScanBegin16_ld,EmuScanEnd16_ld);
+		}
 	}
 
-	/* line doubling for swscaling, also needed for bg frames */
-	if (currentConfig.vscaling == EOPT_SCALE_SW && line_count < 240) {
-		ld_lines = ld_left = 2*line_count / (240 - line_count);
-		PicoDrawSetCallbacks(EmuScanBegin16_ld, EmuScanEnd16_ld);
-	}
+	/* blanking for SMS with 1st tile blanked */
+	is_1stblanked = (col_count == 248);
+	firstline = start_line; linecount = line_count;
+	firstcol = start_col; colcount = col_count;
 
 	if (doing_bg_frame)
 		return;
@@ -754,10 +794,15 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	Pico.m.dirtyPal = 1;
 	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	gp2x_current_bpp = 16;
+	// always render in screen 3 since menu uses 0-2
+	g_screen_ptr = gp2x_screens[3];
 
 	if (!no_scale)
 		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
 	emu_cmn_forced_frame(no_scale, do_emu, g_screen_ptr);
+
+	if (is_1stblanked)
+		clear_1st_column(firstcol, firstline, linecount);
 
 	g_menubg_src_ptr = g_screen_ptr;
 	doing_bg_frame = 0;
@@ -791,6 +836,12 @@ void pemu_loop_end(void)
 {
 	pemu_sound_stop();
 
+	if (g_screen_ptr == gp2x_screens[0]) {
+		/* currently on screen 3, which is needed for forced_frame */
+		int size = gp2x_current_bpp / 8;
+		gp2x_memcpy_all_buffers(g_screen_ptr, 0, 320*240 * size);
+		gp2x_video_flip();
+	}
 	/* do one more frame for menu bg */
 	pemu_forced_frame(0, 1);
 }

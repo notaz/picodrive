@@ -124,72 +124,138 @@ bgr444_to_rgb32_sh:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-
-@ mode2 blitter
-.global vidcpy_m2 @ void *dest, void *src, int m32col, int with_32c_border
-vidcpy_m2:
+.global vidcpy_8bit @ void *dest, void *src, int x_y, int w_h
+vidcpy_8bit:
     stmfd   sp!, {r4-r6,lr}
 
-    mov     r12, #224       @ lines
-    add     r0, r0, #320*8
+    mov     r12, r2, lsl #16    @ y
+
+    mov     r4, r12, lsr #16-8  @ 320*y = 256*y+64*y
+    add     r4, r4, r12, lsr #16-6
+    add     r0, r0, r4          @ pd += 320*y + x
+    add     r0, r0, r2, lsr #16
+
+    add     r4, r4, r12, lsr #16-3 @ 328*y = 320*y + 8*y
+    add     r1, r1, r4          @ ps += 328*y + x + 8
+    add     r1, r1, r2, lsr #16
     add     r1, r1, #8
-    mov     lr, #0
 
-    tst     r2, r2
-    movne   lr, #64
-    tstne   r3, r3
-    addne   r0, r0, #32
-    addne   r1, r1, #32
+    mov     lr, r3, lsr #16     @ w
+    mov     r12, r3, lsl #16    @ h
 
-vidCpyM2_loop_out:
-    mov     r6, #10
-    sub     r6, r6, lr, lsr #5	@ -= 2 in 32col mode
-vidCpyM2_loop:
+vidCpy8bit_loop_out:
+    lsrs    r6, lr, #5
+@   beq     vidCpy8bit_loop_end
+vidCpy8bit_loop:
     subs    r6, r6, #1
     ldmia   r1!, {r2-r5}
     stmia   r0!, {r2-r5}
     ldmia   r1!, {r2-r5}
     stmia   r0!, {r2-r5}
-    bne     vidCpyM2_loop
+    bne     vidCpy8bit_loop
 
-    subs    r12,r12,#1
-    add     r0, r0, lr
-    add     r1, r1, #8
-    add     r1, r1, lr
-    bne     vidCpyM2_loop_out
+    ands    r6, lr, #0x0018
+    beq     vidCpy8bit_loop_end
+vidCpy8bit_loop2:
+    ldmia   r1!, {r2-r3}
+    subs    r6, r6, #8
+    stmia   r0!, {r2-r3}
+    bne     vidCpy8bit_loop2
+
+vidCpy8bit_loop_end:
+    subs    r12,r12,#1<<16
+    add     r0, r0, #320
+    sub     r0, r0, lr
+    add     r1, r1, #328
+    sub     r1, r1, lr
+    bne     vidCpy8bit_loop_out
 
     ldmfd   sp!, {r4-r6,pc}
 
 
-.global vidcpy_m2_rot @ void *dest, void *src, int m32col, int with_32c_border
-vidcpy_m2_rot:
-    stmfd   sp!,{r4-r8,lr}
+.global vidcpy_8bit_rot @ void *dest, void *src, int x_y, int w_h
+vidcpy_8bit_rot:
+    stmfd   sp!, {r4-r10,lr}
+
+    mov     r12, r2, lsl #16    @ y
+
+    add     r0, r0, r12, lsr #16 @ pd += y + (319-x)*240
+    mov     r4, #320
+    sub     r4, r4, #1
+    sub     r4, r4, r2, lsr #16 @    (319-x)
+    add     r0, r0, r4, lsl #8
+    sub     r0, r0, r4, lsl #4
+
+    mov     r4, r12, lsr #16-8  @ 328*y = 256*y + 64*y + 8*y
+    add     r4, r4, r12, lsr #16-6
+    add     r4, r4, r12, lsr #16-3
+    add     r1, r1, r4          @ ps += 328*y + x + 8
+    add     r1, r1, r2, lsr #16
     add     r1, r1, #8
-    tst     r2, r2
-    subne   r1, r1, #32		@ adjust
 
-    mov     r4, r0
-    mov     r5, r1
-    mov     r6, r2
-    mov     r7, #8+4
+    mov     lr, r3, lsr #16     @ w
+    mov     r12, r3, lsl #16    @ h
 
-vidcpy_m2_rot_loop:
-    @ a bit lame but oh well..
-    mov     r0, r4
-    mov     r1, r5
-    mov     r2, r7
-    mov     r3, r6
     mov     r8, #328
-    adr     lr, after_rot_blit8
-    stmfd   sp!,{r4-r8,lr}
-    b       rotated_blit8_2
+vidCpy8bitrot_loop_out:
+    mov     r10, r0
+    lsrs    r9, lr, #2
+@   beq     vidCpy8bitrot_loop_end
+vidCpy8bitrot_loop:
+    mov     r6, r1
+    ldr     r2, [r6], r8
+    ldr     r3, [r6], r8
+    ldr     r4, [r6], r8
+    ldr     r5, [r6], r8
 
-after_rot_blit8:
-    add     r5, r5, #328*4
-    add     r7, r7, #4
-    cmp     r7, #224+8+4
-    ldmgefd sp!,{r4-r8,pc}
-    b       vidcpy_m2_rot_loop
+    mov     r6, r2, lsl #24
+    mov     r6, r6, lsr #8
+    orr     r6, r6, r3, lsl #24
+    mov     r6, r6, lsr #8
+    orr     r6, r6, r4, lsl #24
+    mov     r6, r6, lsr #8
+    orr     r6, r6, r5, lsl #24
+    str     r6, [r0], #-240
+
+    and     r6, r3, #0xff00
+    and     r7, r2, #0xff00
+    orr     r6, r6, r7, lsr #8
+    and     r7, r4, #0xff00
+    orr     r6, r6, r7, lsl #8
+    and     r7, r5, #0xff00
+    orr     r6, r6, r7, lsl #16
+    str     r6, [r0], #-240
+
+    and     r6, r4, #0xff0000
+    and     r7, r2, #0xff0000
+    orr     r6, r6, r7, lsr #16
+    and     r7, r3, #0xff0000
+    orr     r6, r6, r7, lsr #8
+    and     r7, r5, #0xff0000
+    orr     r6, r6, r7, lsl #8
+    str     r6, [r0], #-240
+
+    mov     r6, r5, lsr #24
+    mov     r6, r6, lsl #8
+    orr     r6, r6, r4, lsr #24
+    mov     r6, r6, lsl #8
+    orr     r6, r6, r3, lsr #24
+    mov     r6, r6, lsl #8
+    orr     r6, r6, r2, lsr #24
+    str     r6, [r0], #-240
+
+    subs    r9, r9, #1
+    add     r1, r1, #4
+    bne     vidCpy8bitrot_loop
+
+vidCpy8bitrot_loop_end:
+    subs    r12,r12,#4<<16
+    add     r0, r10, #4
+    sub     r1, r1, lr
+    add     r1, r1, #4*328
+    bne     vidCpy8bitrot_loop_out
+
+    ldmfd   sp!, {r4-r10,pc}
 
 
 .global rotated_blit8 @ void *dst, void *linesx4, u32 y, int is_32col

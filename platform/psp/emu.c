@@ -189,7 +189,8 @@ static void set_scaling_params(void)
 	g_vertices[1].y = fbimg_yoffs + fbimg_height;
 	if (!is_16bit_mode()) {
 		// 8-bit modes have an 8 px overlap area on the left
-		g_vertices[0].u += 8; g_vertices[1].u += 8;
+		int offs = out_w == 248 ? 16 : 8;
+		g_vertices[0].u += offs; g_vertices[1].u += offs;
 	}
 	if (border_hack) {
 		g_vertices[0].u++;    g_vertices[1].u--;
@@ -210,12 +211,16 @@ static void do_pal_update_sms(void)
 		// SMS palette
 		0x0000, 0x0000, 0x00a0, 0x00f0, 0x0500, 0x0f00, 0x0005, 0x0ff0,
 		0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+		// TMS palette
+		0x0000, 0x0000, 0x04c2, 0x07d6, 0x0e55, 0x0f77, 0x055c, 0x0ee4,
+		0x055f, 0x077f, 0x05bc, 0x08ce, 0x03a2, 0x0b5c, 0x0ccc, 0x0fff,
 	};
 	int i;
 	
 	if (!(Pico.video.reg[0] & 0x4)) {
+		int sg = !!(Pico.m.hardware & PMS_HW_SG);
 		for (i = Pico.est.SonicPalCount; i >= 0; i--)
-			do_pal_convert(localPal+i*0x40, tmspal, currentConfig.gamma, currentConfig.gamma2);
+			do_pal_convert(localPal+i*0x40, tmspal+sg*0x10, currentConfig.gamma, currentConfig.gamma2);
 	} else {
 		for (i = Pico.est.SonicPalCount; i >= 0; i--)
 			do_pal_convert(localPal+i*0x40, Pico.est.SonicPal+i*0x40, currentConfig.gamma, currentConfig.gamma2);

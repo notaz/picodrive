@@ -1646,13 +1646,17 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
 
   PicoDrawUpdateHighPal();
 
-  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & 0x3) == 0x3)
-                                        len = 160;
-  else if (Pico.video.reg[12]&1)        len = 320;
-  else                                  len = 256;
+  len = 256;
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
+    len = 160;
+  else if (!(PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[12]&1))
+    len = 320;
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[0] & 0x20) && len == 256)
+    len -= 8, ps += 8;
 
   if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && len < 320) {
-    if (len == 256) {
+    if (len >= 240 && len <= 256) {
+      pd += (256-len)>>1;
       switch (PicoIn.filter) {
       case 3: h_upscale_bl4_4_5(pd, 320, ps, 256, len, f_pal); break;
       case 2: h_upscale_bl2_4_5(pd, 320, ps, 256, len, f_pal); break;
@@ -1706,10 +1710,13 @@ void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     Pico.m.dirtyPal = 2;
   }
 
-  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & 0x3) == 0x3)
-                                        len = 160;
-  else if (Pico.video.reg[12]&1)        len = 320;
-  else                                  len = 256;
+  len = 256;
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
+    len = 160;
+  else if (!(PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[12]&1))
+    len = 320;
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[0] & 0x20) && len == 256)
+    len -= 8, ps += 8;
 
   if (DrawLineDestIncrement == 0)
     pd = est->HighCol+8;
@@ -1720,7 +1727,7 @@ void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
       pal = est->SonicPalCount*0x40;
     // Smoothing can't be used with CLUT, hence it's always Nearest Neighbour.
-    if (len == 256)
+    if (len >= 240)
       // use reverse version since src and dest ptr may be the same.
       rh_upscale_nn_4_5(pd, 320, ps, 256, len, f_or);
     else

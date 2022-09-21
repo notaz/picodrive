@@ -138,13 +138,13 @@ void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
 	if (currentConfig.scaling == EOPT_SCALE_SW && out_w <= 256) {
 	    if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
 		// h+v scaling
-		upscale = out_w >= 256 ? upscale_256_224_hv: upscale_160_144_hv;
+		upscale = out_w >= 240 ? upscale_256_224_hv: upscale_160_144_hv;
 	    else
 		// h scaling
-		upscale = out_w >= 256 ? upscale_256_____h : upscale_160_____h;
+		upscale = out_w >= 240 ? upscale_256_____h : upscale_160_____h;
 	} else if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
 		// v scaling
-		upscale = out_w >= 256 ? upscale_____224_v : upscale_____144_v;
+		upscale = out_w >= 240 ? upscale_____224_v : upscale_____144_v;
 	if (!upscale) {
 		// no scaling
 		for (y = 0; y < out_h; y++)
@@ -165,6 +165,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 		PicoDrawUpdateHighPal();
 
+		if (out_w == 248 && currentConfig.scaling == EOPT_SCALE_SW)
+			pd += (320 - out_w*320/256) / 2; // SMS with 1st tile blanked, recenter
 		screen_blit(pd, g_screen_ppitch, ps, 328, Pico.est.HighPal);
 	}
 
@@ -205,16 +207,13 @@ void plat_video_set_buffer(void *buf)
 
 static void apply_renderer(void)
 {
-	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE|POPT_DIS_32C_BORDER);
+	PicoIn.opt |= POPT_DIS_32C_BORDER;
+	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
 	if (is_16bit_mode()) {
 		if (currentConfig.scaling == EOPT_SCALE_SW)
 			PicoIn.opt |= POPT_EN_SOFTSCALE;
-		else if (currentConfig.scaling == EOPT_SCALE_HW)
-			// hw scaling, render without any padding
-			PicoIn.opt |= POPT_DIS_32C_BORDER;
 		PicoIn.filter = currentConfig.filter;
-	} else
-		PicoIn.opt |= POPT_DIS_32C_BORDER;
+	}
 
 	switch (get_renderer()) {
 	case RT_16BIT:
@@ -374,8 +373,9 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 
 	switch (currentConfig.scaling) {
 	case EOPT_SCALE_HW:
-		screen_w = out_w;
-		screen_x = 0;
+		// mind aspect ratio for SMS with 1st column blanked
+		screen_w = (out_w == 248 ? 256 : out_w);
+		screen_x = (screen_w - out_w)/2;
 		break;
 	case EOPT_SCALE_SW:
 		screen_x = (screen_w - 320)/2;
