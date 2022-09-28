@@ -561,7 +561,7 @@ static void DrawDisplayM1(int scanline)
 
   tilex = cellskip & 0x1f;
   cells = maxcells - cellskip;
-  dx = (cellskip << 3) + line_offset;
+  dx = 8 + (cellskip << 3) + line_offset;
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
