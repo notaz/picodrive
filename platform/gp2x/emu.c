@@ -392,6 +392,7 @@ static int firstcol, colcount;
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
+	int direct_rendered = 1;
 
 	if (is_16bit_mode())
 		localPalSize = 0; // nothing to do
@@ -403,15 +404,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		// a hack for VR
 		if (PicoIn.AHW & PAHW_SVP)
 			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328/4);
-		// clear top and bottom of overlap trash
-		if (firstline >= 8) {
-			unsigned char *p = Pico.est.Draw2FB + firstline*328;
-			memset32((int *)(p-        8*328), 0xe0e0e0e0, 328*8/4);
-			memset32((int *)(p+linecount*328), 0xe0e0e0e0, 328*8/4);
-		}
 		// do actual copy
 		vidcpy8bit(g_screen_ptr, Pico.est.Draw2FB,
 			(firstcol << 16) | firstline, (colcount << 16) | linecount);
+		direct_rendered = 0;
 	}
 	else if (get_renderer() == RT_8BIT_ACC)
 	{
@@ -420,7 +416,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			localPalSize = make_local_pal(0);
 	}
 
-	if (is_1stblanked)
+	// blank 1st column, only needed in modes directly rendering to screen
+	if (is_1stblanked && direct_rendered)
 		clear_1st_column(firstcol, firstline, linecount);
 
 	if (notice)
