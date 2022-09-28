@@ -45,7 +45,7 @@ enum {
 	EOPT_SCALE_WIDE,	// DAR 14:9
 	EOPT_SCALE_FULL,	// DAR 16:9
 	// PSP vert:
-	EOPT_VSCALE_PAL = 1,	// always 240 lines
+	EOPT_VSCALE_43 = 1,	// DAR 4:3
 	EOPT_VSCALE_FULL,	// zoomed to full height
 };
 

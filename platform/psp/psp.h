@@ -38,7 +38,7 @@ extern int psp_unhandled_suspend;
 
 void *psp_video_get_active_fb(void);
 void  psp_video_switch_to_single(void);
-void  psp_video_flip(int wait_vsync);
+void  psp_video_flip(int wait_vsync, int other);
 extern void *psp_screen;
 
 unsigned int psp_pad_read(int blocking);
@@ -52,10 +52,10 @@ void psp_wait_suspend(void);
 void psp_resume_suspend(void);
 
 /* fake 'nub' btns, mapped to the 4 unused upper bits of ctrl buttons */
-#define PSP_NUB_UP    (1 << 28)
-#define PSP_NUB_RIGHT (1 << 29)
-#define PSP_NUB_DOWN  (1 << 30)
-#define PSP_NUB_LEFT  (1 << 31)
+#define PSP_NUB_UP    (1 << 26)
+#define PSP_NUB_RIGHT (1 << 27)
+#define PSP_NUB_DOWN  (1 << 28)
+#define PSP_NUB_LEFT  (1 << 29)
 
 /* from menu.c */
 void psp_menu_init(void);

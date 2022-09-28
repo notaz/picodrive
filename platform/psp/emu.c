@@ -189,8 +189,7 @@ static void set_scaling_params(void)
 	g_vertices[1].y = fbimg_yoffs + fbimg_height;
 	if (!is_16bit_mode()) {
 		// 8-bit modes have an 8 px overlap area on the left
-		int offs = out_w == 248 ? 16 : 8;
-		g_vertices[0].u += offs; g_vertices[1].u += offs;
+		g_vertices[0].u += 8; g_vertices[1].u += 8;
 	}
 	if (border_hack) {
 		g_vertices[0].u++;    g_vertices[1].u--;
@@ -594,7 +593,9 @@ void pemu_prep_defconfig(void)
 	defaultConfig.CPUclock = 333;
 	defaultConfig.filter = EOPT_FILTER_BILINEAR; // bilinear filtering
 	defaultConfig.scaling = EOPT_SCALE_43;
-	defaultConfig.vscaling = EOPT_VSCALE_FULL;
+	defaultConfig.vscaling = EOPT_VSCALE_43;
+	defaultConfig.renderer = RT_8BIT_ACC;
+	defaultConfig.renderer32x = RT_8BIT_ACC;
 	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
 }
 
@@ -686,18 +687,18 @@ void plat_update_volume(int has_changed, int is_up)
 /* prepare for MD screen mode change */
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
-	/* NTSC always has 224 visible lines, anything smaller has bars */
-	if (line_count < 224 && line_count > 144) {
-		start_line -= (224-line_count) /2;
-		line_count = 224;
-	}
-
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
+	if (col_count == 248) // mind aspect ration when blanking 1st column
+		col_count = 256;
+
 	switch (currentConfig.vscaling) {
-	case EOPT_VSCALE_PAL:
-		vscale = (float)270/240;
+	case EOPT_VSCALE_43:
+		// ugh, mind GG...
+		if (line_count >= 160)
+			line_count = (Pico.m.pal ? 240 : 224);
+		vscale = (float)270/line_count;
 		break;
 	case EOPT_VSCALE_FULL:
 		vscale = (float)270/line_count;

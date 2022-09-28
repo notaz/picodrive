@@ -1,6 +1,6 @@
 
 static const char *men_hscaling_opts[] = { "OFF", "4:3", "wide", "fullscreen", NULL };
-static const char *men_vscaling_opts[] = { "OFF", "PAL", "fullscreen", NULL };
+static const char *men_vscaling_opts[] = { "OFF", "4:3", "fullscreen", NULL };
 static const char *men_filter_opts[] = { "nearest", "bilinear" };
 
 #define MENU_OPTIONS_GFX \

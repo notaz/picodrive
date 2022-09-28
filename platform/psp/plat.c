@@ -68,7 +68,7 @@ void plat_target_finish(void)
 void plat_video_flip(void)
 {
 	g_menubg_src_ptr = psp_screen;
-	psp_video_flip(currentConfig.EmuOpt & EOPT_VSYNC);
+	psp_video_flip(currentConfig.EmuOpt & EOPT_VSYNC, 1);
 	g_screen_ptr = VRAM_CACHED_STUFF + (psp_screen - VRAM_FB0);
 	plat_video_set_buffer(g_screen_ptr);
 }
@@ -94,7 +94,7 @@ void plat_video_menu_begin(void)
 void plat_video_menu_end(void)
 {
 	plat_video_wait_vsync();
-	plat_video_flip();
+	psp_video_flip(0, 0);
 }
 
 /* terminate menu display */

@@ -52,7 +52,12 @@ static int lg2(unsigned v)
 
 static unsigned in_psp_get_bits(void)
 {
-	return psp_pad_read(0) & 0xf000ffff;
+	unsigned mask = PSP_NUB_UP|PSP_NUB_DOWN|PSP_NUB_LEFT|PSP_NUB_RIGHT |
+	    PSP_CTRL_UP|PSP_CTRL_DOWN|PSP_CTRL_LEFT|PSP_CTRL_RIGHT |
+	    PSP_CTRL_CIRCLE|PSP_CTRL_CROSS|PSP_CTRL_TRIANGLE|PSP_CTRL_SQUARE |
+	    PSP_CTRL_LTRIGGER|PSP_CTRL_RTRIGGER|PSP_CTRL_SELECT|PSP_CTRL_START;
+
+	return psp_pad_read(0) & mask;
 }
 
 static void in_psp_probe(const in_drv_t *drv)
