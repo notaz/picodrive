@@ -1381,7 +1381,7 @@ static void emu_loop_prep(void)
 }
 
 /* our tick here is 1 us right now */
-#define ms_to_ticks(x) (unsigned int)(x * 1000)
+#define ms_to_ticks(x) (int)(x * 1000)
 #define get_ticks() plat_get_ticks_us()
 #define vsync_delay_x3	3*ms_to_ticks(1)
 
@@ -1542,7 +1542,7 @@ void emu_loop(void)
 				// we are too fast
 				plat_video_wait_vsync();
 				timestamp = get_ticks();
-				diff = timestamp * 3 - timestamp_aim_x3;
+				diff = timestamp_aim_x3 - timestamp * 3;
 			}
 			if (diff > target_frametime_x3 + vsync_delay_x3) {
 				// still too fast
