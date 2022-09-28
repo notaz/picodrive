@@ -74,11 +74,11 @@ set_platform()
   platform=$1
   case "$platform" in
   rpi1)
-    MFLAGS="mcpu=arm1176jzf-s -mfpu=vfp"
+    MFLAGS="-mcpu=arm1176jzf-s -mfpu=vfp"
     have_gles="yes"
     ;;
   rpi2)
-    MFLAGS="mcpu=cortex-a7 -mfpu=neon"
+    MFLAGS="-mcpu=cortex-a7 -mfpu=neon"
     have_gles="yes"
     ;;
   generic)
