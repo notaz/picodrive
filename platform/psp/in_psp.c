@@ -140,7 +140,6 @@ static struct {
 	{ PSP_CTRL_SQUARE,	PBTN_MA3 },
 	{ PSP_CTRL_LTRIGGER,	PBTN_L },
 	{ PSP_CTRL_RTRIGGER,	PBTN_R },
-	{ PSP_CTRL_SELECT,	PBTN_MENU },
 };
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))

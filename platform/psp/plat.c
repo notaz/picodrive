@@ -117,7 +117,7 @@ int plat_get_root_dir(char *dst, int len)
 /* base directory for emulator resources */
 int plat_get_skin_dir(char *dst, int len)
 {
-	if (len > 4)
+	if (len > 5)
 		strcpy(dst, "skin/");
 	else if (len > 0)
 		*dst = 0;
@@ -127,7 +127,7 @@ int plat_get_skin_dir(char *dst, int len)
 /* top directory for rom images */
 int plat_get_data_dir(char *dst, int len)
 {
-	if (len > 4)
+	if (len > 5)
 		strcpy(dst, "ms0:/");
 	else if (len > 0)
 		*dst = 0;
@@ -237,7 +237,7 @@ struct plat_target plat_target = {
 //	.hwfilters = plat_hwfilters,
 };
 
-
+#ifndef DT_DIR
 /* replacement libc stuff */
 
 int alphasort(const struct dirent **a, const struct dirent **b)
@@ -319,14 +319,6 @@ end:
 	return ret;
 }
 
-int _flush_cache (char *addr, const int size, const int op)
-{
-	//sceKernelDcacheWritebackAll();
-	sceKernelDcacheWritebackRange(addr, size);
-	sceKernelIcacheInvalidateRange(addr, size);
-	return 0;
-}
-
 /* stubs for libflac (embedded in libchdr) */
 #include <utime.h>
 #include <malloc.h>
@@ -336,3 +328,12 @@ int chmod(const char *pathname, mode_t mode) { return -1; }
 int utime(const char *filename, const struct utimbuf *times) { return -1; }
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 	{ *memptr = memalign(alignment, size); return 0; }
+#endif
+
+int _flush_cache (char *addr, const int size, const int op)
+{
+	//sceKernelDcacheWritebackAll();
+	sceKernelDcacheWritebackRange(addr, size);
+	sceKernelIcacheInvalidateRange(addr, size);
+	return 0;
+}
