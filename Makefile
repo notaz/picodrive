@@ -164,10 +164,10 @@ endif
 ifeq "$(PLATFORM)" "generic"
 #ifeq (y,$(shell echo "\#include <GLES/gl.h>" | $(CC) -E -xc - >/dev/null 2>&1 && echo y))
 ifeq "$(HAVE_GLES)" "1"
-CFLAGS += -DHAVE_GLES -DSDL_REDRAW_EVT
+CFLAGS += -DHAVE_GLES
 LDFLAGS += -lEGL -lGLESv1_CM
 endif
-CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X
+CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X -DSDL_REDRAW_EVT
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 ifeq "$(use_inputmap)" "1"
 OBJS += platform/common/plat_sdl.o platform/opendingux/inputmap.o
