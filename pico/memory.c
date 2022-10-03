@@ -314,7 +314,7 @@ static port_read_func *port_readers[3] = {
   read_nothing
 };
 
-static int padTHLatency[3];
+static int padTHLatency[3]; // TODO this should be in the save file structures
 
 static NOINLINE u32 port_read(int i)
 {
@@ -329,6 +329,8 @@ static NOINLINE u32 port_read(int i)
   // Decap Attack reportedly doesn't work on Nomad but works on must
   // other MD revisions (different pull-up strength?).
   u32 mask = 0x3f;
+  if (CYCLES_GE(padTHLatency[i], SekCyclesDone()+100))
+    padTHLatency[i] = SekCyclesDone(); // kludge to cope with cycle wrap
   if (CYCLES_GE(SekCyclesDone(), padTHLatency[i])) {
     mask |= 0x40;
     padTHLatency[i] = SekCyclesDone();
@@ -413,10 +415,10 @@ NOINLINE void io_ports_write(u32 a, u32 d)
 
   // after switching TH to input there's a latency before the pullup value is 
   // read back as input (see Decap Attack, not in Samurai Showdown, 32x WWF Raw)
-  if (a >= 4 && a <= 5) {
-    padTHLatency[a - 4] = SekCyclesDone(); // if output, effective immediately
+  if (4 <= a && a <= 5) {
     if ((PicoMem.ioports[a] & 0x40) && !(d & 0x40))
-      padTHLatency[a - 4] += 25; // latency after switching to input
+      // latency after switching to input
+      padTHLatency[a - 4] = SekCyclesDone() + 25;
   }
 
   // certain IO ports can be used as RAM
