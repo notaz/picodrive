@@ -416,8 +416,8 @@ NOINLINE void io_ports_write(u32 a, u32 d)
   // after switching TH to input there's a latency before the pullup value is 
   // read back as input (see Decap Attack, not in Samurai Showdown, 32x WWF Raw)
   if (4 <= a && a <= 5) {
-    if ((PicoMem.ioports[a] & 0x40) && !(d & 0x40))
-      // latency after switching to input
+    if ((PicoMem.ioports[a] & 0x40) && !(d & 0x40) && !(PicoMem.ioports[a - 3] & 0x40))
+      // latency after switching to input and output was low
       padTHLatency[a - 4] = SekCyclesDone() + 25;
   }
 
