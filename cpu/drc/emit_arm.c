@@ -1188,8 +1188,9 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 #define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
+	u32 *ptr_ = (u32 *)ptr; \
 	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \
-	EOP_C_B_PTR(ptr, A_COND_AL, 0, val_ & 0xffffff); \
+	EOP_C_B_PTR(ptr_, A_COND_AL, 0, val_ & 0xffffff); \
 } while (0)
 #define emith_jump_at_size() 4
 

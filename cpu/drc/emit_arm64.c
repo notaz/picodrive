@@ -1106,8 +1106,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_jump_patch_size()	4
 
 #define emith_jump_at(ptr, target) do { \
+	u32 *ptr_ = (u32 *)ptr; \
 	u32 disp_ = (u8 *)target - (u8 *)ptr; \
-	EMIT_PTR(ptr, A64_B(disp_ & 0x0fffffff)); \
+	EMIT_PTR(ptr_, A64_B(disp_ & 0x0fffffff)); \
 } while (0)
 #define emith_jump_at_size() 4
 
