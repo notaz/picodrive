@@ -421,8 +421,7 @@ OP_SBC16:
 			zIFF1 = (1 << 2);
 			if (CPU->IRQState)
 			{
-				USE_CYCLES(10)
-				goto Cz80_Check_Interrupt;
+				CPU->Status |= CZ80_HAS_INT;
 			}
 		}
 		else zIFF1 = zIFF2;
@@ -497,8 +496,8 @@ OP_LDX:
 			val = READ_MEM8(zHL++);
 			WRITE_MEM8(zDE++, val);
 			zBC--;
-			USE_CYCLES(17)
-		} while (zBC && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zBC && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_LDXR;
 
 	OPED(0xb8): // LDDR
@@ -507,8 +506,8 @@ OP_LDX:
 			val = READ_MEM8(zHL--);
 			WRITE_MEM8(zDE--, val);
 			zBC--;
-			USE_CYCLES(17)
-		} while (zBC && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zBC && (CPU->ICount > -4) && !CPU->Status);
 
 OP_LDXR:
 		F = zF & (SF | ZF | CF);
@@ -521,10 +520,11 @@ OP_LDXR:
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
-			goto Cz80_Exec_End;
+			ADD_CYCLES(4)
+			goto Cz80_Exec;
 		}
 		zF = F;
-		ADD_CYCLES(5)
+		ADD_CYCLES(4+5)
 		goto Cz80_Exec;
 
 /*-----------------------------------------
@@ -564,8 +564,8 @@ OP_CPX:
 			if (res & 0x08) F |= XF;
 			if (zBC) F |= VF;
 			zF = F;
-			USE_CYCLES(17)
-		} while (zBC && !(F & ZF) && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zBC && !(F & ZF) && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_CPXR;
 
 	OPED(0xb9): // CPDR
@@ -580,8 +580,8 @@ OP_CPX:
 			if (res & 0x08) F |= XF;
 			if (zBC) F |= VF;
 			zF = F;
-			USE_CYCLES(17)
-		} while (zBC && !(F & ZF) && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zBC && !(F & ZF) && (CPU->ICount > -4) && !CPU->Status);
 
 OP_CPXR:
 		if (zBC && !(F & ZF))
@@ -590,9 +590,10 @@ OP_CPXR:
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
-			goto Cz80_Exec_End;
+			ADD_CYCLES(4)
+			goto Cz80_Exec;
 		}
-		ADD_CYCLES(5)
+		ADD_CYCLES(4+5)
 		goto Cz80_Exec;
 
 /*-----------------------------------------
@@ -614,7 +615,7 @@ OP_INX:
 		F = SZ[zB];
 		res = ((UINT32)(zC - 1) & 0xff) + (UINT32)val;
 		if (val & SF) F |= NF;
-		if (res & 0x100) F |= HF | CF;
+		if (res < val) F |= HF | CF;
 		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		RET(12)
@@ -629,8 +630,8 @@ OP_INX:
 			val = IN(zBC);
 			zB--;
 			WRITE_MEM8(zHL++, val);
-			USE_CYCLES(17)
-		} while (zB && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_INXR;
 
 	OPED(0xba): // INDR
@@ -639,14 +640,14 @@ OP_INX:
 			val = IN(zBC);
 			zB--;
 			WRITE_MEM8(zHL--, val);
-			USE_CYCLES(17)
-		} while (zB && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 
 OP_INXR:
 		F = SZ[zB];
 		res = ((UINT32)(zC - 1) & 0xff) + (UINT32)val;
 		if (val & SF) F |= NF;
-		if (res & 0x100) F |= HF | CF;
+		if (res < val) F |= HF | CF;
 		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		if (zB)
@@ -655,9 +656,10 @@ OP_INXR:
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
-			goto Cz80_Exec_End;
+			ADD_CYCLES(4)
+			goto Cz80_Exec;
 		}
-		ADD_CYCLES(5);
+		ADD_CYCLES(4+5);
 		goto Cz80_Exec;
 
 /*-----------------------------------------
@@ -679,8 +681,8 @@ OP_OUTX:
 		F = SZ[zB];
 		res = (UINT32)zL + (UINT32)val;
 		if (val & SF) F |= NF;
-		if (res & 0x100) F |= HF | CF;
-		F |= SZP[(UINT8)(res & 0x07) - zB] & PF;
+		if (res < val) F |= HF | CF;
+		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		RET(12)
 
@@ -694,8 +696,8 @@ OP_OUTX:
 			val = READ_MEM8(zHL++);
 			zB--;
 			OUT(zBC, val);
-			USE_CYCLES(17)
-		} while (zB && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_OTXR;
 
 	OPED(0xbb): // OTDR
@@ -704,15 +706,15 @@ OP_OUTX:
 			val = READ_MEM8(zHL--);
 			zB--;
 			OUT(zBC, val);
-			USE_CYCLES(17)
-		} while (zB && (CPU->ICount > 0));
+			USE_CYCLES(21)
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 
 OP_OTXR:
 		F = SZ[zB];
 		res = (UINT32)zL + (UINT32)val;
 		if (val & SF) F |= NF;
-		if (res & 0x100) F |= HF | CF;
-		F |= SZP[(UINT8)(res & 0x07) - zB] & PF;
+		if (res < val) F |= HF | CF;
+		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		if (zB)
 		{
@@ -720,9 +722,10 @@ OP_OTXR:
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
-			goto Cz80_Exec_End;
+			ADD_CYCLES(4)
+			goto Cz80_Exec;
 		}
-		ADD_CYCLES(5)
+		ADD_CYCLES(4+5)
 		goto Cz80_Exec;
 	}
 

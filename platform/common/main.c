@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
 
 #include "../libpicofe/input.h"
 #include "../libpicofe/plat.h"
@@ -17,7 +20,6 @@
 #include "emu.h"
 #include "version.h"
 #include <cpu/debug.h>
-
 
 static int load_state_slot = -1;
 char **g_argv;
@@ -83,20 +85,22 @@ int main(int argc, char *argv[])
 
 	plat_target_init();
 	plat_init();
+	menu_init();
 
 	emu_prep_defconfig(); // depends on input
 	emu_read_config(NULL, 0);
 
 	emu_init();
-	menu_init();
 
 	engineState = PGS_Menu;
+	plat_video_menu_enter(0);
 
 	if (argc > 1)
 		parse_cmd_line(argc, argv);
 
 	if (engineState == PGS_ReloadRom)
 	{
+		plat_video_menu_begin();
 		if (emu_reload_rom(rom_fname_reload)) {
 			engineState = PGS_Running;
 			if (load_state_slot >= 0) {
@@ -104,7 +108,9 @@ int main(int argc, char *argv[])
 				emu_save_load_game(1, 0);
 			}
 		}
+		plat_video_menu_end();
 	}
+	plat_video_menu_leave();
 
 	for (;;)
 	{
@@ -132,7 +138,13 @@ int main(int argc, char *argv[])
 				/* vvv fallthrough */
 
 			case PGS_Running:
+#ifdef GPERF
+	ProfilerStart("gperf.out");
+#endif
 				emu_loop();
+#ifdef GPERF
+	ProfilerStop();
+#endif
 				break;
 
 			case PGS_Quit:

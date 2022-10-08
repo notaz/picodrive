@@ -1,8 +1,16 @@
 *.o
 *.swp
+*.dll
+*.lib
+*.pdb
+*.manifest
+*.map
+*.exp
+*.dylib
+*.so
+*.a
 tags
 cscope.out
-PicoDrive.map
 config.mak
 config.log
 cpu/musashi/m68kmake
@@ -19,3 +27,6 @@ obj/
 .opk_data
 PicoDrive
 PicoDrive.opk
+pico_int_offs.h
+amalgamate
+textfilter

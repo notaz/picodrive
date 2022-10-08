@@ -38,7 +38,9 @@ void PicoInit(void)
   PicoInitMCD();
   PicoSVPInit();
   Pico32xInit();
+  PsndInit();
 
+  PicoVideoInit();
   PicoDrawInit();
   PicoDraw2Init();
 }
@@ -50,6 +52,7 @@ void PicoExit(void)
     PicoExitMCD();
   PicoCartUnload();
   z80_exit();
+  PsndExit();
 
   free(Pico.sv.data);
   Pico.sv.data = NULL;
@@ -67,6 +70,7 @@ void PicoPower(void)
 
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
+  memset(&Pico.t,0,sizeof(Pico.t));
 
   Pico.video.pending_ints=0;
   z80_reset();
@@ -78,6 +82,7 @@ void PicoPower(void)
   Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
   Pico.video.reg[0xc] = 0x81;
   Pico.video.reg[0xf] = 0x02;
+  PicoVideoFIFOMode(0, 1);
 
   if (PicoIn.AHW & PAHW_MCD)
     PicoPowerMCD();
@@ -182,8 +187,8 @@ int PicoReset(void)
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
-  if (Pico.m.dma_xfers == 0 && !(PicoIn.opt & POPT_DIS_VDP_FIFO))
-    Pico.m.dma_xfers = rand() & 0x1fff;
+  Pico.t.m68c_line_start = Pico.t.m68c_cnt;
+  PicoVideoFIFOWrite(rand() & 0x1fff, 0, 0, PVS_CPURD);
 
   SekFinishIdleDet();
 
@@ -220,51 +225,6 @@ void PicoLoopPrepare(void)
 
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
-}
-
-// this table is wrong and should be removed
-// keeping it for now to compensate wrong timing elswhere, mainly for Outrunners
-static const int dma_timings[] = {
-   83, 166,  83,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
-  102, 204, 102, 102, // vblank: 40cell:
-    8,  16,   8,   8, // active: 32cell:
-   17,  18,   9,   9  // ...
-};
-
-static const int dma_bsycles[] = {
-  (488<<8)/83,  (488<<8)/166, (488<<8)/83,  (488<<8)/83,
-  (488<<8)/102, (488<<8)/204, (488<<8)/102, (488<<8)/102,
-  (488<<8)/8,   (488<<8)/16,  (488<<8)/8,   (488<<8)/8,
-  (488<<8)/9,   (488<<8)/18,  (488<<8)/9,   (488<<8)/9
-};
-
-// grossly inaccurate.. FIXME FIXXXMEE
-PICO_INTERNAL int CheckDMA(void)
-{
-  int burn = 0, xfers_can, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
-  int xfers = Pico.m.dma_xfers;
-  int dma_op1;
-
-  if(!(dma_op&2)) dma_op = (Pico.video.type==1) ? 0 : 1; // setting dma_timings offset here according to Gens
-  dma_op1 = dma_op;
-  if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
-  if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
-  xfers_can = dma_timings[dma_op];
-  if(xfers <= xfers_can)
-  {
-    Pico.video.status &= ~SR_DMA;
-    if (!(dma_op & 2))
-      burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
-    Pico.m.dma_xfers = 0;
-  } else {
-    if(!(dma_op&2)) burn = 488;
-    Pico.m.dma_xfers -= xfers_can;
-  }
-
-  elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%u]",
-    Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
-  //dprintf("~aim: %i, cnt: %i", Pico.t.m68c_aim, Pico.t.m68c_cnt);
-  return burn;
 }
 
 #include "pico_cmn.c"
@@ -313,7 +273,7 @@ void PicoFrame(void)
     goto end;
   }
 
-  //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
+  //if(Pico.video.reg[12]&0x2) Pico.video.status ^= SR_ODD; // change odd bit in interlace mode
 
   PicoFrameStart();
   PicoFrameHints();
@@ -326,7 +286,7 @@ void PicoFrameDrawOnly(void)
 {
   if (!(PicoIn.AHW & PAHW_SMS)) {
     PicoFrameStart();
-    PicoDrawSync(223, 0);
+    PicoDrawSync(Pico.m.pal?239:223, 0);
   } else {
     PicoFrameDrawOnlyMS();
   }

@@ -13,7 +13,7 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 all: rel
 
 ../../tools/textfilter: ../../tools/textfilter.c
-	make -C ../../tools/
+	make -C ../../tools/ textfilter
 
 #readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
 #	../../tools/textfilter ../base_readme.txt $@ PANDORA

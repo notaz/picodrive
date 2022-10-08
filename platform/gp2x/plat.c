@@ -16,7 +16,7 @@
 #include "warm.h"
 #include "plat.h"
 
-#include <pico/pico.h>
+#include <pico/pico_int.h>
 
 /* GP2X local */
 int gp2x_current_bpp;

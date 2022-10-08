@@ -13,12 +13,27 @@
 uptr z80_read_map [0x10000 >> Z80_MEM_SHIFT];
 uptr z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 
+u32 z80_read(u32 a)
+{
+  uptr v;
+  a &= 0x00ffff;
+  v = z80_read_map[a >> Z80_MEM_SHIFT];
+  if (map_flag_set(v))
+    return ((z80_read_f *)(v << 1))(a);
+  else
+    return *(u8 *)((v << 1) + a);
+}
+
+
 #ifdef _USE_DRZ80
 // this causes trouble in some cases, like doukutsu putting sp in bank area
 // no perf difference for most, upto 1-2% for some others
 //#define FAST_Z80SP
 
 struct DrZ80 drZ80;
+// import flag conversion from DrZ80
+extern u8 DrZ80_ARM[];
+extern u8 DrARM_Z80[];
 
 static void drz80_load_pcsp(u32 pc, u32 sp)
 {
@@ -153,17 +168,17 @@ void z80_pack(void *data)
 {
   struct z80_state *s = data;
   memset(data, 0, Z80_STATE_SIZE);
-  strcpy(s->magic, "Z80");
+  memcpy(s->magic, "Z80a", 4);
 #if defined(_USE_DRZ80)
   #define DRR8(n)   (drZ80.Z80##n >> 24)
   #define DRR16(n)  (drZ80.Z80##n >> 16)
   #define DRR16H(n) (drZ80.Z80##n >> 24)
   #define DRR16L(n) ((drZ80.Z80##n >> 16) & 0xff)
-  s->m.a = DRR8(A);     s->m.f = drZ80.Z80F;
+  s->m.a = DRR8(A);     s->m.f = DrARM_Z80[drZ80.Z80F];
   s->m.b = DRR16H(BC);  s->m.c = DRR16L(BC);
   s->m.d = DRR16H(DE);  s->m.e = DRR16L(DE);
   s->m.h = DRR16H(HL);  s->m.l = DRR16L(HL);
-  s->a.a = DRR8(A2);    s->a.f = drZ80.Z80F2;
+  s->a.a = DRR8(A2);    s->a.f = DrARM_Z80[drZ80.Z80F2];
   s->a.b = DRR16H(BC2); s->a.c = DRR16L(BC2);
   s->a.d = DRR16H(DE2); s->a.e = DRR16L(DE2);
   s->a.h = DRR16H(HL2); s->a.l = DRR16L(HL2);
@@ -207,7 +222,7 @@ void z80_pack(void *data)
 int z80_unpack(const void *data)
 {
   const struct z80_state *s = data;
-  if (strcmp(s->magic, "Z80") != 0) {
+  if (memcmp(s->magic, "Z80", 3) != 0) {
     elprintf(EL_STATUS, "legacy z80 state - ignored");
     return 0;
   }
@@ -216,11 +231,21 @@ int z80_unpack(const void *data)
   #define DRW8(n, v)       drZ80.Z80##n = (u32)(v) << 24
   #define DRW16(n, v)      drZ80.Z80##n = (u32)(v) << 16
   #define DRW16HL(n, h, l) drZ80.Z80##n = ((u32)(h) << 24) | ((u32)(l) << 16)
-  DRW8(A, s->m.a);  drZ80.Z80F = s->m.f;
+  u8 mf, af;
+  if (s->magic[3] == 'a') {
+    // new save: flags always in Z80 format
+    mf = DrZ80_ARM[s->m.f];
+    af = DrZ80_ARM[s->a.f];
+  } else {
+    // NB hack, swap Flag3 and NFlag for save file compatibility
+    mf = (s->m.f & 0x9f)|((s->m.f & 0x40)>>1)|((s->m.f & 0x20)<<1);
+    af = (s->a.f & 0x9f)|((s->a.f & 0x40)>>1)|((s->a.f & 0x20)<<1);
+  }
+  DRW8(A, s->m.a);  drZ80.Z80F = mf;
   DRW16HL(BC, s->m.b, s->m.c);
   DRW16HL(DE, s->m.d, s->m.e);
   DRW16HL(HL, s->m.h, s->m.l);
-  DRW8(A2, s->a.a); drZ80.Z80F2 = s->a.f;
+  DRW8(A2, s->a.a); drZ80.Z80F2 = af;
   DRW16HL(BC2, s->a.b, s->a.c);
   DRW16HL(DE2, s->a.d, s->a.e);
   DRW16HL(HL2, s->a.h, s->a.l);

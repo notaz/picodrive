@@ -194,8 +194,9 @@ switch (Opcode)
 
 	OPXY(0xc1): // POP  BC
 	OPXY(0xd1): // POP  DE
-	OPXY(0xf1): // POP  AF
 		goto OP_POP_RR;
+	OPXY(0xf1): // POP  AF
+		goto OP_POP_AF;
 
 	OPXY(0xe1): // POP  IX
 		goto OP_POP;
@@ -206,8 +207,9 @@ switch (Opcode)
 
 	OPXY(0xc5): // PUSH BC
 	OPXY(0xd5): // PUSH DE
-	OPXY(0xf5): // PUSH AF
 		goto OP_PUSH_RR;
+	OPXY(0xf5): // PUSH AF
+		goto OP_PUSH_AF;
 
 	OPXY(0xe5): // PUSH IX
 		goto OP_PUSH;

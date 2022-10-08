@@ -27,14 +27,11 @@
 #define M68KCPU__HEADER
 
 // notaz: something's missing this
-#ifndef UINT64
-#define UINT64 unsigned long long
-#endif
-#ifndef UINT16
-#define UINT32 unsigned int
-#define UINT16 unsigned short
-#define UINT8  unsigned char
-#endif
+#include <stdint.h>
+typedef uint64_t UINT64;
+typedef uint32_t UINT32;
+typedef uint16_t UINT16;
+typedef uint8_t  UINT8;
 
 #include "m68k.h"
 #include <limits.h>
@@ -919,6 +916,7 @@ typedef struct
 	void (*instr_hook_callback)(void);                /* Called every instruction cycle prior to execution */
 
 	// notaz
+	sint cyc_initial_cycles;
 	sint cyc_remaining_cycles;
 	sint not_polling;
 } m68ki_cpu_core;
@@ -926,6 +924,7 @@ typedef struct
 // notaz
 extern m68ki_cpu_core *m68ki_cpu_p;
 #define m68ki_cpu (*m68ki_cpu_p)
+#define m68ki_initial_cycles m68ki_cpu_p->cyc_initial_cycles
 #define m68ki_remaining_cycles m68ki_cpu_p->cyc_remaining_cycles
 
 

@@ -12,6 +12,7 @@
 extern unsigned char formatted_bram[4*0x10];
 
 static unsigned int mcd_m68k_cycle_mult;
+static unsigned int mcd_s68k_cycle_mult;
 static unsigned int mcd_m68k_cycle_base;
 static unsigned int mcd_s68k_cycle_base;
 
@@ -23,6 +24,7 @@ PICO_INTERNAL void PicoInitMCD(void)
 
 PICO_INTERNAL void PicoExitMCD(void)
 {
+  cdd_unload();
 }
 
 PICO_INTERNAL void PicoPowerMCD(void)
@@ -122,9 +124,7 @@ static void SekRunS68k(unsigned int to)
   if ((cyc_do = SekCycleAimS68k - SekCycleCntS68k) <= 0)
     return;
 
-  if (SekShouldInterrupt())
-    Pico_mcd->m.s68k_poll_a = 0;
-
+  pprof_start(s68k);
   SekCycleCntS68k += cyc_do;
 #if defined(EMU_C68K)
   PicoCpuCS68k.cycles = cyc_do;
@@ -137,15 +137,22 @@ static void SekRunS68k(unsigned int to)
 #elif defined(EMU_F68K)
   SekCycleCntS68k += fm68k_emulate(&PicoCpuFS68k, cyc_do, 0) - cyc_do;
 #endif
+  SekCyclesLeftS68k = 0;
+  pprof_end(s68k);
 }
 
 static void pcd_set_cycle_mult(void)
 {
-  // ~1.63 for NTSC, ~1.645 for PAL
+  unsigned int div;
+
   if (Pico.m.pal)
-    mcd_m68k_cycle_mult = ((12500000ull << 16) / (50*313*488));
+    div = 50*313*488;
   else
-    mcd_m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
+    div = 60*262*488;
+
+  // ~1.63 for NTSC, ~1.645 for PAL; round to nearest, x/y+0.5 -> (x+y/2)/y
+  mcd_m68k_cycle_mult = ((12500000ull << 16) + div/2) / div;
+  mcd_s68k_cycle_mult = ((1ull*div << 16)  + 6250000) / 12500000;
 }
 
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
@@ -167,7 +174,7 @@ static void pcd_cdc_event(unsigned int now)
 
     if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
       elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
-      SekInterruptS68k(4);
+      pcd_irq_s68k(4, 1);
     }
   }
 
@@ -178,7 +185,7 @@ static void pcd_int3_timer_event(unsigned int now)
 {
   if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN3) {
     elprintf(EL_INTS|EL_CD, "s68k: timer irq 3");
-    SekInterruptS68k(3);
+    pcd_irq_s68k(3, 1);
   }
 
   if (Pico_mcd->s68k_regs[0x31] != 0)
@@ -270,6 +277,17 @@ static void pcd_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
+void pcd_irq_s68k(int irq, int state)
+{
+  if (state) {
+    SekInterruptS68k(irq);
+    if (SekIsStoppedS68k())
+      SekSetStopS68k(0);
+    Pico_mcd->m.s68k_poll_a = 0;
+  } else
+    SekInterruptClearS68k(irq);
+}
+
 int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 {
   #define now SekCycleCntS68k
@@ -285,7 +303,7 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 
   if (Pico_mcd->m.busreq != 1) { /* busreq/reset */
     SekCycleCntS68k = SekCycleAimS68k = s68k_target;
-    pcd_run_events(m68k_target);
+    pcd_run_events(s68k_target);
     return 0;
   }
 
@@ -297,7 +315,11 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
     if (event_time_next && CYCLES_GT(target, event_time_next))
       target = event_time_next;
 
-    SekRunS68k(target);
+    if (SekIsStoppedS68k())
+      SekCycleCntS68k = SekCycleAimS68k = target;
+    else
+      SekRunS68k(target);
+
     if (m68k_poll_sync && Pico_mcd->m.m68k_poll_cnt == 0)
       break;
   }
@@ -314,21 +336,31 @@ static void SekSyncM68k(void);
 void pcd_run_cpus_normal(int m68k_cycles)
 {
   Pico.t.m68c_aim += m68k_cycles;
-  if (SekShouldInterrupt() || Pico_mcd->m.m68k_poll_cnt < 12)
-    Pico_mcd->m.m68k_poll_cnt = 0;
-  else if (Pico_mcd->m.m68k_poll_cnt >= 16) {
-    int s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
-    if (s68k_left <= 0) {
-      elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
-        Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
-      Pico.t.m68c_cnt = Pico.t.m68c_aim;
-      return;
-    }
-    Pico.t.m68c_cnt = Pico.t.m68c_aim - (s68k_left * 40220 >> 16);
-  }
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
-    SekRunM68kOnce();
+    if (SekShouldInterrupt())
+      Pico_mcd->m.m68k_poll_cnt = 0;
+
+#ifdef USE_POLL_DETECT
+    if (Pico_mcd->m.m68k_poll_cnt >= 16) {
+      int s68k_left;
+      // main CPU is polling, (wake and) run sub only
+      if (SekIsStoppedS68k())
+        SekSetStopS68k(0);
+      s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
+
+      Pico.t.m68c_cnt = Pico.t.m68c_aim;
+      if (s68k_left > 0)
+        Pico.t.m68c_cnt -= ((long long)s68k_left * mcd_s68k_cycle_mult >> 16);
+      if (SekIsStoppedS68k()) {
+        // slave has stopped, wake master to avoid lockups
+        Pico_mcd->m.m68k_poll_cnt = 0;
+      }
+      elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
+        Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
+    } else
+#endif
+      SekRunM68kOnce();
     if (Pico_mcd->m.need_sync) {
       Pico_mcd->m.need_sync = 0;
       pcd_sync_s68k(Pico.t.m68c_cnt, 0);

@@ -1,12 +1,14 @@
 /*
  * PicoDrive
  * (C) notaz, 2006-2009
+ * (C) kub, 2019
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
 
-#include "pico_int_o32.h"
+#include "arm_features.h"
+#include "pico_int_offs.h"
 
 .equ SRR_MAPPED,    (1 <<  0)
 .equ SRR_READONLY,  (1 <<  1)
@@ -23,8 +25,10 @@
 .global PicoWrite8_io
 .global PicoWrite16_io
 
+    PIC_LDR_INIT()
+
 PicoRead8_sram: @ u32 a
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     ldr     r1, [r3, #OFS_Pico_sv_end]
     cmp     r0, r1
     bgt     m_read8_nosram
@@ -59,6 +63,7 @@ m_read8_eeprom:
     ldmfd   sp!,{r1,lr}
     tst     r1, #1
     moveq   r0, r0, lsr #8
+    and     r0, r0, #0xff
     bx      lr
 
 
@@ -72,7 +77,7 @@ m_read8_not_io:
     cmp     r2, #0x1000
     bne     PicoRead8_32x
 
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     mov     r1, r0
     ldr     r0, [r3, #OFS_Pico_m_rotate]
     add     r0, r0, #1
@@ -95,7 +100,7 @@ m_read8_not_io:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 PicoRead16_sram: @ u32 a, u32 d
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     ldr     r1, [r3, #OFS_Pico_sv_end]
     cmp     r0, r1
     bgt     m_read16_nosram
@@ -140,7 +145,7 @@ m_read16_not_io:
     cmp     r2, #0x1000
     bne     PicoRead16_32x
 
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     and     r2, r0, #0xff00
     ldr     r0, [r3, #OFS_Pico_m_rotate]
     add     r0, r0, #1
@@ -182,7 +187,7 @@ m_write8_not_z80ctl:
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f1
     bne     PicoWrite8_32x
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
@@ -212,13 +217,110 @@ m_write16_not_z80ctl:
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f0
     bne     PicoWrite16_32x
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
     orr     r2, r2, r1
     strb    r2, [r3, #OFS_Pico_m_sram_reg]
     bx      lr
+
+.global m68k_read8
+.global m68k_read16
+.global m68k_read32
+.global m68k_write8
+.global m68k_write16
+.global m68k_write32
+
+m68k_read8:
+    PIC_LDR(r3, r2, m68k_read8_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    eor     r2, r0, #1
+    movs    r3, r3, lsl #1
+    ldrccb  r0, [r3, r2]
+    bxcc    lr
+    bx      r3
+
+m68k_read16:
+    PIC_LDR(r3, r2, m68k_read16_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    ldrcch  r0, [r3, r0]
+    bxcc    lr
+    bx      r3
+
+m68k_read32:
+    PIC_LDR(r3, r2, m68k_read16_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    ldrcch  r1, [r3, r0]!
+    ldrcch  r0, [r3, #2]
+    orrcc   r0, r0, r1, lsl #16
+    bxcc    lr
+
+    stmfd   sp!, {r0, r3, r4, lr}
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r1, r3}
+    str     r0, [sp]
+    add     r0, r1, #2
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r1, lr}
+    mov     r0, r0, lsl #16
+    mov     r1, r1, lsl #16
+    orr     r0, r1, r0, lsr #16
+    bx      lr
+
+m68k_write8:
+    PIC_LDR(r3, r2, m68k_write8_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    eor     r2, r0, #1
+    movs    r3, r3, lsl #1
+    strccb  r1, [r3, r2]
+    bxcc    lr
+    bx      r3
+
+m68k_write16:
+    PIC_LDR(r3, r2, m68k_write16_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    strcch  r1, [r3, r0]
+    bxcc    lr
+    bx      r3
+
+m68k_write32:
+    PIC_LDR(r3, r2, m68k_write16_map)
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    movcc   r2, r1, lsr #16
+    strcch  r2, [r3, r0]!
+    strcch  r1, [r3, #2]
+    bxcc    lr
+
+    stmfd   sp!, {r0, r1, r3, lr}
+    mov     r1, r1, lsr #16
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r0, r1, r3, lr}
+    add     r0, r0, #2
+    bx      r3
 
 .pool
 

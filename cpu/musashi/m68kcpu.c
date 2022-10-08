@@ -43,7 +43,7 @@ extern void m68040_fpu_op1(void);
 /* ================================= DATA ================================= */
 /* ======================================================================== */
 
-int  m68ki_initial_cycles;
+//int  m68ki_initial_cycles;
 //int  m68ki_remaining_cycles = 0;                     /* Number of clocks remaining */
 uint m68ki_tracing = 0;
 uint m68ki_address_space;
@@ -828,6 +828,10 @@ int m68k_execute(int num_cycles)
 			m68ki_instruction_jump_table[REG_IR]();
 			USE_CYCLES(CYC_INSTRUCTION[REG_IR]); // moving this up may cause a deadlock
 
+			/* ASG: update cycles */
+			USE_CYCLES(CPU_INT_CYCLES);
+			CPU_INT_CYCLES = 0;
+
 			/* Trace m68k_exception, if necessary */
 			m68ki_exception_if_trace(); /* auto-disable (see m68kcpu.h) */
 
@@ -838,10 +842,6 @@ int m68k_execute(int num_cycles)
 
 		/* set previous PC to current PC for the next entry into the loop */
 		REG_PPC = REG_PC;
-
-		/* ASG: update cycles */
-		USE_CYCLES(CPU_INT_CYCLES);
-		CPU_INT_CYCLES = 0;
 
 		/* return how many clocks we used */
 		return m68ki_initial_cycles - GET_CYCLES();

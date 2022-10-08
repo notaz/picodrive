@@ -37,8 +37,26 @@ extern int g_screen_ppitch; // pitch in pixels
 
 enum {
 	EOPT_SCALE_NONE = 0,
-	EOPT_SCALE_SW,
+	// linux, GP2X:
+	EOPT_SCALE_SW = 1,
 	EOPT_SCALE_HW,
+	// PSP horiz:
+	EOPT_SCALE_43 = 1,	// DAR 4:3 (12:9)
+	EOPT_SCALE_WIDE,	// DAR 14:9
+	EOPT_SCALE_FULL,	// DAR 16:9
+	// PSP vert:
+	EOPT_VSCALE_43 = 1,	// DAR 4:3
+	EOPT_VSCALE_FULL,	// zoomed to full height
+};
+
+enum {
+	EOPT_FILTER_NONE = 0,
+	// PSP texture filtering
+	EOPT_FILTER_BILINEAR = 1,
+	// software scalers
+	EOPT_FILTER_SMOOTHER = 1,
+	EOPT_FILTER_BILINEAR1,
+	EOPT_FILTER_BILINEAR2,
 };
 
 enum {
@@ -54,7 +72,9 @@ typedef struct _currentConfig_t {
 	int s_PsndRate;
 	int s_PicoRegion;
 	int s_PicoAutoRgnOrder;
+	int s_hwSelect;
 	int s_PicoCDBuffers;
+	int s_PicoSndFilterAlpha;
 	int Frameskip;
 	int input_dev0;
 	int input_dev1;
@@ -62,20 +82,20 @@ typedef struct _currentConfig_t {
 	int CPUclock;
 	int volume;
 	int gamma;
-	int scaling;  // gp2x: EOPT_SCALE_*; psp: bilinear filtering
+	int scaling;  // EOPT_SCALE_*
 	int vscaling;
 	int rotation; // for UIQ
-	float scale; // psp: screen scale
-	float hscale32, hscale40; // psp: horizontal scale
 	int gamma2;  // psp: black level
 	int turbo_rate;
 	int renderer;
 	int renderer32x;
-	int filter; // pandora
+	int filter;  // EOPT_FILTER_* video filter
+	int ghosting;
 	int analog_deadzone;
 	int msh2_khz;
 	int ssh2_khz;
 	int overclock_68k;
+	int max_skip;
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;
@@ -145,7 +165,7 @@ void  emu_sound_stop(void);
 void  emu_sound_wait(void);
 
 /* used by some (but not all) platforms */
-void  emu_cmn_forced_frame(int no_scale, int do_emu);
+void  emu_cmn_forced_frame(int no_scale, int do_emu, void *buf);
 
 /* stuff to be implemented by platform code */
 extern const char *renderer_names[];
@@ -171,8 +191,14 @@ void plat_status_msg_clear(void);
 
 void plat_video_toggle_renderer(int change, int menu_call);
 void plat_video_loop_prepare(void);
+void plat_video_set_buffer(void *);
 
 void plat_update_volume(int has_changed, int is_up);
+
+/* should be in libpicofe/plat.h */
+void plat_video_clear_status(void);
+void plat_video_clear_buffers(void);
+void plat_video_set_size(int w, int h);
 
 #ifdef __cplusplus
 } // extern "C"

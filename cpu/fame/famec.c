@@ -60,51 +60,6 @@
 #define FAMEC_EXTRA_INLINE INLINE
 #endif
 
-#ifdef u8
-#undef u8
-#endif
-
-#ifdef s8
-#undef s8
-#endif
-
-#ifdef u16
-#undef u16
-#endif
-
-#ifdef s16
-#undef s16
-#endif
-
-#ifdef u32
-#undef u32
-#endif
-
-#ifdef s32
-#undef s32
-#endif
-
-#ifdef uptr
-#undef uptr
-#endif
-
-#define u8	unsigned char
-#define s8	signed char
-#define u16	unsigned short
-#define s16	signed short
-#define u32	unsigned int
-#define s32	signed int
-#define uptr	uintptr_t
-
-/*
-typedef unsigned char	u8;
-typedef signed char	s8;
-typedef unsigned short	u16;
-typedef signed short	s16;
-typedef unsigned int	u32;
-typedef signed int	s32;
-*/
-
 #ifndef M68K_OK
     #define M68K_OK 0
 #endif
@@ -228,19 +183,22 @@ typedef signed int	s32;
 // internals core macros
 /////////////////////////
 
+#define XB		MEM_LE4(0)
+#define XW		MEM_LE2(0)
+
 #define DREG(X)         (ctx->dreg[(X)].D)
 #define DREGu32(X)      (ctx->dreg[(X)].D)
 #define DREGs32(X)      (ctx->dreg[(X)].SD)
-#define DREGu16(X)      (ctx->dreg[(X)].W)
-#define DREGs16(X)      (ctx->dreg[(X)].SW)
-#define DREGu8(X)       (ctx->dreg[(X)].B)
-#define DREGs8(X)       (ctx->dreg[(X)].SB)
+#define DREGu16(X)      (ctx->dreg[(X)].W[XW])
+#define DREGs16(X)      (ctx->dreg[(X)].SW[XW])
+#define DREGu8(X)       (ctx->dreg[(X)].B[XB])
+#define DREGs8(X)       (ctx->dreg[(X)].SB[XB])
 
 #define AREG(X)         (ctx->areg[(X)].D)
 #define AREGu32(X)      (ctx->areg[(X)].D)
 #define AREGs32(X)      (ctx->areg[(X)].SD)
-#define AREGu16(X)      (ctx->areg[(X)].W)
-#define AREGs16(X)      (ctx->areg[(X)].SW)
+#define AREGu16(X)      (ctx->areg[(X)].W[XW])
+#define AREGs16(X)      (ctx->areg[(X)].SW[XW])
 
 #define ASP             (ctx->asp)
 
@@ -804,7 +762,7 @@ static FAMEC_EXTRA_INLINE u32 execute_exception_group_0(M68K_CONTEXT *ctx, s32 v
 // main exec function
 //////////////////////
 
-int fm68k_emulate(M68K_CONTEXT *ctx, s32 cycles, fm68k_call_reason reason)
+int fm68k_emulate(M68K_CONTEXT *ctx, int cycles, fm68k_call_reason reason)
 {
 #ifndef FAMEC_NO_GOTOS
 	u32 Opcode;

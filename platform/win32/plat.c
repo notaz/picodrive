@@ -8,11 +8,10 @@
 #include <windows.h>
 #include <stdio.h>
 
-#include "../common/lprintf.h"
 #include "../common/plat.h"
 #include "../common/emu.h"
-#include "../../pico/pico.h"
-#include "version.h"
+#include "../common/version.h"
+#include <pico/pico.h>
 #include "direct.h"
 #include "dsnd.h"
 #include "main.h"
@@ -108,10 +107,10 @@ void plat_video_toggle_renderer(int change, int is_menu)
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
-void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
-	EmuScreenRect.left = is_32cols ? 32 : 0;
-	EmuScreenRect.right = is_32cols ? 256+32 : 320;
+	EmuScreenRect.left = start_col;
+	EmuScreenRect.right = start_col + col_count;
 	EmuScreenRect.top = start_line;
 	EmuScreenRect.bottom = start_line + line_count;
 

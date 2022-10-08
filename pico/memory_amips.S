@@ -8,7 +8,7 @@
 
 # OUT OF DATE
 
-#include "pico_int_o32.h"
+#include "pico_int_offs.h"
 
 .set noreorder
 .set noat
