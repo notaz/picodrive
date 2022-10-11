@@ -265,7 +265,7 @@ check_libpng()
 {
   cat > $TMPC <<EOF
   #include <png.h>
-  void main() { png_init_io(0, 0); }
+  int main(void) { png_init_io(0, 0); }
 EOF
 #  compile_binary
   compile_object
@@ -276,7 +276,7 @@ check_oss()
   cat > $TMPC <<EOF
   #include <sys/soundcard.h>
   #include <sys/ioctl.h>
-  void main() { int a=0; ioctl(0, SNDCTL_DSP_SETFMT, &a); }
+  int main(void) { int a=0; ioctl(0, SNDCTL_DSP_SETFMT, &a); }
 EOF
   compile_binary
 }
@@ -285,7 +285,7 @@ check_alsa()
 {
   cat > $TMPC <<EOF
   #include <alsa/asoundlib.h>
-  void main() { snd_pcm_open(0, 0, 0, 0); }
+  int main(void) { snd_pcm_open(0, 0, 0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -294,7 +294,7 @@ check_sdl()
 {
   cat > $TMPC <<EOF
   #include <SDL.h>
-  void main() { SDL_OpenAudio(0, 0); }
+  int main(void) { SDL_OpenAudio(0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -303,7 +303,7 @@ check_libavcodec()
 {
   cat > $TMPC <<EOF
   #include <libavcodec/avcodec.h>
-  void main() { avcodec_decode_audio3(0, 0, 0, 0); }
+  int main(void) { avcodec_decode_audio3(0, 0, 0, 0); }
 EOF
   compile_object "$@"
 }
@@ -353,6 +353,7 @@ if [ "$need_sdl" = "yes" ]; then
 fi
 
 cat > $TMPC <<EOF
+#include <stdio.h>
 void test(void *f, void *d) { fread(d, 1, 1, f); }
 EOF
 if compile_object -Wno-unused-result; then

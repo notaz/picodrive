@@ -657,7 +657,7 @@ extern int DrawLineDestIncrement;
 
 // draw2.c
 void PicoDraw2Init(void);
-PICO_INTERNAL void PicoFrameFull();
+PICO_INTERNAL void PicoFrameFull(void);
 
 // mode4.c
 void PicoFrameStartMode4(void);
