@@ -365,7 +365,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
-	plat_video_loop_prepare(); // recalculates g_screen_w/h
+	if (! render_bg)
+		plat_video_loop_prepare(); // recalculates g_screen_w/h
 	PicoDrawSetCallbacks(NULL, NULL);
 	// center output in screen
 	screen_w = g_screen_width,  screen_x = (screen_w - out_w)/2;
@@ -403,7 +404,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		break;
 	}
 
-	plat_video_set_size(screen_w, screen_h);
+	if (! render_bg)
+		plat_video_set_size(screen_w, screen_h);
 
 	if (screen_w < g_screen_width)
 		screen_x = (g_screen_width  - screen_w)/2;

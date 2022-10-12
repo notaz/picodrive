@@ -1014,6 +1014,10 @@ static void debug_menu_loop(void)
 	while (1)
 	{
 		menu_draw_begin(1, 0);
+		g_screen_ptr = g_menuscreen_ptr;
+		g_screen_width = g_menuscreen_w;
+		g_screen_height = g_menuscreen_h;
+		g_screen_ppitch = g_menuscreen_pp;
 		switch (mode)
 		{
 			case 0: tmp = PDebugMain();
