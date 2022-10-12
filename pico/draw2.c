@@ -607,7 +607,7 @@ static void DrawDisplayFull(void)
 }
 
 
-PICO_INTERNAL void PicoFrameFull()
+PICO_INTERNAL void PicoFrameFull(void)
 {
 	pprof_start(draw);
 
