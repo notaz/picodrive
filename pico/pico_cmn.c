@@ -62,6 +62,21 @@ static __inline void SekRunM68k(int cyc)
   SekSyncM68k();
 }
 
+static void SyncCPUs(unsigned int cycles)
+{
+  // sync cpus
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
+    PicoSyncZ80(cycles);
+
+#ifdef PICO_CD
+  if (PicoIn.AHW & PAHW_MCD)
+    pcd_sync_s68k(cycles, 0);
+#endif
+#ifdef PICO_32X
+  p32x_sync_sh2s(cycles);
+#endif
+}
+
 static void do_hint(struct PicoVideo *pv)
 {
   pv->pending_ints |= 0x10;
@@ -87,21 +102,11 @@ static int PicoFrameHints(void)
   struct PicoVideo *pv = &Pico.video;
   int lines, y, lines_vis, skip;
   int vcnt_wrap, vcnt_adj;
-  unsigned int cycles;
   int hint; // Hint counter
 
   pevt_log_m68k_o(EVT_FRAME_START);
 
-  if ((PicoIn.opt&POPT_ALT_RENDERER) && !PicoIn.skipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
-    // draw a frame just after vblank in alternative render mode
-    // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
-    PicoFrameFull();
-#ifdef DRAW_FINISH_FUNC
-    DRAW_FINISH_FUNC();
-#endif
-    skip = 1;
-  }
-  else skip=PicoIn.skipFrame;
+  skip = PicoIn.skipFrame;
 
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   pv->v_counter = Pico.m.scanline = 0;
@@ -109,9 +114,12 @@ static int PicoFrameHints(void)
   PsndStartFrame();
 
   hint = pv->hint_cnt;
+
+  // === active display ===
   pv->status |= PVS_ACTIVE;
 
-  for (y = 0; ; y++)
+  lines_vis = (pv->reg[1] & 8) ? 240 : 224;
+  for (y = 0; y < lines_vis; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
     if ((pv->reg[12]&6) == 6) { // interlace mode 2
@@ -119,9 +127,6 @@ static int PicoFrameHints(void)
       pv->v_counter |= pv->v_counter >> 8;
       pv->v_counter &= 0xff;
     }
-
-    if ((y == 224 && !(pv->reg[1] & 8)) || y == 240)
-      break;
 
     PAD_DELAY();
 
@@ -155,9 +160,10 @@ static int PicoFrameHints(void)
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
-  lines_vis = (pv->reg[1] & 8) ? 240 : 224;
-  if (y == lines_vis)
-    pv->status &= ~PVS_ACTIVE;
+  SyncCPUs(Pico.t.m68c_aim);
+
+  // === VBLANK, 1st line ===
+  pv->status &= ~PVS_ACTIVE;
 
   if (!skip)
   {
@@ -167,6 +173,9 @@ static int PicoFrameHints(void)
     DRAW_FINISH_FUNC();
 #endif
   }
+#ifdef PICO_32X
+  p32x_render_frame();
+#endif
 
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
@@ -198,19 +207,13 @@ static int PicoFrameHints(void)
     SekInterrupt(6);
   }
 
-  cycles = Pico.t.m68c_aim;
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
-    PicoSyncZ80(cycles);
+    PicoSyncZ80(Pico.t.m68c_aim);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
 
-#ifdef PICO_CD
-  if (PicoIn.AHW & PAHW_MCD)
-    pcd_sync_s68k(cycles, 0);
-#endif
 #ifdef PICO_32X
-  p32x_sync_sh2s(cycles);
   p32x_start_blank();
 #endif
 
@@ -221,6 +224,7 @@ static int PicoFrameHints(void)
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
+  // === VBLANK ===
   if (Pico.m.pal) {
     lines = 313;
     vcnt_wrap = 0x103;
@@ -269,6 +273,7 @@ static int PicoFrameHints(void)
     }
   }
 
+  // === VBLANK last line ===
   pv->status &= ~(SR_VB | PVS_VB2);
   pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
 
@@ -297,17 +302,9 @@ static int PicoFrameHints(void)
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
-  // sync cpus
-  cycles = Pico.t.m68c_aim;
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
-    PicoSyncZ80(cycles);
-
-#ifdef PICO_CD
-  if (PicoIn.AHW & PAHW_MCD)
-    pcd_sync_s68k(cycles, 0);
-#endif
+  SyncCPUs(Pico.t.m68c_aim);
 #ifdef PICO_32X
-  p32x_sync_sh2s(cycles);
+  p32x_end_blank();
 #endif
 
   // get samples from sound chips

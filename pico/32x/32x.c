@@ -215,7 +215,7 @@ void PicoReset32x(void)
   }
 }
 
-static void p32x_start_blank(void)
+static void p32x_render_frame(void)
 {
   if (Pico32xDrawMode != PDM32X_OFF && !PicoIn.skipFrame) {
     int offs, lines;
@@ -228,7 +228,6 @@ static void p32x_start_blank(void)
       lines = 240;
     }
 
-    // XXX: no proper handling of 32col mode..
     if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0 && // 32x not blanking
         (!(Pico.video.debug_p & PVD_KILL_32X)))
     {
@@ -242,7 +241,10 @@ static void p32x_start_blank(void)
 
     pprof_end(draw);
   }
+}
 
+static void p32x_start_blank(void)
+{
   // enter vblank
   Pico32x.vdp_regs[0x0a/2] |= P32XV_VBLK|P32XV_PEN;
 
@@ -258,17 +260,23 @@ static void p32x_start_blank(void)
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 }
 
+static void p32x_end_blank(void)
+{
+  // end vblank
+  Pico32x.vdp_regs[0x0a/2] &= ~P32XV_VBLK; // get out of vblank
+  if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
+    Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
+  if (!(Pico32x.sh2_regs[0] & 0x80))
+    p32x_schedule_hint(NULL, SekCyclesDone());
+}
+
 void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
 {
   // rather rough, 32x hint is useless in practice
   int after;
-
   if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 4))
     return; // nobody cares
-  // note: when Pico.m.scanline is 224, SH2s might
-  // still be at scanline 93 (or so)
-  if (!(Pico32x.sh2_regs[0] & 0x80) &&
-      Pico.m.scanline > (Pico.video.reg[1] & 0x08 ? 240 : 224))
+  if (!(Pico32x.sh2_regs[0] & 0x80) && (Pico.video.status & PVS_VB2))
     return;
 
   after = (Pico32x.sh2_regs[4 / 2] + 1) * 488;
@@ -572,14 +580,6 @@ void PicoFrame32x(void)
   sh2_execute_prepare(&msh2, PicoIn.opt & POPT_EN_DRC);
   sh2_execute_prepare(&ssh2, PicoIn.opt & POPT_EN_DRC);
 
-  Pico.m.scanline = 0;
-
-  Pico32x.vdp_regs[0x0a/2] &= ~P32XV_VBLK; // get out of vblank
-  if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
-    Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
-
-  if (!(Pico32x.sh2_regs[0] & 0x80))
-    p32x_schedule_hint(NULL, SekCyclesDone());
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 
