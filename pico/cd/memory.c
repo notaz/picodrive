@@ -85,7 +85,7 @@ void m68k_comm_check(u32 a)
     return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
-  if(Pico_mcd->m.m68k_poll_cnt == POLL_LIMIT)
+  if(Pico_mcd->m.m68k_poll_cnt >= POLL_LIMIT)
     SekEndRun(0);
 }
 
@@ -231,7 +231,7 @@ void m68k_reg_write8(u32 a, u32 d)
   return;
 
 write_comm:
-  if (d == Pico_mcd->s68k_regs[a])
+  if (Pico_mcd->s68k_regs[a] == (u8)d)
     return;
 
   pcd_sync_s68k(SekCyclesDone(), 0);
@@ -490,6 +490,9 @@ void s68k_reg_write8(u32 a, u32 d)
   return;
 
 write_comm:
+  if (Pico_mcd->s68k_regs[a] == (u8)d)
+    return;
+
   Pico_mcd->s68k_regs[a] = (u8) d;
   if (Pico_mcd->m.m68k_poll_cnt)
     SekEndRunS68k(0);
@@ -550,6 +553,9 @@ void s68k_reg_write16(u32 a, u32 d)
   return;
 
 write_comm:
+  if (r[a] == (u8)(d >> 8) && r[a + 1] == (u8)d)
+    return;
+
   r[a] = d >> 8;
   r[a + 1] = d;
   if (Pico_mcd->m.m68k_poll_cnt)

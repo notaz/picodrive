@@ -345,8 +345,10 @@ void pcd_run_cpus_normal(int m68k_cycles)
     if (Pico_mcd->m.m68k_poll_cnt >= 16) {
       int s68k_left;
       // main CPU is polling, (wake and) run sub only
-      if (SekIsStoppedS68k())
+      if (SekIsStoppedS68k()) {
         SekSetStopS68k(0);
+        Pico_mcd->m.s68k_poll_cnt = 0;
+      }
       s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
 
       Pico.t.m68c_cnt = Pico.t.m68c_aim;
