@@ -238,7 +238,7 @@ void PicoDrawSetInternalBuf(void *dest, int line_increment);
 // draw2.c
 // stuff below is optional
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
-extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
+extern void (*PicoPrepareCram)(void);// prepares PicoCramHigh for renderer to use
 
 // pico.c (32x)
 #ifndef NO_32X

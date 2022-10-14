@@ -710,7 +710,7 @@ extern u32 VdpSATCache[128];
 // draw2.c
 void PicoDraw2SetOutBuf(void *dest, int incr);
 void PicoDraw2Init(void);
-PICO_INTERNAL void PicoFrameFull();
+PICO_INTERNAL void PicoFrameFull(void);
 
 // mode4.c
 void PicoFrameStartSMS(void);
