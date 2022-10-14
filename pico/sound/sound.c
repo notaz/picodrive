@@ -430,10 +430,18 @@ static int PsndRender(int offset, int length)
 
   pprof_start(sound);
 
+  // Add in parts of the PSG output not yet done
+  if (length-psglen > 0 && PicoIn.sndOut) {
+    s16 *psgbuf = PicoIn.sndOut + (psglen << stereo);
+    Pico.snd.psg_pos += (length-psglen) << 20;
+    if (PicoIn.opt & POPT_EN_PSG)
+      SN76496Update(psgbuf, length-psglen, stereo);
+  }
+
   if (PicoIn.AHW & PAHW_PICO) {
-    // XXX ugly hack, need to render sound for interrupts
-    s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut : (s16 *)PsndBuffer;
-    PicoPicoPCMUpdate(buf16+(offset<<stereo), length-offset, stereo);
+    // always need to render sound for interrupts
+    s16 *buf16 = PicoIn.sndOut ? PicoIn.sndOut + (offset<<stereo) : NULL;
+    PicoPicoPCMUpdate(buf16, length-offset, stereo);
     return length;
   }
 
@@ -448,14 +456,6 @@ static int PsndRender(int offset, int length)
       if (stereo) dacbuf++;
     }
     Pico.snd.dac_val2 = Pico.snd.dac_val;
-  }
-
-  // Add in parts of the PSG output not yet done
-  if (length-psglen > 0 && PicoIn.sndOut) {
-    s16 *psgbuf = PicoIn.sndOut + (psglen << stereo);
-    Pico.snd.psg_pos += (length-psglen) << 20;
-    if (PicoIn.opt & POPT_EN_PSG)
-      SN76496Update(psgbuf, length-psglen, stereo);
   }
 
   // Add in parts of the FM buffer not yet done

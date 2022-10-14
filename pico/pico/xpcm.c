@@ -77,18 +77,20 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     srcval = *src >> 4;
     do_sample();
 
-    for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
-      *buffer++ += sample;
-      if (stereo) { buffer[0] = buffer[-1]; buffer++; }
-    }
+    if (buffer)
+      for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
+        *buffer++ += sample;
+        if (stereo) { buffer[0] = buffer[-1]; buffer++; }
+      }
 
     srcval = *src & 0xf;
     do_sample();
 
-    for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
-      *buffer++ += sample;
-      if (stereo) { buffer[0] = buffer[-1]; buffer++; }
-    }
+    if (buffer)
+      for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
+        *buffer++ += sample;
+        if (stereo) { buffer[0] = buffer[-1]; buffer++; }
+      }
 
     // lame normalization stuff, needed due to wrong adpcm algo
     sgn += (sample < 0) ? -1 : 1;
@@ -109,7 +111,7 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
   PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
 
 end:
-  if (stereo)
+  if (buffer && stereo)
     // still must expand SN76496 to stereo
     for (; length > 0; buffer+=2, length--)
       buffer[1] = buffer[0];
