@@ -162,9 +162,6 @@ static int PicoFrameHints(void)
 
   SyncCPUs(Pico.t.m68c_aim);
 
-  // === VBLANK, 1st line ===
-  pv->status &= ~PVS_ACTIVE;
-
   if (!skip)
   {
     if (Pico.est.DrawScanline < y)
@@ -177,6 +174,9 @@ static int PicoFrameHints(void)
   p32x_render_frame();
 #endif
 
+  // === VBLANK, 1st line ===
+  pv->status &= ~PVS_ACTIVE;
+
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
 
@@ -188,6 +188,9 @@ static int PicoFrameHints(void)
   }
 
   pv->status |= SR_VB | PVS_VB2; // go into vblank
+#ifdef PICO_32X
+  p32x_start_blank();
+#endif
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
@@ -198,8 +201,11 @@ static int PicoFrameHints(void)
   do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
+  SyncCPUs(Pico.t.m68c_aim);
+
   pv->status |= SR_F;
   pv->pending_ints |= 0x20;
+
   if (pv->reg[1] & 0x20) {
     if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 60) // CPU blocked?
       SekExecM68k(11); // HACK
@@ -208,14 +214,9 @@ static int PicoFrameHints(void)
   }
 
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
-    PicoSyncZ80(Pico.t.m68c_aim);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
-
-#ifdef PICO_32X
-  p32x_start_blank();
-#endif
 
   // Run scanline:
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);

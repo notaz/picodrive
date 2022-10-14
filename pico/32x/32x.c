@@ -54,14 +54,14 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
 
   mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {
-    p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, m68k_cycles);
+    p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
     if (msh2.state & SH2_STATE_RUN)
       sh2_end_run(&msh2, 0);
   }
 
   srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
-    p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, m68k_cycles);
+    p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
     if (ssh2.state & SH2_STATE_RUN)
       sh2_end_run(&ssh2, 0);
   }
@@ -268,6 +268,9 @@ static void p32x_end_blank(void)
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
   if (!(Pico32x.sh2_regs[0] & 0x80))
     p32x_schedule_hint(NULL, SekCyclesDone());
+
+  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
+  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 }
 
 void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
@@ -577,11 +580,9 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 
 void PicoFrame32x(void)
 {
+  // XXX this is somehow misplaced here
   sh2_execute_prepare(&msh2, PicoIn.opt & POPT_EN_DRC);
   sh2_execute_prepare(&ssh2, PicoIn.opt & POPT_EN_DRC);
-
-  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
-  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 
   if (PicoIn.AHW & PAHW_MCD)
     pcd_prepare_frame();
