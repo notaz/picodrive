@@ -118,8 +118,7 @@ static int PicoFrameHints(void)
   // === active display ===
   pv->status |= PVS_ACTIVE;
 
-  lines_vis = (pv->reg[1] & 8) ? 240 : 224;
-  for (y = 0; y < lines_vis; y++)
+  for (y = 0; ; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
     if ((pv->reg[12]&6) == 6) { // interlace mode 2
@@ -127,6 +126,9 @@ static int PicoFrameHints(void)
       pv->v_counter |= pv->v_counter >> 8;
       pv->v_counter &= 0xff;
     }
+
+    if (y == (pv->reg[1] & 8 ? 240 : 224))
+      break;
 
     PAD_DELAY();
 
@@ -175,7 +177,9 @@ static int PicoFrameHints(void)
 #endif
 
   // === VBLANK, 1st line ===
-  pv->status &= ~PVS_ACTIVE;
+  lines_vis = (pv->reg[1] & 8) ? 240 : 224;
+  if (y == lines_vis)
+    pv->status &= ~PVS_ACTIVE;
 
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
