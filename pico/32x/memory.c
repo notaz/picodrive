@@ -59,7 +59,7 @@ static void (*m68k_write16_io)(u32 a, u32 d);
 #define REG8IN16(ptr, offs) ((u8 *)ptr)[MEM_BE2(offs)]
 
 // poll detection
-#define POLL_THRESHOLD 9  // cosmic carnage
+#define POLL_THRESHOLD 9  // Primal Rage
 
 static struct {
   u32 addr1, addr2, cycles;
@@ -203,7 +203,7 @@ static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
     idx = (idx+1) % PFIFO_SZ;
 
     if (cpu != p->cpu) {
-      if (CYCLES_GT(cycles, p->cycles+80)) {
+      if (CYCLES_GT(cycles, p->cycles+60)) { // ~180 sh2 cycles, Spiderman
         // drop older fifo stores that may cause synchronisation problems.
         p->a = -1;
       } else if (p->a == a) {
@@ -1694,23 +1694,6 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 }
 #endif
 
-static NOINLINE void REGPARM(3) sh2_write8_sdram_sync(u32 a, u32 d, SH2 *sh2)
-{
-  DRC_SAVE_SR(sh2);
-  sh2_end_run(sh2, 32);
-  DRC_RESTORE_SR(sh2);
-  sh2_write8_sdram(a, d, sh2);
-}
-
-static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
-{
-  // xmen sync hack..
-  if ((a << 8) >> 17) // ((a & 0x00ffffff) < 0x200)
-    sh2_write8_sdram(a, d, sh2);
-  else
-    sh2_write8_sdram_sync(a, d, sh2);
-}
-
 // write16
 static void REGPARM(3) sh2_write16_unmapped(u32 a, u32 d, SH2 *sh2)
 {
@@ -2403,7 +2386,6 @@ void PicoMemSetup32x(void)
   msh2_read16_map[0x06/2].addr  = msh2_read16_map[0x26/2].addr  =
   msh2_read32_map[0x06/2].addr  = msh2_read32_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
   msh2_write8_map[0x06/2]       = msh2_write8_map[0x26/2]       = sh2_write8_sdram;
-  msh2_write8_map[0x26/2]       = sh2_write8_sdram_wt;
 
   msh2_write16_map[0x06/2]      = msh2_write16_map[0x26/2]      = sh2_write16_sdram;
   msh2_write32_map[0x06/2]      = msh2_write32_map[0x26/2]      = sh2_write32_sdram;

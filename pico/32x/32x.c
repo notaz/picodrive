@@ -212,6 +212,7 @@ void PicoReset32x(void)
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, SekCyclesDone());
     p32x_pwm_ctl_changed();
     p32x_timers_recalc();
+    Pico32x.vdp_regs[0] &= ~P32XV_Mx; // 32X graphics disabled
   }
 }
 
