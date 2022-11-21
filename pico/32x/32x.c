@@ -19,6 +19,11 @@ static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
   if (sh2->pending_irl > sh2->pending_int_irq) {
     elprintf_sh2(sh2, EL_32X, "ack/irl %d @ %08x",
       level, sh2_pc(sh2));
+    // tweak for Blackthorne, part 1: master SH2 overwrites stack of slave SH2 being
+    // in pwm interrupt. On real hardware, nothing happens since slave fetches the
+    // values it has written from its cache, but picodrive doesn't emulate caching.
+    if ((1<<sh2->pending_irl/2) == P32XI_PWM && sh2->is_slave)
+      sh2->state |= SH2_PWM_IRQ;
     return 64 + sh2->pending_irl / 2;
   } else {
     elprintf_sh2(sh2, EL_32X, "ack/int %d/%d @ %08x",
@@ -55,15 +60,13 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    if (msh2.state & SH2_STATE_RUN)
-      sh2_end_run(&msh2, 0);
+    p32x_sync_other_sh2(&msh2, m68k_cycles);
   }
 
   srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    if (ssh2.state & SH2_STATE_RUN)
-      sh2_end_run(&ssh2, 0);
+    p32x_sync_other_sh2(&ssh2, m68k_cycles);
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
@@ -386,10 +389,18 @@ static void p32x_run_events(unsigned int until)
 static void run_sh2(SH2 *sh2, unsigned int m68k_cycles)
 {
   unsigned int cycles, done;
+  unsigned int cpwm = 1400, m68k_cpwm = C_SH2_TO_M68K(sh2, cpwm);
 
   pevt_log_sh2_o(sh2, EVT_RUN_START);
   sh2->state |= SH2_STATE_RUN;
   cycles = C_M68K_TO_SH2(sh2, m68k_cycles);
+  // tweak for Blackthorne, part 2: try to ensure that the PWM irq completes before
+  // switching to the other SH2. This irq can run up to about 1400 cycles.
+  // NB, may delay hint/vint interrupts on the same SH2, might cause sync problems.
+  if (unlikely(sh2->state & SH2_PWM_IRQ) && cycles < cpwm &&
+      CYCLES_GT(p32x_event_times[P32X_EVENT_PWM], sh2->m68krcycles_done+m68k_cpwm))
+    cycles = 1400;
+  sh2->state &= ~SH2_PWM_IRQ;
   elprintf_sh2(sh2, EL_32X, "+run %u %d @%08x",
     sh2->m68krcycles_done, cycles, sh2->pc);
 
