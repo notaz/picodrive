@@ -1397,10 +1397,10 @@ static void emith_lohi_nops(void)
 	rd = (arg+4)
 
 #define emith_pass_arg_r(arg, reg) \
-	emith_move_r_r(arg, reg)
+	emith_move_r_r_ptr(arg, reg)
 
 #define emith_pass_arg_imm(arg, imm) \
-	emith_move_r_imm(arg, imm)
+	emith_move_r_ptr_imm(arg, imm)
 
 // branching
 #define emith_invert_branch(cond) /* inverted conditional branch */ \

@@ -1065,10 +1065,10 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	rd = arg
 
 #define emith_pass_arg_r(arg, reg) \
-	emith_move_r_r(arg, reg)
+	emith_move_r_r_ptr(arg, reg)
 
 #define emith_pass_arg_imm(arg, imm) \
-	emith_move_r_imm(arg, imm)
+	emith_move_r_ptr_imm(arg, imm)
 
 // branching; NB: A64 B.cond has only +/- 1MB range
 
