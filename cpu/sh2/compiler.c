@@ -3836,6 +3836,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           u = FETCH32(opd->imm);
         else
           u = (s16)FETCH_OP(opd->imm);
+        // tweak for Blackthorne: avoid stack overwriting
+        if (GET_Rn() == SHR_SP && u == 0x0603f800) u = 0x0603f900;
         gconst_new(GET_Rn(), u);
       }
       else
