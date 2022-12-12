@@ -82,6 +82,7 @@ static float user_vout_width = 0.0;
 static short ALIGNED(4) sndBuffer[2*44100/50];
 
 static void snd_write(int len);
+static bool libretro_supports_bitmasks = false;
 
 #ifdef _WIN32
 #define SLASH '\\'
@@ -1330,9 +1331,16 @@ void retro_run(void)
 
    PicoIn.pad[0] = PicoIn.pad[1] = 0;
    for (pad = 0; pad < 2; pad++)
-      for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
-         if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
-            PicoIn.pad[pad] |= retro_pico_map[i];
+      for (i = 0; i < RETRO_PICO_MAP_LEN; i++) {
+         if (libretro_supports_bitmasks) {
+            int16_t input = input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
+            if (input & (1 << i))
+               PicoIn.pad[pad] |= retro_pico_map[i];
+         } else {
+            if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
+               PicoIn.pad[pad] |= retro_pico_map[i];
+         }
+      }
 
    PicoPatchApply();
    PicoFrame();
@@ -1355,6 +1363,9 @@ void retro_init(void)
       log_cb = NULL;
 
    environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
+
+   if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
+      libretro_supports_bitmasks = true;
 
 #ifdef _3DS
    ctr_svchack_successful = ctr_svchack_init();
@@ -1403,6 +1414,8 @@ void retro_deinit(void)
 #endif
    vout_buf = NULL;
    PicoExit();
+
+   libretro_supports_bitmasks = false;
 }
 
 // vim:shiftwidth=3:ts=3:expandtab
