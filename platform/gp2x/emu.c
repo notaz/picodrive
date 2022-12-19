@@ -606,6 +606,12 @@ static void vid_reset_mode(void)
 
 	gp2x_video_changemode(gp2x_mode, Pico.m.pal);
 
+	// clear whole screen in all buffers
+	if (!is_16bit_mode())
+		gp2x_memset_all_buffers(0, 0xe0, 320*240);
+	else
+		gp2x_memset_all_buffers(0, 0, 320*240*2);
+
 	Pico.m.dirtyPal = 1;
 
 	// palette converters for 8bit modes
@@ -656,7 +662,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	}
 
 	gp2x_video_RGB_setscaling(ln_offs, scalex, scaley);
-
 
 	// clear whole screen in all buffers
 	if (!is_16bit_mode())

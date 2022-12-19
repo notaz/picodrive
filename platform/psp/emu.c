@@ -741,6 +741,7 @@ void pemu_forced_frame(int no_scale, int do_emu)
 void plat_video_toggle_renderer(int change, int is_menu_call)
 {
 	change_renderer(change);
+	clearArea(1);
 
 	if (is_menu_call)
 		return;

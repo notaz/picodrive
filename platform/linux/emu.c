@@ -244,6 +244,7 @@ static void apply_renderer(void)
 void plat_video_toggle_renderer(int change, int is_menu)
 {
 	change_renderer(change);
+	plat_video_clear_buffers();
 
 	if (!is_menu) {
 		apply_renderer();
