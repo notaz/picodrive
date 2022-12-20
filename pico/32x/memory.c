@@ -816,7 +816,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
 
-      if ((d ^ old) & 1)
+      if ((old ^ d) & 1)
         p32x_pwm_schedule_sh2(sh2);
       if ((old ^ d) & 2)
         p32x_update_cmd_irq(sh2, 0);
@@ -1776,7 +1776,7 @@ static void REGPARM(3) sh2_write16_rom(u32 a, u32 d, SH2 *sh2)
   // Presumably the write goes to the CPU cache and is read back from there,
   // but it would be extremely costly to emulate cache behaviour. Just allow
   // writes to that region, hoping that the original ROM values are never used.
-  if ((a1 & 0x3e0000) == 0x3e0000)
+  if ((a1 & 0x3e0000) == 0x3e0000 && (PicoIn.quirks & PQUIRK_WWFRAW_HACK))
     ((u16 *)sh2->p_rom)[a1 / 2] = d;
   else
     sh2_write16_unmapped(a, d, sh2);
@@ -1949,6 +1949,16 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
   }
 
   return ret;
+}
+
+int p32x_sh2_mem_is_rom(u32 a, SH2 *sh2)
+{
+  if ((a & 0xc6000000) == 0x02000000) {
+    // ROM, but mind tweak for WWF Raw
+    return !(PicoIn.quirks & PQUIRK_WWFRAW_HACK) || (a & 0x3f0000) < 0x3e0000;
+  }
+
+  return 0;
 }
 
 int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)

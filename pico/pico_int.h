@@ -1017,6 +1017,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory8(u32 a, u32 d, SH2 *sh2);
 u32 REGPARM(3) p32x_sh2_poll_memory16(u32 a, u32 d, SH2 *sh2);
 u32 REGPARM(3) p32x_sh2_poll_memory32(u32 a, u32 d, SH2 *sh2);
 void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2);
+int p32x_sh2_mem_is_rom(u32 a, SH2 *sh2);
 void p32x_sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt);
 void p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles);
 int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2);

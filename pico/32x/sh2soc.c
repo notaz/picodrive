@@ -137,15 +137,7 @@ static void dmac_memcpy(struct dma_chan *chan, SH2 *sh2)
 
   if (!up || chan->tcr < 4)
     return;
-#if MARS_CHECK_HACK
-  // XXX Mars Check Program copies 32K longwords (128KB) from a 64KB buffer in
-  // ROM or DRAM to SDRAM in 4-longword mode, overwriting an SDRAM comm area in
-  // turn, which crashes the test on emulators without CPU cache emulation.
-  // This may be a bug in Mars Check. As a kludge limit the transfer to 64KB,
-  // which is what the check program test uses for checking the result.
-  // A better way would clearly be to have a mechanism to patch the ROM...
-  if (size == 3 && chan->tcr == 32768 && chan->dar == 0x06020000) size = 1;
-#endif
+
   if (size == 3) size = 2;  // 4-word xfer mode still counts in words
   // XXX check TCR being a multiple of 4 in 4-word xfer mode?
   // XXX check alignment of sar/dar, generating a bus error if unaligned?

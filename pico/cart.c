@@ -1201,6 +1201,12 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
         Pico.sv.flags &= ~SRF_EEPROM;
       else if (strcmp(p, "filled_sram") == 0)
         *fill_sram = 1;
+      else if (strcmp(p, "wwfraw_hack") == 0)
+        PicoIn.quirks |= PQUIRK_WWFRAW_HACK;
+      else if (strcmp(p, "blackthorne_hack") == 0)
+        PicoIn.quirks |= PQUIRK_BLACKTHORNE_HACK;
+      else if (strcmp(p, "marscheck_hack") == 0)
+        PicoIn.quirks |= PQUIRK_MARSCHECK_HACK;
       else if (strcmp(p, "force_6btn") == 0)
         PicoIn.quirks |= PQUIRK_FORCE_6BTN;
       else {
@@ -1335,6 +1341,45 @@ static void PicoCartDetect(const char *carthw_cfg)
   // Unusual region 'code'
   if (rom_strcmp(0x1f0, "EUROPE") == 0 || rom_strcmp(0x1f0, "Europe") == 0)
     *(u32 *) (Pico.rom + 0x1f0) = CPU_LE4(0x20204520);
+
+  // tweak for Blackthorne: master SH2 overwrites stack of slave SH2 being in PWM
+  // interrupt. On real hardware, nothing happens since slave fetches the values
+  // it has written from its cache, but picodrive doesn't emulate caching.
+  // move master memory area down by 0x100 bytes.
+  // XXX replace this abominable hack. It might cause other problems in the game!
+  if (PicoIn.quirks & PQUIRK_BLACKTHORNE_HACK) {
+    int i;
+    unsigned a = 0;
+    for (i = 0; i < Pico.romsize; i += 4) {
+      unsigned v = CPU_BE2(*(u32 *) (Pico.rom + i));
+      if (a && v == a + 0x400) { // patch if 2 pointers with offset 0x400 are found
+        printf("auto-patching @%06x: %08x->%08x\n", i, v, v - 0x100);
+        *(u32 *) (Pico.rom + i) = CPU_BE2(v - 0x100);
+      }
+      // detect a pointer into the incriminating area
+      a = 0;
+      if (v >> 12 == 0x0603f000 >> 12 && !(v & 3))
+        a = v;
+    }
+  }
+
+  // tweak for Mars Check Program: copies 32K longwords (128KB) from a 64KB buffer
+  // in ROM or DRAM to SDRAM with DMA in 4-longword mode, overwriting an SDRAM comm
+  // area in turn. This crashes the test on emulators without CPU cache emulation.
+  // This may be a bug in Mars Check, since it's only checking for the 64KB result.
+  // Patch the DMA transfers so that they transfer only 64KB.
+  if (PicoIn.quirks & PQUIRK_MARSCHECK_HACK) {
+    int i;
+    unsigned a = 0;
+    for (i = 0; i < Pico.romsize; i += 4) {
+      unsigned v = CPU_BE2(*(u32 *) (Pico.rom + i));
+      if (a == 0xffffff8c && v == 0x5ee1) { // patch if 4-long xfer written to CHCR
+        printf("auto-patching @%06x: %08x->%08x\n", i, v, v & ~0x800);
+        *(u32 *) (Pico.rom + i) = CPU_BE2(v & ~0x800); // change to half-sized xfer
+      }
+      a = v;
+    }
+  }
 }
 
 static void PicoCartDetectMS(void)

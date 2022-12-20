@@ -537,12 +537,6 @@ void REGPARM(1) (*sh2_drc_restore_sr)(SH2 *sh2);
 #define MF_POLLING  0x20	// include polling check in read
 
 // address space stuff
-static int dr_is_rom(u32 a)
-{
-  // tweak for WWF Raw which writes data to some high ROM addresses
-  return (a & 0xc6000000) == 0x02000000 && (a & 0x3f0000) < 0x3e0000;
-}
-
 static int dr_ctx_get_mem_ptr(SH2 *sh2, u32 a, u32 *mask)
 {
   void *memptr;
@@ -2698,7 +2692,7 @@ static int emit_get_rom_data(SH2 *sh2, sh2_reg_e r, s32 offs, int size, u32 *val
   if (gconst_get(r, &a)) {
     a += offs;
     // check if rom is memory mapped (not bank switched), and address is in rom
-    if (dr_is_rom(a) && p32x_sh2_get_mem_ptr(a, &mask, sh2) == sh2->p_rom) {
+    if (p32x_sh2_mem_is_rom(a, sh2) && p32x_sh2_get_mem_ptr(a, &mask, sh2) == sh2->p_rom) {
       switch (size & MF_SIZEMASK) {
       case 0:   *val = (s8)p32x_sh2_read8(a, sh2s);   break;  // 8
       case 1:   *val = (s16)p32x_sh2_read16(a, sh2s); break;  // 16
@@ -3830,14 +3824,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case OP_LOAD_POOL:
 #if PROPAGATE_CONSTANTS
       if ((opd->imm && opd->imm >= base_pc && opd->imm < end_literals) ||
-          dr_is_rom(opd->imm))
+          p32x_sh2_mem_is_rom(opd->imm, sh2))
       {
         if (opd->size == 2)
           u = FETCH32(opd->imm);
         else
           u = (s16)FETCH_OP(opd->imm);
-        // tweak for Blackthorne: avoid stack overwriting
-        if (GET_Rn() == SHR_SP && u == 0x0603f800) u = 0x0603f900;
         gconst_new(GET_Rn(), u);
       }
       else
