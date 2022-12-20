@@ -55,15 +55,13 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    if (msh2.state & SH2_STATE_RUN)
-      sh2_end_run(&msh2, 0);
+    p32x_sync_other_sh2(&msh2, m68k_cycles);
   }
 
   srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    if (ssh2.state & SH2_STATE_RUN)
-      sh2_end_run(&ssh2, 0);
+    p32x_sync_other_sh2(&ssh2, m68k_cycles);
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
@@ -256,9 +254,9 @@ static void p32x_start_blank(void)
     Pico32xSwapDRAM(Pico32x.pending_fb ^ 1);
   }
 
-  p32x_trigger_irq(NULL, SekCyclesDone(), P32XI_VINT);
-  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
-  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
+  p32x_trigger_irq(NULL, Pico.t.m68c_aim, P32XI_VINT);
+  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
+  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
 }
 
 static void p32x_end_blank(void)
@@ -270,8 +268,8 @@ static void p32x_end_blank(void)
   if (!(Pico32x.sh2_regs[0] & 0x80))
     p32x_schedule_hint(NULL, SekCyclesDone());
 
-  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
-  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
+  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
+  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
 }
 
 void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
