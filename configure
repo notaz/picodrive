@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux miyoo rpi1 rpi2 psp"
+platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux miyoo rpi1 rpi2 psp rg99"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -107,6 +107,14 @@ set_platform()
     # mostly based on opendingux for gcw0, save device type as C define.
     CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
     MFLAGS="-march=mips32r2"
+    platform="opendingux"
+    ;;
+  rg99)
+    # RG99 using opendingux, with Ingenic MIPS JZ4725B
+    sound_drivers="sdl"
+    # mostly based on opendingux for gcw0, save device type as C define.
+    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
+    MFLAGS="-march=mips32"
     platform="opendingux"
     ;;
   miyoo)

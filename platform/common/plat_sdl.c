@@ -336,7 +336,7 @@ void plat_init(void)
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
-#if defined(__RG350__) || defined(__GCW0__) || defined(__OPENDINGUX__)
+#if defined(__RG350__) || defined(__GCW0__) || defined(__OPENDINGUX__) || defined(__RG99__)
 	// opendingux on JZ47x0 may falsely report a HW overlay, fix to window
 	plat_target.vout_method = 0;
 #endif
@@ -371,6 +371,11 @@ void plat_init(void)
 	in_sdl_platform_data.key_names = *in_sdl_key_names,
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
+
+#if defined(__RG99__)
+	// do not use the default resolution
+	plat_video_set_size(320, 240);
+#endif
 
 	bgr_to_uyvy_init();
 }

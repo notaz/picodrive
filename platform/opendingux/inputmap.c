@@ -78,7 +78,7 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_RETURN] = "START",
 	[SDLK_ESCAPE] = "SELECT",
 
-#if defined(__RG350__) || defined(__OPENDINGUX__)
+#if defined(__RG350__) || defined(__OPENDINGUX__) || defined(__RG99__)
 	[SDLK_HOME] = "POWER",
 
 	[SDLK_TAB] = "L1",
