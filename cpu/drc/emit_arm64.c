@@ -1061,6 +1061,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 		} \
 } while (0)
 
+#define host_call(addr, args) \
+	addr
+
 #define host_arg2reg(rd, arg) \
 	rd = arg
 
@@ -1136,7 +1139,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_call_reg(r) \
 	EMIT(A64_BLR(r))
 
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	int _t = rcache_get_tmp(); \
 	emith_ctx_read_ptr(_t, offs); \
 	emith_call_reg(_t); \

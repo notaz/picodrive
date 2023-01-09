@@ -937,7 +937,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	EMIT_OP_MODRM(0xff, 3, 2, (r)&7); \
 } while (0)
 
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	EMIT_OP_MODRM(0xff, 2, 2, CONTEXT_REG); \
 	EMIT(offs, u32); \
 } while (0)
@@ -1042,6 +1042,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define	emith_update_cache()	/**/
 
 #define emith_rw_offs_max()	0xffffffffU
+
+#define host_call(addr, args)
+	addr
 
 #ifdef __x86_64__
 

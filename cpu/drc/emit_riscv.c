@@ -1186,6 +1186,9 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 } while (0)
 
+#define host_call(addr, args) \
+	addr
+
 #define host_arg2reg(rd, arg) \
 	rd = (arg+10)
 
@@ -1386,7 +1389,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 #define emith_call_reg(r) \
 	EMIT(R5_JALR(LR, r, 0))
 
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	emith_ctx_read_ptr(AT, offs); \
 	emith_call_reg(AT); \
 } while (0)

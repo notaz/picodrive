@@ -1307,6 +1307,17 @@ static void emith_add_imm(int rt, int ra, u32 imm)
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 } while (0)
 
+#if defined __PS3__
+// on PS3 a C function pointer points to an array of 2 ptrs containing the start
+// address and the TOC pointer for this function. TOC isn't used by the DRC though.
+static void *fptr[2];
+#define host_call(addr, args)	(fptr[0] = addr, (void (*) args)fptr)
+#else
+// with ELF we have the PLT which wraps functions needing any ABI register setup,
+// hence a function ptr is simply the entry address of the function to execute.
+#define host_call(addr, args)	addr
+#endif
+
 #define host_arg2reg(rt, arg) \
 	rt = (arg+3)
 
@@ -1500,7 +1511,7 @@ static int emith_cond_check(int cond)
 	EMIT(PPC_BLCTRCOND(BXX)); \
 } while(0)
 
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	emith_ctx_read_ptr(CR, offs); \
 	emith_call_reg(CR); \
 } while (0)

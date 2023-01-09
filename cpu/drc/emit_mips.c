@@ -1393,6 +1393,9 @@ static void emith_lohi_nops(void)
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 } while (0)
 
+#define host_call(addr, args) \
+	addr
+
 #define host_arg2reg(rd, arg) \
 	rd = (arg+4)
 
@@ -1602,7 +1605,7 @@ static int emith_cond_check(int cond, int *r)
 
 #define emith_call_reg(r) \
 	emith_branch(MIPS_JALR(LR, r))
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	emith_ctx_read_ptr(CR, offs); \
 	emith_call_reg(CR); \
 } while (0)

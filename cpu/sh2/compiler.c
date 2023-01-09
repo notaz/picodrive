@@ -506,7 +506,14 @@ static signed char reg_map_host[HOST_REGS];
 
 static guest_reg_t guest_regs[SH2_REGS];
 
+// generated functions called from C, to be called only through host_call()
 static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
+#ifdef DRC_SR_REG
+void REGPARM(1) (*sh2_drc_save_sr)(SH2 *sh2);
+void REGPARM(1) (*sh2_drc_restore_sr)(SH2 *sh2);
+#endif
+
+// generated DRC helper functions, only called from generated code via emith_call*()
 static void REGPARM(1) (*sh2_drc_dispatcher)(u32 pc);
 #if CALL_STACK
 static u32  REGPARM(2) (*sh2_drc_dispatcher_call)(u32 pc);
@@ -524,11 +531,6 @@ static u32  REGPARM(1) (*sh2_drc_read32_poll)(u32 a);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write32)(u32 a, u32 d);
-
-#ifdef DRC_SR_REG
-void REGPARM(1) (*sh2_drc_save_sr)(SH2 *sh2);
-void REGPARM(1) (*sh2_drc_restore_sr)(SH2 *sh2);
-#endif
 
 // flags for memory access
 #define MF_SIZEMASK 0x03        // size of access
@@ -5513,7 +5515,7 @@ static void sh2_generate_utils(void)
   emith_sub_r_imm(sr, 13 << 12); // at least 13 cycles
   rcache_flush();
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
-  emith_call_ctx(offsetof(SH2, irq_callback)); // vector = sh2->irq_callback(sh2, level);
+  emith_abicall_ctx(offsetof(SH2, irq_callback)); // vector = sh2->irq_callback(sh2, level);
   // obtain new PC
   tmp = rcache_get_reg_arg(1, SHR_VBR, &tmp2);
   emith_add_r_r_r_lsl(arg0, tmp2, RET_REG, 2);
@@ -5711,7 +5713,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
 #endif
 
   sh2c->state |= SH2_IN_DRC;
-  sh2_drc_entry(sh2c);
+  host_call(sh2_drc_entry, (SH2 *))(sh2c);
   sh2c->state &= ~SH2_IN_DRC;
 
   // TODO: irq cycles

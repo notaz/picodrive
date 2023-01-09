@@ -1217,7 +1217,7 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
         EOP_C_BX(A_COND_AL, r); \
 } while (0)
 
-#define emith_call_ctx(offs) do { \
+#define emith_abicall_ctx(offs) do { \
 	emith_move_r_r(LR, PC); \
 	emith_jump_ctx(offs); \
 } while (0)
@@ -1260,6 +1260,9 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 
 #define host_instructions_updated(base, end, force) \
 	do { if (force) emith_update_add(base, end); } while (0)
+
+#define host_call(addr, args) \
+	addr
 
 #define host_arg2reg(rd, arg) \
 	rd = arg
