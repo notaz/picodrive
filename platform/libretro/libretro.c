@@ -62,6 +62,12 @@ static int ctr_svchack_successful = 0;
 static int sceBlock;
 int getVMBlock();
 int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
+
+#elif defined(__PS3__)
+#include <sys/process.h>
+#include <ps3mapi_ps3_lib.h>
+
+static uint64_t page_table[2] = {0, 0};
 #endif
 
 #include "libretro_core_options.h"
@@ -471,6 +477,9 @@ void *plat_mem_get_for_drc(size_t size)
    // For WiiU, a slice of RWX memory left from the exploit is used, see:
    // https://github.com/embercold/pcsx_rearmed/commit/af0453223
    mem = (void *)(0x01000000 - size);
+#elif defined __PS3__
+   ps3mapi_process_page_allocate(sysProcessGetPid(), size, PAGE_SIZE_AUTO, 0x2F, 1, page_table);
+   mem = (void *)page_table[0];
 #endif
    return mem;
 }
@@ -2374,6 +2383,10 @@ void retro_deinit(void)
    free(vout_buf);
    free(retro_palette);
    ps2 = NULL;
+#elif defined(__PS3__)
+   free(vout_buf);
+   if (page_table[0] > 0 && page_table[1] > 0)
+      ps3mapi_process_page_free(sysProcessGetPid(), 0x2F, page_table);
 #else
    free(vout_buf);
 #endif

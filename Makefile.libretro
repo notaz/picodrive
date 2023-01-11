@@ -188,13 +188,9 @@ else ifneq (,$(filter $(platform), ps3 psl1ght))
 	CFLAGS += -DFAMEC_NO_GOTOS -D__PS3__
 	STATIC_LINKING = 1
 	STATIC_LINKING_LINK = 1
-	NO_MMAP = 1
 	ifeq ($(platform), psl1ght)
 		FLAGS += -D__PSL1GHT__
 	endif
-	# PS3 has memory mapped in a way not suitable for DRC
-	use_sh2drc = 0
-	use_svpdrc = 0
 
 # PSP
 else ifeq ($(platform), psp1)

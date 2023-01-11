@@ -40,6 +40,7 @@
 // reserved: r0(zero), r1(stack), r2(TOC), r13(TID)
 // additionally reserved on OSX: r31(PIC), r30(frame), r11(parentframe)
 // for OSX PIC code, on function calls r12 must contain the called address
+#define TOC_REG		2
 #define RET_REG		3
 #define PARAM_REGS	{ 3, 4, 5, 6, 7, 8, 9, 10 }
 #define PRESERVED_REGS	{ 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
@@ -1506,19 +1507,36 @@ static int emith_cond_check(int cond)
 #define emith_call_cond(cond, target) \
 	emith_call(target)
 
+#ifdef __PS3__
+#define emith_call_reg(r) do { \
+	emith_read_r_r_offs_ptr(TOC_REG, r, 8); \
+	emith_read_r_r_offs_ptr(r, r, 0); \
+	EMIT(PPC_MTSP_REG(r, CTR)); \
+	EMIT(PPC_BLCTRCOND(BXX)); \
+} while(0)
+#else
 #define emith_call_reg(r) do { \
 	EMIT(PPC_MTSP_REG(r, CTR)); \
 	EMIT(PPC_BLCTRCOND(BXX)); \
 } while(0)
+#endif
 
 #define emith_abicall_ctx(offs) do { \
 	emith_ctx_read_ptr(CR, offs); \
 	emith_call_reg(CR); \
 } while (0)
 
+#ifdef __PS3__
+#define emith_abijump_reg(r) \
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_read_r_r_offs_ptr(TOC_REG, CR, 8); \
+	emith_read_r_r_offs_ptr(CR, CR, 0); \
+	emith_jump_reg(CR)
+#else
 #define emith_abijump_reg(r) \
 	if ((r) != CR) emith_move_r_r(CR, r); \
 	emith_jump_reg(CR)
+#endif
 #define emith_abijump_reg_c(cond, r) \
 	emith_abijump_reg(r)
 #define emith_abicall(target) \
