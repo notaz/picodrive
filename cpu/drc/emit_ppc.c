@@ -1519,9 +1519,8 @@ static int emith_cond_check(int cond)
 
 #ifdef __PS3__
 #define emith_abijump_reg(r) \
-	if ((r) != CR) emith_move_r_r(CR, r); \
-	emith_read_r_r_offs_ptr(TOC_REG, CR, PTR_SIZE); \
-	emith_read_r_r_offs_ptr(CR, CR, 0); \
+	emith_read_r_r_offs_ptr(TOC_REG, r, PTR_SIZE); \
+	emith_read_r_r_offs_ptr(CR, r, 0); \
 	emith_jump_reg(CR)
 #else
 #define emith_abijump_reg(r) \
@@ -1537,9 +1536,8 @@ static int emith_cond_check(int cond)
 	emith_abicall(target)
 #ifdef __PS3__
 #define emith_abicall_reg(r) do { \
-	if ((r) != CR) emith_move_r_r(CR, r); \
 	emith_read_r_r_offs_ptr(TOC_REG, r, PTR_SIZE); \
-	emith_read_r_r_offs_ptr(r, r, 0); \
+	emith_read_r_r_offs_ptr(CR, r, 0); \
 	emith_call_reg(CR); \
 } while(0)
 #else
