@@ -1507,29 +1507,20 @@ static int emith_cond_check(int cond)
 #define emith_call_cond(cond, target) \
 	emith_call(target)
 
-#ifdef __PS3__
-#define emith_call_reg(r) do { \
-	emith_read_r_r_offs_ptr(TOC_REG, r, 8); \
-	emith_read_r_r_offs_ptr(r, r, 0); \
-	EMIT(PPC_MTSP_REG(r, CTR)); \
-	EMIT(PPC_BLCTRCOND(BXX)); \
-} while(0)
-#else
 #define emith_call_reg(r) do { \
 	EMIT(PPC_MTSP_REG(r, CTR)); \
 	EMIT(PPC_BLCTRCOND(BXX)); \
 } while(0)
-#endif
 
 #define emith_abicall_ctx(offs) do { \
 	emith_ctx_read_ptr(CR, offs); \
-	emith_call_reg(CR); \
+	emith_abicall_reg(CR); \
 } while (0)
 
 #ifdef __PS3__
 #define emith_abijump_reg(r) \
 	if ((r) != CR) emith_move_r_r(CR, r); \
-	emith_read_r_r_offs_ptr(TOC_REG, CR, 8); \
+	emith_read_r_r_offs_ptr(TOC_REG, CR, PTR_SIZE); \
 	emith_read_r_r_offs_ptr(CR, CR, 0); \
 	emith_jump_reg(CR)
 #else
@@ -1541,12 +1532,22 @@ static int emith_cond_check(int cond)
 	emith_abijump_reg(r)
 #define emith_abicall(target) \
 	emith_move_r_ptr_imm(CR, target); \
-	emith_call_reg(CR);
+	emith_abicall_reg(CR);
 #define emith_abicall_cond(cond, target) \
 	emith_abicall(target)
-#define emith_abicall_reg(r) \
+#ifdef __PS3__
+#define emith_abicall_reg(r) do { \
 	if ((r) != CR) emith_move_r_r(CR, r); \
-	emith_call_reg(CR)
+	emith_read_r_r_offs_ptr(TOC_REG, r, PTR_SIZE); \
+	emith_read_r_r_offs_ptr(r, r, 0); \
+	emith_call_reg(CR); \
+} while(0)
+#else
+#define emith_abicall_reg(r) do { \
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_call_reg(CR); \
+} while(0)
+#endif
 
 #define emith_call_cleanup()	/**/
 

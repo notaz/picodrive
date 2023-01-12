@@ -1043,7 +1043,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_rw_offs_max()	0xffffffffU
 
-#define host_call(addr, args)
+#define host_call(addr, args) \
 	addr
 
 #ifdef __x86_64__
