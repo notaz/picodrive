@@ -127,7 +127,7 @@ static int PicoFrameHints(void)
       pv->v_counter &= 0xff;
     }
 
-    if (y == (pv->reg[1] & 8 ? 240 : 224))
+    if ((y == 224 && !(pv->reg[1] & 8)) || y == 240)
       break;
 
     PAD_DELAY();
