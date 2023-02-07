@@ -42,8 +42,8 @@ const struct menu_keymap in_sdl_key_map[] = {
 	{ SDLK_ESCAPE,	PBTN_MBACK },
 	{ SDLK_COMMA,	PBTN_MA2 },
 	{ SDLK_PERIOD,	PBTN_MA3 },
-	{ SDLK_o,	PBTN_L },
-	{ SDLK_p,	PBTN_R },
+	{ SDLK_TAB,	PBTN_R },
+	{ SDLK_BACKSPACE, PBTN_L },
 };
 const int in_sdl_key_map_sz = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]);
 
