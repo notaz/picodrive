@@ -442,7 +442,7 @@ void pemu_loop_prep(void)
 void pemu_loop_end(void)
 {
 	/* do one more frame for menu bg */
-	plat_video_set_size(320, 240);
+	plat_video_set_shadow(320, 240);
 	pemu_forced_frame(0, 1);
 	g_menubg_src_w = g_screen_width;
 	g_menubg_src_h = g_screen_height;

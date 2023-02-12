@@ -161,6 +161,14 @@ void plat_video_set_size(int w, int h)
 	}
 }
 
+void plat_video_set_shadow(int w, int h)
+{
+	g_screen_width = w;
+	g_screen_height = h;
+	g_screen_ppitch = w;
+	g_screen_ptr = shadow_fb;
+}
+
 void plat_video_flip(void)
 {
 	resize_buffers();
@@ -292,8 +300,13 @@ void plat_video_loop_prepare(void)
 
 	// switch over to scaled output if available, but keep the aspect ratio
 	if (plat_sdl_overlay || plat_sdl_gl_active) {
-		g_screen_width = (240 * g_menuscreen_w / g_menuscreen_h) & ~1;
-		g_screen_height = 240;
+		if (g_menuscreen_w * 240 >= g_menuscreen_h * 320) {
+			g_screen_width = (240 * g_menuscreen_w/g_menuscreen_h) & ~1;
+			g_screen_height= 240;
+		} else {
+			g_screen_width = 320;
+			g_screen_height= (320 * g_menuscreen_h/g_menuscreen_w) & ~1;
+		}
 		g_screen_ppitch = g_screen_width;
 		g_screen_ptr = shadow_fb;
 	}
@@ -317,10 +330,12 @@ void plat_early_init(void)
 static void plat_sdl_resize(int w, int h)
 {
 	// take over new settings
-	g_menuscreen_h = plat_sdl_screen->h;
-	g_menuscreen_w = plat_sdl_screen->w;
-	resize_buffers();
-	rendstatus_old = -1;
+	if (plat_sdl_screen->w != area.w || plat_sdl_screen->h != area.h) {
+		g_menuscreen_h = plat_sdl_screen->h;
+		g_menuscreen_w = plat_sdl_screen->w;
+		resize_buffers();
+		rendstatus_old = -1;
+	}
 }
 
 static void plat_sdl_quit(void)
