@@ -529,7 +529,7 @@ static void DrawSpritesTMS(void)
 static void DrawStripM1(const u8 *nametab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
-  for (; cells_dx > 0; cells_dx += 6, tilex_ty++, cells_dx -= 0x10000)
+  for (; cells_dx >= 0; cells_dx += 6, tilex_ty++, cells_dx -= 0x10000)
   {
     unsigned int pack, pal;
     unsigned code;
@@ -560,7 +560,7 @@ static void DrawDisplayM1(int scanline)
   pattab  += (scanline & 0x7);
 
   tilex = cellskip & 0x1f;
-  cells = maxcells - cellskip;
+  cells = maxcells - cellskip - 1;
   dx = 8 + (cellskip << 3) + line_offset;
 
   // tiles
@@ -576,7 +576,7 @@ static void DrawDisplayM1(int scanline)
 static void DrawStripM2(const u8 *nametab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
-  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
+  for (; cells_dx >= 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
   {
     unsigned int pal;
     unsigned code;
@@ -606,7 +606,7 @@ static void DrawDisplayM2(int scanline)
   pattab  += (scanline>>2) & 0x7;
 
   tilex = cellskip & 0x1f;
-  cells = maxcells - cellskip;
+  cells = maxcells - cellskip - 1;
   dx = (cellskip << 3) + line_offset;
 
   // tiles
@@ -626,7 +626,7 @@ static void DrawDisplayM2(int scanline)
 static void DrawStripM3(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
-  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
+  for (; cells_dx >= 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
   {
     unsigned int pack, pal;
     unsigned code;
@@ -657,7 +657,7 @@ static void DrawDisplayM3(int scanline)
   pattab  += ((scanline>>6) <<11) + (scanline & 0x7);
 
   tilex = cellskip & 0x1f;
-  cells = maxcells - cellskip;
+  cells = maxcells - cellskip - 1;
   dx = (cellskip << 3) + line_offset;
 
   // tiles
@@ -677,7 +677,7 @@ static void DrawDisplayM3(int scanline)
 static void DrawStripM0(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
-  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
+  for (; cells_dx >= 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
   {
     unsigned int pack, pal;
     unsigned code;
@@ -707,7 +707,7 @@ static void DrawDisplayM0(int scanline)
   pattab  += (scanline & 0x7);
 
   tilex = cellskip & 0x1f;
-  cells = maxcells - cellskip;
+  cells = maxcells - cellskip - 1;
   dx = (cellskip << 3) + line_offset;
 
   // tiles
