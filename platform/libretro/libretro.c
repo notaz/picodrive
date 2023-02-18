@@ -1789,6 +1789,8 @@ static void update_variables(bool first_run)
          PicoIn.hwSelect = PHWS_GG;
       else if (strcmp(var.value, "SG-1000") == 0)
          PicoIn.hwSelect = PHWS_SG;
+      else if (strcmp(var.value, "SC-3000") == 0)
+         PicoIn.hwSelect = PHWS_SC;
       else
          PicoIn.hwSelect = PHWS_SMS;
    }

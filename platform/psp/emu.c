@@ -217,7 +217,7 @@ static void do_pal_update_sms(void)
 	int i;
 	
 	if (!(Pico.video.reg[0] & 0x4)) {
-		int sg = !!(Pico.m.hardware & PMS_HW_SG);
+		int sg = !!(Pico.m.hardware & (PMS_HW_SG|PMS_HW_SC));
 		for (i = Pico.est.SonicPalCount; i >= 0; i--)
 			do_pal_convert(localPal+i*0x40, tmspal+sg*0x10, currentConfig.gamma, currentConfig.gamma2);
 	} else {

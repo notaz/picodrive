@@ -878,7 +878,7 @@ void PicoDoHighPal555SMS(void)
    * hence GG/SMS/TMS can all be handled the same here */
   for (j = cnt; j > 0; j--) {
     if (!(Pico.video.reg[0] & 0x4)) // fixed palette in TMS modes
-      spal = (u32 *)tmspal + (Pico.m.hardware & PMS_HW_SG ? 16/2 : 0);
+      spal = (u32 *)tmspal + (Pico.m.hardware & (PMS_HW_SG|PMS_HW_SC) ? 16/2:0);
     for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
       t = *spal;
 #if defined(USE_BGR555)

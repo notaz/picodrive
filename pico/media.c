@@ -368,6 +368,9 @@ enum media_type_e PicoLoadMedia(const char *filename,
     } else if (ext && !strcmp(ext,"sg")) {
       Pico.m.hardware |= PMS_HW_SG;
       lprintf("detected SG-1000 ROM\n");
+    } else if (ext && !strcmp(ext,"sc")) {
+      Pico.m.hardware |= PMS_HW_SC;
+      lprintf("detected SC-3000 ROM\n");
     } else
       lprintf("detected SMS ROM\n");
   }
