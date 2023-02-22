@@ -57,7 +57,7 @@ static void vdp_data_write(unsigned char d)
 
   if (pv->type == 3) {
     // cram. 32 on SMS, but 64 on MD. Fill 2nd half of cram for prio bit mirror
-    if (Pico.m.hardware & PMS_HW_GG) { // GG, same layout as MD
+    if (PicoIn.AHW & PAHW_GG) { // GG, same layout as MD
       unsigned a = pv->addr & 0x3f;
       if (a & 0x1) { // write complete color on high byte write
         u16 c = ((d&0x0f) << 8) | Pico.ms.vdp_buffer;
@@ -160,7 +160,7 @@ static unsigned char z80_sms_in(unsigned short a)
     {
       case 0x00:
       case 0x01:
-        if ((Pico.m.hardware & PMS_HW_GG) && a < 0x8) { // GG I/O area
+        if ((PicoIn.AHW & PAHW_GG) && a < 0x8) { // GG I/O area
           switch (a) {
           case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80);               break;
           case 1: d = Pico.ms.io_gg[1] | (Pico.ms.io_gg[2] & 0x7f); break;
@@ -189,14 +189,14 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0xc0: /* I/O port A and B */
-        if (! (Pico.m.hardware & PMS_HW_SC) || (Pico.ms.io_sg & 7) == 7)
+        if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7)
           d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
         else
           ; // read kbd 8 bits
         break;
 
       case 0xc1: /* I/O port B and miscellaneous */
-        if (! (Pico.m.hardware & PMS_HW_SC) || (Pico.ms.io_sg & 7) == 7) {
+        if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7) {
           d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
           d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
           if (Pico.ms.io_ctl & 0x08) d |= 0x80; // TH as input is unconnected
@@ -238,11 +238,11 @@ static void z80_sms_out(unsigned short a, unsigned char d)
     switch (a & 0xc1)
     {
       case 0x00:
-        if ((Pico.m.hardware & PMS_HW_GG) && a < 0x8)   // GG I/O area
+        if ((PicoIn.AHW & PAHW_GG) && a < 0x8)   // GG I/O area
           Pico.ms.io_gg[a] = d;
         break;
       case 0x01:
-        if ((Pico.m.hardware & PMS_HW_GG) && a < 0x8) { // GG I/O area
+        if ((PicoIn.AHW & PAHW_GG) && a < 0x8) { // GG I/O area
           Pico.ms.io_gg[a] = d;
         } else {
           // pad. latch hcounter if one of the TH lines is switched to 1
@@ -267,7 +267,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         break;
 
       case 0xc0:
-        if ((Pico.m.hardware & PMS_HW_SC) && (a & 0x2))
+        if ((PicoIn.AHW & PAHW_SC) && (a & 0x2))
           Pico.ms.io_sg = d; // 0xc2 = kbd/pad select
     }
   }
@@ -535,9 +535,11 @@ char *mappers[] = {
 // Before adding more mappers this should be revised.
 static void xwrite(unsigned int a, unsigned char d)
 {
+  int sz = (PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 : 8) * 1024;
+
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
-    PicoMem.zram[a & 0x1fff] = d;
+    PicoMem.zram[a & (sz-1)] = d;
 
   switch (Pico.ms.mapper) { // via config, or auto detected
   case PMS_MAP_SEGA:    write_bank_sega(a, d);  break;
@@ -556,9 +558,9 @@ static void xwrite(unsigned int a, unsigned char d)
         // disable autodetection after some time
         if ((a >= 0xc000 && a < 0xfff8) || Pico.ms.mapcnt > 20) break;
         // NB the sequence of mappers is crucial for the auto detection
-        if (Pico.m.hardware & PMS_HW_SC) {
+        if (PicoIn.AHW & PAHW_SC) {
           write_bank_x32k(a,d);
-        } else if (Pico.m.hardware & PMS_HW_SG) {
+        } else if (PicoIn.AHW & PAHW_SG) {
           write_bank_x8k(a, d);
         } else {
           write_bank_n32k(a, d);
@@ -595,11 +597,11 @@ void PicoResetMS(void)
 
   // set preselected hw/mapper from config
   if (PicoIn.hwSelect) {
-    Pico.m.hardware &= ~(PMS_HW_GG|PMS_HW_SG|PMS_HW_SC);
+    PicoIn.AHW &= ~(PAHW_GG|PAHW_SG|PAHW_SC);
     switch (PicoIn.hwSelect) {
-    case PHWS_GG:  Pico.m.hardware |=  PMS_HW_GG; break;
-    case PHWS_SG:  Pico.m.hardware |=  PMS_HW_SG; break;
-    case PHWS_SC:  Pico.m.hardware |=  PMS_HW_SC; break;
+    case PHWS_GG:  PicoIn.AHW |= PAHW_GG; break;
+    case PHWS_SG:  PicoIn.AHW |= PAHW_SG; break;
+    case PHWS_SC:  PicoIn.AHW |= PAHW_SC; break;
     }
   }
   Pico.ms.mapcnt = Pico.ms.mapper = 0;
@@ -614,9 +616,9 @@ void PicoResetMS(void)
     if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
       hw = Pico.rom[tmr-1] >> 4;
       if (!PicoIn.hwSelect) {
-        Pico.m.hardware &= ~(PMS_HW_GG|PMS_HW_SG|PMS_HW_SC);
+        PicoIn.AHW &= ~(PAHW_GG|PAHW_SG|PAHW_SC);
         if (hw >= 0x5 && hw < 0x8)
-          Pico.m.hardware |= PMS_HW_GG; // GG cartridge detected
+          PicoIn.AHW |= PAHW_GG; // GG cartridge detected
       }
       if (!PicoIn.regionOverride) {
         Pico.m.hardware &= ~PMS_HW_JAP;
@@ -655,7 +657,7 @@ void PicoResetMS(void)
   Pico.video.reg[10] = 0xff;
 
   // BIOS, clear zram (unitialized on Mark-III, cf src/mame/drivers/sms.cpp)
-  i = (Pico.m.hardware & (PMS_HW_JAP|PMS_HW_GG)) == PMS_HW_JAP ? 0xf0 : 0x00;
+  i = !(PicoIn.AHW & PAHW_GG) && (Pico.m.hardware & PMS_HW_JAP) ? 0xf0 : 0x00;
   memset(PicoMem.zram, i, sizeof(PicoMem.zram));
 }
 
@@ -666,7 +668,6 @@ void PicoPowerMS(void)
   memset(&PicoMem,0,sizeof(PicoMem));
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
-  Pico.m.pal = 0;
 
   // calculate a mask for bank writes.
   // ROM loader has aligned the size for us, so this is safe.
@@ -686,16 +687,20 @@ void PicoPowerMS(void)
 void PicoMemSetupMS(void)
 {
   u8 mapper = Pico.ms.mapper;
+  int sz = (PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 : 8) * 1024;
+  u32 a;
 
+  // RAM and its mirrors
+  for (a = 0xc000; a < 0x10000; a += sz) {
+    z80_map_set(z80_read_map, a, a + sz-1, PicoMem.zram, 0);
+    z80_map_set(z80_write_map, a, a + sz-1, PicoMem.zram, 0);
+  }
+  a = 0x10000 - (1<<Z80_MEM_SHIFT);
+  z80_map_set(z80_write_map, a, 0xffff, xwrite, 1); // mapper detection
+
+  // ROM
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
-
-  z80_map_set(z80_read_map, 0xc000, 0xdfff, PicoMem.zram, 0);
-  z80_map_set(z80_read_map, 0xe000, 0xffff, PicoMem.zram, 0);
-  z80_map_set(z80_write_map, 0xc000, 0xdfff, PicoMem.zram, 0);
-  z80_map_set(z80_write_map, 0xe000, 0xffff, PicoMem.zram, 0);
-
-  z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1);
-  z80_map_set(z80_write_map, 0xfc00, 0xffff, xwrite, 1);
+  z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1); // mapper detection
 
   // Nemesis mapper maps last 8KB rom bank #15 to adress 0
   if (mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
@@ -800,7 +805,7 @@ void PicoFrameMS(void)
 
   // for SMS the pause button generates an NMI, for GG ths is not the case
   nmi = (PicoIn.pad[0] >> 7) & 1;
-  if (!(Pico.m.hardware & PMS_HW_GG) && !Pico.ms.nmi_state && nmi)
+  if (!(PicoIn.AHW & PAHW_GG) && !Pico.ms.nmi_state && nmi)
     z80_nmi();
   Pico.ms.nmi_state = nmi;
 

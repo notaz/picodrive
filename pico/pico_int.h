@@ -342,11 +342,8 @@ struct PicoMisc
   unsigned int  frame_count;   // 1c for movies and idle det
 };
 
-#define PMS_HW_GG	0x1   // Game Gear
 #define PMS_HW_LCD	0x2   // GG LCD
 #define PMS_HW_JAP	0x4   // japanese system
-#define PMS_HW_SG	0x8   // SG-1000
-#define PMS_HW_SC	0x10  // SC-3000
 
 #define PMS_MAP_AUTO	0
 #define PMS_MAP_SEGA	1

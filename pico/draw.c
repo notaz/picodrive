@@ -1647,7 +1647,7 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   PicoDrawUpdateHighPal();
 
   len = 256;
-  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
+  if ((PicoIn.AHW & PAHW_GG) && (Pico.m.hardware & PMS_HW_LCD))
     len = 160;
   else if (!(PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[12]&1))
     len = 320;
@@ -1711,7 +1711,7 @@ void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   }
 
   len = 256;
-  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & (PMS_HW_GG|PMS_HW_LCD)) == (PMS_HW_GG|PMS_HW_LCD))
+  if ((PicoIn.AHW & PAHW_GG) && (Pico.m.hardware & PMS_HW_LCD))
     len = 160;
   else if (!(PicoIn.AHW & PAHW_SMS) && (Pico.video.reg[12]&1))
     len = 320;

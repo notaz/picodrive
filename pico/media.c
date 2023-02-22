@@ -345,12 +345,6 @@ enum media_type_e PicoLoadMedia(const char *filename,
       do_region_override(filename);
   }
 
-  if (PicoCartInsert(rom_data, rom_size, carthw_cfg_fname)) {
-    media_type = PM_ERROR;
-    goto out;
-  }
-  rom_data = NULL; // now belongs to PicoCart
-
   // simple test for GG. Do this here since m.hardware is nulled in Insert
   if ((PicoIn.AHW & PAHW_SMS) && !PicoIn.hwSelect) {
     const char *ext = NULL;
@@ -363,17 +357,23 @@ enum media_type_e PicoLoadMedia(const char *filename,
       }
     }
     if (ext && !strcmp(ext,"gg") && !PicoIn.hwSelect) {
-      Pico.m.hardware |= PMS_HW_GG;
+      PicoIn.AHW |= PAHW_GG;
       lprintf("detected GG ROM\n");
     } else if (ext && !strcmp(ext,"sg")) {
-      Pico.m.hardware |= PMS_HW_SG;
+      PicoIn.AHW |= PAHW_SG;
       lprintf("detected SG-1000 ROM\n");
     } else if (ext && !strcmp(ext,"sc")) {
-      Pico.m.hardware |= PMS_HW_SC;
+      PicoIn.AHW |= PAHW_SC;
       lprintf("detected SC-3000 ROM\n");
     } else
       lprintf("detected SMS ROM\n");
   }
+
+  if (PicoCartInsert(rom_data, rom_size, carthw_cfg_fname)) {
+    media_type = PM_ERROR;
+    goto out;
+  }
+  rom_data = NULL; // now belongs to PicoCart
 
   // insert CD if it was detected
   Pico.m.ncart_in = 0;

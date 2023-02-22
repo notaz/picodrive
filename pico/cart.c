@@ -847,7 +847,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   }
   pdb_cleanup();
 
-  PicoIn.AHW &= PAHW_MCD|PAHW_SMS|PAHW_PICO;
+  PicoIn.AHW &= ~(PAHW_32X|PAHW_SVP);
 
   PicoCartMemSetup = NULL;
   PicoDmaHook = NULL;
@@ -866,7 +866,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
     PicoInitPico();
 
   // setup correct memory map for loaded ROM
-  switch (PicoIn.AHW) {
+  switch (PicoIn.AHW & ~(PAHW_GG|PAHW_SG|PAHW_SC)) {
     default:
       elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoIn.AHW);
     case 0:
@@ -1353,7 +1353,7 @@ static void PicoCartDetect(const char *carthw_cfg)
     for (i = 0; i < Pico.romsize; i += 4) {
       unsigned v = CPU_BE2(*(u32 *) (Pico.rom + i));
       if (a && v == a + 0x400) { // patch if 2 pointers with offset 0x400 are found
-        printf("auto-patching @%06x: %08x->%08x\n", i, v, v - 0x100);
+        elprintf(EL_STATUS, "auto-patching @%06x: %08x->%08x\n", i, v, v - 0x100);
         *(u32 *) (Pico.rom + i) = CPU_BE2(v - 0x100);
       }
       // detect a pointer into the incriminating area
@@ -1374,7 +1374,7 @@ static void PicoCartDetect(const char *carthw_cfg)
     for (i = 0; i < Pico.romsize; i += 4) {
       unsigned v = CPU_BE2(*(u32 *) (Pico.rom + i));
       if (a == 0xffffff8c && v == 0x5ee1) { // patch if 4-long xfer written to CHCR
-        printf("auto-patching @%06x: %08x->%08x\n", i, v, v & ~0x800);
+        elprintf(EL_STATUS, "auto-patching @%06x: %08x->%08x\n", i, v, v & ~0x800);
         *(u32 *) (Pico.rom + i) = CPU_BE2(v & ~0x800); // change to half-sized xfer
       }
       a = v;
