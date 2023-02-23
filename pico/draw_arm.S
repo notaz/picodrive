@@ -1655,12 +1655,12 @@ FinalizeLine555:
     ldr     r2, [r8, #OFS_Pico_m_hardware]
     add     r1, r1, #8
 
+    tst     r7, #0x20   	@ GG ?
+    tstne   r2, #0x2		@ LCD ?
+    bne     .fl_gg20col
+
     tst     r7, #0x10   	@ SMS ?
     beq     .fl_noSMS
-
-    and     r7, r2, #0x3
-    cmp     r7, #0x3		@ Game Gear, LCD?
-    beq     .fl_gg20col
 
     tst     r6, #0x20
     movne   r2, #248/8  	@ len = 248
