@@ -420,23 +420,19 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 
 // "long" multiplication, 32x32 bit = 64 bit
 #define EMIT_PPC_MULLU_REG(dlo, dhi, s1, s2) do { \
-	EMIT(PPC_EXTUW_REG(s1, s1)); \
-	EMIT(PPC_EXTUW_REG(s2, s2)); \
-	EMIT(PPC_MULL(dlo, s1, s2)); \
-	EMIT(PPC_ASR_IMM(dhi, dlo, 32)); \
+	int at = (dlo == s1 || dlo == s2 ? AT : dlo); \
+	EMIT(PPC_MUL(at, s1, s2)); \
+	EMIT(PPC_MULHU(dhi, s1, s2)); \
+	if (at != dlo) emith_move_r_r(dlo, at); \
 } while (0)
 
 #define EMIT_PPC_MULLS_REG(dlo, dhi, s1, s2) do { \
-	EMIT(PPC_EXTSW_REG(s1, s1)); \
-	EMIT(PPC_EXTSW_REG(s2, s2)); \
-	EMIT(PPC_MULL(dlo, s1, s2)); \
+	EMIT(PPC_MUL(dlo, s1, s2)); \
 	EMIT(PPC_ASR_IMM(dhi, dlo, 32)); \
 } while (0)
 
 #define EMIT_PPC_MACLS_REG(dlo, dhi, s1, s2) do { \
-	EMIT(PPC_EXTSW_REG(s1, s1)); \
-	EMIT(PPC_EXTSW_REG(s2, s2)); \
-	EMIT(PPC_MULL(AT, s1, s2)); \
+	EMIT(PPC_MUL(AT, s1, s2)); \
 	EMIT(PPC_BFI_IMM(dlo, dhi, 0, 32)); \
 	emith_add_r_r(dlo, AT); \
 	EMIT(PPC_ASR_IMM(dhi, dlo, 32)); \

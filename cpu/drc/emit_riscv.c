@@ -217,15 +217,20 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 #define PTR_SCALE			3
 
 // NB: must split 64 bit result into 2 32 bit registers
-// NB: expects 32 bit values in s1+s2, correctly sign extended to 64 bits
 #define EMIT_R5_MULLU_REG(dlo, dhi, s1, s2) do { \
+	EMIT(R5_LSL_IMM(AT, s1, 32)); \
+	EMIT(R5_LSL_IMM(dhi, s2, 32)); \
+	EMIT(R5_MULHU(dlo, AT, dhi)); \
+	EMIT(R5_ASR_IMM(dhi, dlo, 32)); \
+	EMIT(R5_ADDW_IMM(dlo, dlo, 0)); \
+} while (0)
+
+#define EMIT_R5_MULLS_REG(dlo, dhi, s1, s2) do { \
 	EMIT(R5_MUL(dlo, s1, s2)); \
 	EMIT(R5_ASR_IMM(dhi, dlo, 32)); \
 	EMIT(R5_ADDW_IMM(dlo, dlo, 0)); \
 } while (0)
 
-#define EMIT_R5_MULLS_REG(dlo, dhi, s1, s2) \
-	EMIT_R5_MULLU_REG(dlo, dhi, s1, s2)
 #else
 #define R5_OP32				0
 #define F1_P				F1_W
