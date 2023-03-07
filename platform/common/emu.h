@@ -199,6 +199,7 @@ void plat_update_volume(int has_changed, int is_up);
 void plat_video_clear_status(void);
 void plat_video_clear_buffers(void);
 void plat_video_set_size(int w, int h);
+void plat_video_set_shadow(int w, int h);
 
 #ifdef __cplusplus
 } // extern "C"
