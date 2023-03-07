@@ -742,30 +742,32 @@ void PicoFrameStartSMS(void)
 
   // Copy LCD enable flag for easier handling
   Pico.m.hardware &= ~PMS_HW_LCD;
-  if ((PicoIn.opt & POPT_EN_GG_LCD) && (PicoIn.AHW & PAHW_GG))
+  if ((PicoIn.opt & POPT_EN_GG_LCD) && (PicoIn.AHW & PAHW_GG)) {
     Pico.m.hardware |= PMS_HW_LCD;
 
-  if (!(Pico.m.hardware & PMS_HW_LCD) && (mode & 4) && (Pico.video.reg[0] & 0x20)) {
-    // SMS mode 4 with 1st column blanked
-    columns = 248;
-    Pico.est.rendstatus |= PDRAW_SMS_BLANK_1;
-  }
-  if (Pico.m.hardware & PMS_HW_LCD) {
     // GG LCD always has 160x144 regardless of settings
     screen_offset = 24; // nonetheless the vdp timing has 224 lines
     loffs = 48;
     lines = 144;
     columns = 160;
-  } else switch (mode) {
-  // SMS2 only 224/240 line modes, e.g. Micro Machines
-  case 0x06|0x08:
-      loffs = screen_offset = 0;
-      lines = 240;
-      break;
-  case 0x06|0x10:
-      loffs = screen_offset = 8;
-      lines = 224;
-      break;
+  } else {
+    if ((mode & 4) && (Pico.video.reg[0] & 0x20)) {
+      // SMS mode 4 with 1st column blanked
+      columns = 248;
+      Pico.est.rendstatus |= PDRAW_SMS_BLANK_1;
+    }
+
+    switch (mode) {
+    // SMS2 only 224/240 line modes, e.g. Micro Machines
+    case 0x06|0x08:
+        loffs = screen_offset = 0;
+        lines = 240;
+        break;
+    case 0x06|0x10:
+        loffs = screen_offset = 8;
+        lines = 224;
+        break;
+    }
   }
 
   line_offset = 8; // FinalizeLine requires HighCol+8
