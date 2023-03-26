@@ -705,7 +705,7 @@ extern unsigned char *HighColBase;
 extern int HighColIncrement;
 extern void *DrawLineDestBase;
 extern int DrawLineDestIncrement;
-extern u32 VdpSATCache[128];
+extern u32 VdpSATCache[2*128];
 
 // draw2.c
 void PicoDraw2SetOutBuf(void *dest, int incr);
@@ -890,9 +890,7 @@ static __inline void UpdateSAT(u32 a, u32 d)
   unsigned num = (a^SATaddr) >> 3;
 
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
-  if (!(a & 4) && num < 128) {
-    ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
-  }
+  ((u16 *)&VdpSATCache[2*num])[(a&7) >> 1] = d;
 }
 static __inline void VideoWriteVRAM(u32 a, u16 d)
 {

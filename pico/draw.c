@@ -63,7 +63,7 @@ static u32 HighCacheA[41*2+1]; // caches for high layers
 static u32 HighCacheB[41*2+1];
 static s32 HighPreSpr[80*2+1]; // slightly preprocessed sprites
 
-u32 VdpSATCache[128];  // VDP sprite cache (1st 32 sprite attr bits)
+u32 VdpSATCache[2*128];  // VDP sprite cache (1st 32 sprite attr bits)
 
 // NB don't change any defines without checking their usage in ASM
 
@@ -1401,7 +1401,7 @@ static void DrawSpritesForced(unsigned char *sprited)
 // Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static NOINLINE void PrepareSprites(int max_lines)
+static NOINLINE void ParseSprites(int max_lines)
 {
   const struct PicoVideo *pvid=&Pico.video;
   const struct PicoEState *est=&Pico.est;
@@ -1410,6 +1410,12 @@ static NOINLINE void PrepareSprites(int max_lines)
   s32 *pd = HighPreSpr;
   int max_sprites = 80, max_width = 328;
   int max_line_sprites = 20; // 20 sprites, 40 tiles
+
+  // SAT scanning is one line ahead, but don't overshoot. Technically, SAT
+  // parsing for line 0 is on the last line of the previous frame.
+  int first_line = Pico.est.DrawScanline + !!Pico.est.DrawScanline;
+  if (max_lines > rendlines-1)
+    max_lines = rendlines-1;
 
   if (!(Pico.video.reg[12]&1))
     max_sprites = 64, max_line_sprites = 16, max_width = 264;
@@ -1422,7 +1428,7 @@ static NOINLINE void PrepareSprites(int max_lines)
   if (pvid->reg[12]&1) table&=0x7e; // Lowest bit 0 in 40-cell mode
   table<<=8; // Get sprite table address/2
 
-  for (u = est->DrawScanline; u < max_lines; u++)
+  for (u = first_line; u <= max_lines; u++)
     *((int *)&HighLnSpr[u][0]) = 0;
 
   for (u = 0; u < max_sprites && link < max_sprites; u++)
@@ -1434,7 +1440,7 @@ static NOINLINE void PrepareSprites(int max_lines)
 
     // parse sprite info. the 1st half comes from the VDPs internal cache,
     // the 2nd half is read from VRAM
-    code = CPU_LE2(VdpSATCache[link]); // normally same as sprite[0]
+    code = CPU_LE2(VdpSATCache[2*link]); // normally same as sprite[0]
     sy = (code&0x1ff)-0x80;
     hv = (code>>24)&0xf;
     height = (hv&3)+1;
@@ -1444,7 +1450,7 @@ static NOINLINE void PrepareSprites(int max_lines)
     sx = (code2>>16)&0x1ff;
     sx -= 0x78; // Get X coordinate + 8
 
-    if (sy < max_lines && sy + (height<<3) >= est->DrawScanline) // sprite onscreen (y)?
+    if (sy <= max_lines && sy + (height<<3) >= first_line) // sprite onscreen (y)?
     {
       int entry, y, w, sx_min, onscr_x, maybe_op = 0;
 
@@ -1454,8 +1460,8 @@ static NOINLINE void PrepareSprites(int max_lines)
         maybe_op = SPRL_MAY_HAVE_OP;
 
       entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
-      y = (sy >= est->DrawScanline) ? sy : est->DrawScanline;
-      for (; y < sy + (height<<3) && y < max_lines; y++)
+      y = (sy >= first_line) ? sy : first_line;
+      for (; y < sy + (height<<3) && y <= max_lines; y++)
       {
         unsigned char *p = &HighLnSpr[y][0];
         int cnt = p[0];
@@ -1501,7 +1507,7 @@ static NOINLINE void PrepareSprites(int max_lines)
   *pd = 0;
 
 #if 0
-  for (u = 0; u < max_lines; u++)
+  for (u = first_line; u <= max_lines; u++)
   {
     int y;
     printf("c%03i: f %x c %2i/%2i w %2i: ", u, HighLnSpr[u][1],
@@ -1982,9 +1988,9 @@ void PicoDrawSync(int to, int blank_last_line)
     if (to > 223)
       to = 223;
   }
-  if (est->DrawScanline <= to - blank_last_line && (est->rendstatus &
+  if (est->DrawScanline <= to && (est->rendstatus &
                 (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES|PDRAW_PARSE_SPRITES)))
-    PrepareSprites(to - blank_last_line + 1);
+    ParseSprites(to + 1);
 
   for (line = est->DrawScanline; line < to; line++)
     PicoLine(line, offs, sh, bgc);
