@@ -51,7 +51,7 @@ static int detect_media(const char *fname, const unsigned char *rom, unsigned in
   }
 
   // detect wrong extensions
-  if (!strcmp(ext, "srm") || !strcmp(ext, "gz")) // s.gz ~ .mds.gz
+  if (!strcasecmp(ext, "srm") || !strcasecmp(ext, "gz")) // s.gz ~ .mds.gz
     return PM_BAD_DETECT;
 
   /* don't believe in extensions, except .cue and .chd */
@@ -356,13 +356,13 @@ enum media_type_e PicoLoadMedia(const char *filename,
         ext = NULL;
       }
     }
-    if (ext && !strcmp(ext,"gg") && !PicoIn.hwSelect) {
+    if (ext && !strcasecmp(ext,"gg") && !PicoIn.hwSelect) {
       PicoIn.AHW |= PAHW_GG;
       lprintf("detected GG ROM\n");
-    } else if (ext && !strcmp(ext,"sg")) {
+    } else if (ext && !strcasecmp(ext,"sg")) {
       PicoIn.AHW |= PAHW_SG;
       lprintf("detected SG-1000 ROM\n");
-    } else if (ext && !strcmp(ext,"sc")) {
+    } else if (ext && !strcasecmp(ext,"sc")) {
       PicoIn.AHW |= PAHW_SC;
       lprintf("detected SC-3000 ROM\n");
     } else

@@ -61,7 +61,7 @@ static void *open_save_file(const char *fname, int is_save)
   int len = strlen(fname);
   void *afile = NULL;
 
-  if (len > 3 && strcmp(fname + len - 3, ".gz") == 0)
+  if (len > 3 && strcasecmp(fname + len - 3, ".gz") == 0)
   {
     if ( (afile = gzopen(fname, is_save ? "wb" : "rb")) ) {
       set_cbs(1);

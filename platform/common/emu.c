@@ -399,7 +399,7 @@ int emu_reload_rom(const char *rom_fname_in)
 		movie_data = 0;
 	}
 
-	if (!strcmp(ext, ".gmv"))
+	if (!strcasecmp(ext, ".gmv"))
 	{
 		// check for both gmv and rom
 		int dummy;
@@ -436,7 +436,7 @@ int emu_reload_rom(const char *rom_fname_in)
 		get_ext(rom_fname, ext);
 		lprintf("gmv loaded for %s\n", rom_fname);
 	}
-	else if (!strcmp(ext, ".pat"))
+	else if (!strcasecmp(ext, ".pat"))
 	{
 		int dummy;
 		PicoPatchLoad(rom_fname);
