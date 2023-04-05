@@ -97,7 +97,9 @@ u32 VdpSATCache[2*128];  // VDP sprite cache (1st 32 sprite attr bits)
 #define SPRL_HAVE_MASK0  0x02 // have sprite with x == 0 in 1st slot
 #define SPRL_MASKED      0x01 // lo prio masking by sprite with x == 0 active
 
-unsigned char HighLnSpr[240][4+MAX_LINE_SPRITES+1]; // sprite_count, ^flags, tile_count, sprites_total, [spritep]..., last_width
+// sprite cache. stores results of sprite parsing for each display line:
+// [visible_sprites_count, sprl_flags, tile_count, sprites_processed, sprite_idx[sprite_count], last_width]
+unsigned char HighLnSpr[240][4+MAX_LINE_SPRITES+1];
 
 int rendstatus_old;
 int rendlines;
@@ -290,7 +292,8 @@ TileFlipMaker(TileFlip_and, pix_and)
   pal |= 0xc0; /* leave s/h bits untouched in pixel "and" */ \
   if (likely(m & (1<<(x+8)))) { \
     m &= ~(1<<(x+8)); \
-    if (t<0xe) pd[x] &= pal|t; \
+    /* if (!t) pd[x] |= 0x40; as per titan hw notes? */ \
+    pd[x] &= pal|t; \
   }
  
 TileNormMakerAS(TileNormSH_AS_and, pix_sh_as_and)
@@ -977,7 +980,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
   unsigned char *p;
   int cnt, w;
 
-  cnt = sprited[0] & 0x7f;
+  cnt = sprited[0];
   if (cnt == 0) return;
 
   p = &sprited[4];
@@ -1046,7 +1049,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
   unsigned m;
   int entry, cnt;
 
-  cnt = sprited[0] & 0x7f;
+  cnt = sprited[0];
   if (cnt == 0) return;
 
   memset(mb, 0xff, sizeof(mb));
@@ -1323,7 +1326,7 @@ static void DrawSpritesForced(unsigned char *sprited)
   unsigned m;
   int entry, cnt;
 
-  cnt = sprited[0] & 0x7f;
+  cnt = sprited[0];
   if (cnt == 0) { memset(pd, 0, sizeof(DefHighCol)); return; }
   
   memset(mb, 0xff, sizeof(mb));
@@ -1382,7 +1385,9 @@ static void DrawSpritesForced(unsigned char *sprited)
     *mp = m; // write last mask byte
   }
 
-  // anything not covered by a sprite is off (XXX or bg?)
+  // anything not covered by a sprite is off 
+  // XXX Titan hw notes say that transparent pixels remove shadow. Is this also
+  // the case in areas where no sprites are displayed?
   for (cnt = 1; cnt < sizeof(mb)-1; cnt++)
     if (mb[cnt] == 0xff) {
       *(u32 *)(pd+8*cnt+0) = 0;
@@ -1401,7 +1406,7 @@ static void DrawSpritesForced(unsigned char *sprited)
 // Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static NOINLINE void ParseSprites(int max_lines)
+static NOINLINE void ParseSprites(int max_lines, int limit)
 {
   const struct PicoVideo *pvid=&Pico.video;
   const struct PicoEState *est=&Pico.est;
@@ -1416,6 +1421,10 @@ static NOINLINE void ParseSprites(int max_lines)
   int first_line = Pico.est.DrawScanline + !!Pico.est.DrawScanline;
   if (max_lines > rendlines-1)
     max_lines = rendlines-1;
+
+  // look-ahead SAT parsing for next line and sprite pixel fetching for current
+  // line are limited if display was disabled during HBLANK before current line
+  if (limit) limit = 16; // max sprites/pixels processed
 
   if (!(Pico.video.reg[12]&1))
     max_sprites = 64, max_line_sprites = 16, max_width = 264;
@@ -1453,6 +1462,8 @@ static NOINLINE void ParseSprites(int max_lines)
     if (sy <= max_lines && sy + (height<<3) >= first_line) // sprite onscreen (y)?
     {
       int entry, y, w, sx_min, onscr_x, maybe_op = 0;
+      // omit look-ahead line if sprite parsing limit reached
+      int last_line = (limit && u >= 2*limit ? max_lines-1 : max_lines);
 
       sx_min = 8-(width<<3);
       onscr_x = sx_min < sx && sx < max_width;
@@ -1461,12 +1472,14 @@ static NOINLINE void ParseSprites(int max_lines)
 
       entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
       y = (sy >= first_line) ? sy : first_line;
-      for (; y < sy + (height<<3) && y <= max_lines; y++)
+      for (; y < sy + (height<<3) && y <= last_line; y++)
       {
         unsigned char *p = &HighLnSpr[y][0];
         int cnt = p[0];
-        if (p[3] >= max_line_sprites) continue;         // sprite limit?
         if (p[1] & SPRL_MASKED) continue;               // masked?
+
+        if (p[3] >= max_line_sprites) continue;         // sprite limit?
+        p[3] ++;
 
         w = width;
         if (p[2] + width > max_line_sprites*2) {        // tile limit?
@@ -1475,7 +1488,6 @@ static NOINLINE void ParseSprites(int max_lines)
           w = max_line_sprites*2 - p[2];
         }
         p[2] += w;
-        p[3] ++;
 
         if (sx == -0x78) {
           if (p[1] & (SPRL_HAVE_X|SPRL_TILE_OVFL))
@@ -1487,13 +1499,15 @@ static NOINLINE void ParseSprites(int max_lines)
 
         if (!onscr_x) continue; // offscreen x
 
-        p[4+cnt] = entry;
-        p[5+cnt] = w; // width clipped by tile limit for sprite renderer
-        p[0] = cnt + 1;
+        // sprite is (partly) visible, store info for renderer
         p[1] |= (entry & 0x80) ? SPRL_HAVE_HI : SPRL_HAVE_LO;
         p[1] |= maybe_op; // there might be op sprites on this line
         if (cnt > 0 && (code2 & 0x8000) && !(p[4+cnt-1]&0x80))
           p[1] |= SPRL_LO_ABOVE_HI;
+
+        p[4+cnt] = entry;
+        p[5+cnt] = w; // width clipped by tile limit for sprite renderer
+        p[0] = cnt + 1;
       }
     }
 
@@ -1505,6 +1519,23 @@ static NOINLINE void ParseSprites(int max_lines)
     if (!link) break; // End of sprites
   }
   *pd = 0;
+
+  // fetching sprite pixels isn't done while display is disabled during HBLANK
+  if (limit) {
+    int w = 0;
+    unsigned char *sprited = &HighLnSpr[max_lines-1][0]; // current render line
+
+    for (u = 0; u < sprited[0]; u++) {
+      s32 *sp = HighPreSpr + (sprited[4+u] & 0x7f) * 2;
+      int sw = sp[0] >> 28;
+      if (w + sw > limit) {
+        sprited[0] = u;
+        sprited[4+u] = limit-w;
+        break;
+      }
+      w += sw;
+    }
+  }
 
 #if 0
   for (u = first_line; u <= max_lines; u++)
@@ -1528,7 +1559,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
   unsigned char *p;
   int cnt, w;
 
-  cnt = sprited[0] & 0x7f;
+  cnt = sprited[0];
   if (cnt == 0) return;
 
   p = &sprited[4];
@@ -1974,7 +2005,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
   Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
-void PicoDrawSync(int to, int blank_last_line)
+void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
 {
   struct PicoEState *est = &Pico.est;
   int line, offs = 0;
@@ -1990,7 +2021,7 @@ void PicoDrawSync(int to, int blank_last_line)
   }
   if (est->DrawScanline <= to && (est->rendstatus &
                 (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES|PDRAW_PARSE_SPRITES)))
-    ParseSprites(to + 1);
+    ParseSprites(to + 1, limit_sprites);
 
   for (line = est->DrawScanline; line < to; line++)
     PicoLine(line, offs, sh, bgc);

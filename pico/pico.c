@@ -286,7 +286,7 @@ void PicoFrameDrawOnly(void)
 {
   if (!(PicoIn.AHW & PAHW_SMS)) {
     PicoFrameStart();
-    PicoDrawSync(Pico.m.pal?239:223, 0);
+    PicoDrawSync(Pico.m.pal?239:223, 0, 0);
   } else {
     PicoFrameDrawOnlyMS();
   }

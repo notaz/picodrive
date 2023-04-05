@@ -139,6 +139,7 @@ void PicoVideoInit(void)
 
 
 static int blankline;           // display disabled for this line
+static int limitsprites;
 
 u32 SATaddr, SATmask;      // VRAM addr of sprite attribute table
 
@@ -793,6 +794,11 @@ static NOINLINE void CommandChange(struct PicoVideo *pvid)
 
 // VDP interface
  
+static inline int InHblank(int offs)
+{
+  return SekCyclesDone() - Pico.t.m68c_line_start <= 488-offs;
+}
+
 static void DrawSync(int skip)
 {
   int lines = Pico.video.reg[1]&0x08 ? 240 : 224;
@@ -802,10 +808,12 @@ static void DrawSync(int skip)
       !PicoIn.skipFrame && Pico.est.DrawScanline <= last) {
     //elprintf(EL_ANOMALY, "sync");
     if (blankline >= 0 && blankline < last) {
-      PicoDrawSync(blankline, 1);
+      PicoDrawSync(blankline, 1, 0);
       blankline = -1;
     }
-    PicoDrawSync(last, 0);
+    PicoDrawSync(last, 0, last == limitsprites);
+    if (last >= limitsprites)
+      limitsprites = -1;
   }
 }
 
@@ -820,17 +828,17 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
   switch (a)
   {
   case 0x00: // Data port 0 or 2
-    // try avoiding the sync..
-    if (Pico.m.scanline < (pvid->reg[1]&0x08 ? 240 : 224) && (pvid->reg[1]&0x40) &&
-        !(!pvid->pending && ((pvid->command & 0xc00000f0) == 0x40000010 &&
-                        PicoMem.vsram[(pvid->addr>>1) & 0x3f] == (d & 0x7ff)))
-       )
-      DrawSync(0); // XXX  it's unclear when vscroll data is fetched from vsram?
-
     if (pvid->pending) {
       CommandChange(pvid);
       pvid->pending=0;
     }
+
+    // try avoiding the sync. can't easily do this for VRAM writes since they
+    // might update the SAT cache
+    if (Pico.m.scanline < (pvid->reg[1]&0x08 ? 240 : 224) && (pvid->reg[1]&0x40) &&
+        !(pvid->type == 3 && PicoMem.cram[(pvid->addr>>1) & 0x3f] == (d & 0xeee)) &&
+        !(pvid->type == 5 && PicoMem.vsram[(pvid->addr>>1) & 0x3f] == (d & 0x7ff)))
+      DrawSync(InHblank(440)); // experimentally, Overdrive 2
 
     if (!(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
@@ -862,7 +870,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
       CommandChange(pvid);
       // Check for dma:
       if (d & 0x80) {
-        DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-390);
+        DrawSync(InHblank(390));
         CommandDma();
       }
     }
@@ -884,12 +892,17 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
           PicoVideoFIFOMode(d & 0x40, pvid->reg[12]&1);
           // handle line blanking before line rendering
-          if (SekCyclesDone() - Pico.t.m68c_line_start <= 488-390)
-            blankline = d&0x40 ? -1 : Pico.m.scanline;
+          if (InHblank(390)) {
+            // sprite rendering is limited if display is disabled and reenabled
+            // in HBLANK of the same scanline (Overdrive)
+            limitsprites = (d&0x40) && blankline == Pico.m.scanline ? Pico.m.scanline : -1;
+            blankline = (d&0x40) ? -1 : Pico.m.scanline;
+          }
         }
         if (num == 12 && ((pvid->reg[12]^d)&0x01))
           PicoVideoFIFOMode(pvid->reg[1]&0x40, d & 1);
-        DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-390);
+        if (num <= 18) // no sync needed for DMA setup registers
+          DrawSync(InHblank(390));
         d &= 0xff;
         pvid->reg[num]=(unsigned char)d;
         switch (num)
