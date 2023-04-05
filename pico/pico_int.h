@@ -204,7 +204,8 @@ extern struct DrZ80 drZ80;
 #define z80_cyclesDone() \
   (Pico.t.z80c_aim - z80_cyclesLeft)
 
-#define cycles_68k_to_z80(x) ((x) * 3822 >> 13)
+// one line has 488 68K cycles and 228 Z80 cycles, 228/488*8192=3827
+#define cycles_68k_to_z80(x) ((x) * 3857 >> 13)
 
 // ----------------------- SH2 CPU -----------------------
 
@@ -447,6 +448,7 @@ struct PicoTiming
   unsigned int z80c_aim;
   unsigned int z80c_line_start;
   int z80_scanline;
+  int z80_buscycles;
 
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
   int timer_b_next_oflow, timer_b_step;

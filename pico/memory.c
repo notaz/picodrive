@@ -1294,7 +1294,11 @@ static unsigned char z80_md_bank_read(unsigned short a)
   unsigned int addr68k;
   unsigned char ret;
 
+  // account for 68K bus access on both CPUs.
+  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
+  // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
   z80_subCLeft(3);
+  Pico.t.z80_buscycles += 7;
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k |= a & 0x7fff;
@@ -1334,6 +1338,12 @@ static void z80_md_vdp_br_write(unsigned int a, unsigned char data)
 static void z80_md_bank_write(unsigned int a, unsigned char data)
 {
   unsigned int addr68k;
+
+  // account for 68K bus access on both CPUs.
+  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
+  // the 68K. Count the stolen cycles to be accounted later in the 68K CPU runs
+  z80_subCLeft(3);
+  Pico.t.z80_buscycles += 7;
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k += a & 0x7fff;
