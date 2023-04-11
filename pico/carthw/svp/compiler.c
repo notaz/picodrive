@@ -359,7 +359,7 @@ static void tr_mov16(int r, int val)
 
 static void tr_mov16_cond(int cond, int r, int val)
 {
-	emith_op_imm(cond, 0, A_OP_MOV, r, val);
+	emith_move_r_imm_c(cond, r, val);
 	hostreg_r[r] = -1;
 }
 
@@ -1437,7 +1437,7 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			tmpv = tr_cond_check(op);
 			if (tmpv != A_COND_AL) {
 				jump_op = tcache_ptr;
-				EOP_MOV_IMM(0, 0, 0); // placeholder for branch
+				EOP_C_B(tmpv, 0, 0); // placeholder for branch
 			}
 			tr_mov16(0, *pc);
 			tr_r0_to_STACK(*pc);
@@ -1792,8 +1792,8 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_ST();
 	tr_flush_dirty_pmcrs();
 	block_end = emit_block_epilogue(ccount, end_cond, jump_pc, pc);
-	emith_pool_commit(0);
 	emith_flush();
+	emith_pool_commit(-1);
 
 	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
@@ -1803,8 +1803,8 @@ void *ssp_translate_block(int pc)
 
 	// stats
 	nblocks++;
-	//printf("%i blocks, %i bytes, k=%.3f\n", nblocks, (tcache_ptr - tcache)*4,
-	//	(double)(tcache_ptr - tcache) / (double)n_in_ops);
+	//printf("%i blocks, %i bytes, k=%.3f\n", nblocks, (u8 *)tcache_ptr - tcache,
+	//	(double)((u8 *)tcache_ptr - tcache) / (double)n_in_ops);
 
 #ifdef DUMP_BLOCK
 	{

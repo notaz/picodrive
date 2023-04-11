@@ -479,7 +479,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 			}
 			// count insns needed for mov/orr #imm
 #ifdef HAVE_ARMV7
-			for (i = 2, u = v; i > 0; i--, u >>= 8)
+			for (i = 2, u = v; i > 0 && u; i--, u >>= 8)
 				while (u > 0xff && !(u & 3))
 					u >>= 2;
 			if (u) { // 3+ insns needed...
@@ -492,7 +492,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				return;
 			}
 #else
-			for (i = 2, u = v; i > 0; i--, u >>= 8)
+			for (i = 2, u = v; i > 0 && u; i--, u >>= 8)
 				while (u > 0xff && !(u & 3))
 					u >>= 2;
 			if (u) { // 3+ insns needed...
@@ -559,6 +559,10 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 		rn = rd;
 
 		v >>= 8, ror2 -= 8/2;
+		if (v && s) {
+			elprintf(EL_STATUS|EL_SVP|EL_ANOMALY, "op+s %x value too big", op);
+			exit(1);
+		}
 	} while (v);
 }
 
@@ -617,7 +621,10 @@ static void emith_pool_commit(int jumpover)
 	if (sz == 0)
 		return;
 	// need branch over pool if not at block end
-	if (jumpover) {
+	if (jumpover < 0 && sz == sizeof(u32)) {
+		// hack for SVP drc (patch logic detects distance 4)
+		sz += sizeof(u32);
+	} else if (jumpover) {
 		pool += sizeof(u32);
 		emith_xbranch(A_COND_AL, (u8 *)pool + sz, 0);
 	}
