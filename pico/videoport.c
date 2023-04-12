@@ -389,6 +389,8 @@ int PicoVideoFIFOHint(void)
 
   // reset slot to start of scanline
   vf->fifo_slot = 0;
+  if (Pico.est.DrawScanline == Pico.m.scanline)
+    PicoDrawRefreshSprites();
  
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
   if (pv->status & PVS_CPUWR)

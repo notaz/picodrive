@@ -61,7 +61,8 @@ int DrawLineDestIncrement;
 
 static u32 HighCacheA[41*2+1]; // caches for high layers
 static u32 HighCacheB[41*2+1];
-static s32 HighPreSpr[80*2+1]; // slightly preprocessed sprites
+static s32 HighPreSpr[128*2*2]; // slightly preprocessed sprites (2 banks a 128)
+static int HighPreSprBank;
 
 u32 VdpSATCache[2*128];  // VDP sprite cache (1st 32 sprite attr bits)
 
@@ -295,7 +296,7 @@ TileFlipMaker(TileFlip_and, pix_and)
     /* if (!t) pd[x] |= 0x40; as per titan hw notes? */ \
     pd[x] &= pal|t; \
   }
- 
+
 TileNormMakerAS(TileNormSH_AS_and, pix_sh_as_and)
 TileFlipMakerAS(TileFlipSH_AS_and, pix_sh_as_and)
 #endif
@@ -825,7 +826,7 @@ static void DrawSprite(s32 *sprite, int sh, int w)
   sx=code>>16; // X
   width=sy>>28;
   height=(sy>>24)&7; // Width and height in tiles
-  sy=(sy<<16)>>16; // Y
+  sy=(s16)sy; // Y
 
   row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
 
@@ -980,7 +981,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
   unsigned char *p;
   int cnt, w;
 
-  cnt = sprited[0];
+  cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
 
   p = &sprited[4];
@@ -1008,7 +1009,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
     sx=code>>16; // X
     width=sy>>28;
     height=(sy>>24)&7; // Width and height in tiles
-    sy=(sy<<16)>>16; // Y
+    sy=(s16)sy; // Y
 
     row=est->DrawScanline-sy; // Row of the sprite we are on
 
@@ -1049,7 +1050,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
   unsigned m;
   int entry, cnt;
 
-  cnt = sprited[0];
+  cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
 
   memset(mb, 0xff, sizeof(mb));
@@ -1065,7 +1066,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     int offs, delta, width, height, row;
 
     offs = (p[entry] & 0x7f) * 2;
-    sprite = HighPreSpr + offs;
+    sprite = Pico.est.HighPreSpr + offs;
     code = sprite[1];
     pal = (code>>9)&0x30;
 
@@ -1076,7 +1077,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     sx=code>>16; // X
     width=sy>>28;
     height=(sy>>24)&7; // Width and height in tiles
-    sy=(sy<<16)>>16; // Y
+    sy=(s16)sy; // Y
 
     row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
 
@@ -1326,9 +1327,9 @@ static void DrawSpritesForced(unsigned char *sprited)
   unsigned m;
   int entry, cnt;
 
-  cnt = sprited[0];
+  cnt = sprited[0] & 0x7f;
   if (cnt == 0) { memset(pd, 0, sizeof(DefHighCol)); return; }
-  
+
   memset(mb, 0xff, sizeof(mb));
   p = &sprited[4];
   if ((sprited[1] & (SPRL_TILE_OVFL|SPRL_HAVE_MASK0)) == (SPRL_TILE_OVFL|SPRL_HAVE_MASK0))
@@ -1342,7 +1343,7 @@ static void DrawSpritesForced(unsigned char *sprited)
     int offs, delta, width, height, row;
 
     offs = (p[entry] & 0x7f) * 2;
-    sprite = HighPreSpr + offs;
+    sprite = Pico.est.HighPreSpr + offs;
     code = sprite[1];
     pal = (code>>9)&0x30;
 
@@ -1354,7 +1355,7 @@ static void DrawSpritesForced(unsigned char *sprited)
     sx=code>>16; // X
     width=sy>>28;
     height=(sy>>24)&7; // Width and height in tiles
-    sy=(sy<<16)>>16; // Y
+    sy=(s16)sy; // Y
 
     row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
 
@@ -1400,19 +1401,21 @@ static void DrawSpritesForced(unsigned char *sprited)
 #endif
 
 
+// sprite info in SAT:
 // Index + 0  :    ----hhvv -lllllll -------y yyyyyyyy
 // Index + 4  :    -------x xxxxxxxx pccvhnnn nnnnnnnn
-// v
-// Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
-// Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
+// sprite info in HighPreSpr:
+// Index + 0  :    hhhhvvvv -lllllll yyyyyyyy yyyyyyyy // v/h size, link, y
+// Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x+8, prio, palette, flip, tile
 
+// Sprite parsing 1 line in advance: determine sprites on line by Y pos
 static NOINLINE void ParseSprites(int max_lines, int limit)
 {
   const struct PicoVideo *pvid=&Pico.video;
   const struct PicoEState *est=&Pico.est;
   int u,link=0,sh;
   int table=0;
-  s32 *pd = HighPreSpr;
+  s32 *pd = HighPreSpr + HighPreSprBank*2;
   int max_sprites = 80, max_width = 328;
   int max_line_sprites = 20; // 20 sprites, 40 tiles
 
@@ -1470,12 +1473,12 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
       if (sh && (code2 & 0x6000) == 0x6000)
         maybe_op = SPRL_MAY_HAVE_OP;
 
-      entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
+      entry = (((pd - HighPreSpr) / 2) & 0x7f) | ((code2>>8)&0x80);
       y = (sy >= first_line) ? sy : first_line;
       for (; y < sy + (height<<3) && y <= last_line; y++)
       {
         unsigned char *p = &HighLnSpr[y][0];
-        int cnt = p[0];
+        int cnt = p[0] & 0x7f;
         if (p[1] & SPRL_MASKED) continue;               // masked?
 
         if (p[3] >= max_line_sprites) continue;         // sprite limit?
@@ -1507,12 +1510,12 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
 
         p[4+cnt] = entry;
         p[5+cnt] = w; // width clipped by tile limit for sprite renderer
-        p[0] = cnt + 1;
+        p[0] = (cnt + 1) | HighPreSprBank;
       }
     }
 
-    *pd++ = (width<<28)|(height<<24)|(hv<<16)|((unsigned short)sy);
-    *pd++ = (sx<<16)|((unsigned short)code2);
+    *pd++ = (width<<28)|(height<<24)|(link<<16)|((u16)sy);
+    *pd++ = (sx<<16)|((u16)code2);
 
     // Find next sprite
     link=(code>>16)&0x7f;
@@ -1525,11 +1528,11 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
     int w = 0;
     unsigned char *sprited = &HighLnSpr[max_lines-1][0]; // current render line
 
-    for (u = 0; u < sprited[0]; u++) {
-      s32 *sp = HighPreSpr + (sprited[4+u] & 0x7f) * 2;
+    for (u = 0; u < (sprited[0] & 0x7f); u++) {
+      s32 *sp = HighPreSpr + (sprited[4+u] & 0x7f) * 2 + HighPreSprBank*2;
       int sw = sp[0] >> 28;
       if (w + sw > limit) {
-        sprited[0] = u;
+        sprited[0] = u | HighPreSprBank;
         sprited[4+u] = limit-w;
         break;
       }
@@ -1541,15 +1544,17 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
   for (u = first_line; u <= max_lines; u++)
   {
     int y;
-    printf("c%03i: f %x c %2i/%2i w %2i: ", u, HighLnSpr[u][1],
-           HighLnSpr[u][0], HighLnSpr[u][3], HighLnSpr[u][2]);
-    for (y = 0; y < HighLnSpr[u][0]; y++) {
-      s32 *sp = HighPreSpr + (HighLnSpr[u][y+4]&0x7f) * 2;
+    printf("c%03i b%d: f %x c %2i/%2i w %2i: ", u, !!HighPreSprBank, HighLnSpr[u][1],
+           HighLnSpr[u][0] & 0x7f, HighLnSpr[u][3], HighLnSpr[u][2]);
+    for (y = 0; y < (HighLnSpr[u][0] & 0x7f); y++) {
+      s32 *sp = HighPreSpr + (HighLnSpr[u][y+4]&0x7f) * 2 + HighPreSprBank*2;
       printf(" %i(%x/%x)", HighLnSpr[u][y+4],sp[0],sp[1]);
     }
     printf("\n");
   }
 #endif
+
+  HighPreSprBank ^= 0x80;
 }
 
 #ifndef _ASM_DRAW_C
@@ -1559,7 +1564,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
   unsigned char *p;
   int cnt, w;
 
-  cnt = sprited[0];
+  cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
 
   p = &sprited[4];
@@ -1570,7 +1575,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
   w = p[cnt]; // possibly clipped width of last sprite
   for (cnt--; cnt >= 0; cnt--, w = 0)
   {
-    s32 *sp = HighPreSpr + (p[cnt]&0x7f) * 2;
+    s32 *sp = est->HighPreSpr + (p[cnt]&0x7f) * 2;
     if ((p[cnt] >> 7) != prio) continue;
     DrawSprite(sp, sh, w);
   }
@@ -1793,6 +1798,7 @@ static int DrawDisplay(int sh)
   int maxw, maxcells;
 
   est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO|PDRAW_WND_DIFF_PRIO);
+  est->HighPreSpr = HighPreSpr + (sprited[0]&0x80)*2;
 
   if (pvid->reg[12]&1) {
     maxw = 328; maxcells = 40;
@@ -2039,6 +2045,29 @@ void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
   pprof_end(draw);
 }
 
+void PicoDrawRefreshSprites()
+{
+  unsigned char *sprited = &HighLnSpr[Pico.est.DrawScanline][0];
+  int i;
+
+  if (Pico.est.DrawScanline == 0 || Pico.est.DrawScanline >= rendlines) return;
+
+  // compute sprite row. The VDP does this by subtracting the sprite y pos from
+  // the current line and treating the lower 5 bits as the row number. Y pos
+  // is reread from SAT cache, which may have changed by now (Overdrive 2).
+  for (i = 0; i < (sprited[0] & 0x7f); i++) {
+    int num = sprited[4+i] & 0x7f;
+    s32 *sp = HighPreSpr + 2*num + (sprited[0] & 0x80)*2;
+    int link = (sp[0]>>16) & 0x7f;
+    int sy = (CPU_LE2(VdpSATCache[2*link]) & 0x1ff) - 0x80;
+    if (sy != (s16)sp[0]) {
+      // Y info in SAT cache has really changed
+      sy = Pico.est.DrawScanline - ((Pico.est.DrawScanline - sy) & 0x1f);
+      sp[0] = (sp[0] & 0xffff0000) | (u16)sy;
+    }
+  }
+}
+
 // also works for fast renderer
 void PicoDrawUpdateHighPal(void)
 {
@@ -2157,7 +2186,6 @@ void PicoDrawInit(void)
 {
   Pico.est.DrawLineDest = DefOutBuff;
   Pico.est.HighCol = HighColBase;
-  Pico.est.HighPreSpr = HighPreSpr;
   rendstatus_old = -1;
 }
 
