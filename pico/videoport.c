@@ -14,13 +14,6 @@
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 
-#ifndef UTYPES_DEFINED
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int   u32;
-#define UTYPES_DEFINED
-#endif
-
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
 static __inline void AutoIncrement(void)
