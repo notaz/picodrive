@@ -325,7 +325,7 @@ static NOINLINE u32 port_read(int i)
   out = data_reg & ctrl_reg;
 
   // pull-ups: should be 0x7f, but Decap Attack has a bug where it temp.
-  // disables output before doing TH-low read, so don't emulate it for TH.
+  // disables output before doing TH-low read, so emulate RC filter for TH.
   // Decap Attack reportedly doesn't work on Nomad but works on must
   // other MD revisions (different pull-up strength?).
   u32 mask = 0x3f;
@@ -599,9 +599,10 @@ static u32 PicoRead8_z80(u32 a)
     return 0;
   }
 
-  if ((a & 0x4000) == 0x0000)
+  if ((a & 0x4000) == 0x0000) {
+    SekCyclesBurnRun(1);
     d = PicoMem.zram[a & 0x1fff];
-  else if ((a & 0x6000) == 0x4000) // 0x4000-0x5fff
+  } else if ((a & 0x6000) == 0x4000) // 0x4000-0x5fff
     d = ym2612_read_local_68k(); 
   else
     elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
@@ -623,6 +624,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
+    SekCyclesBurnRun(1);
     PicoMem.zram[a & 0x1fff] = (u8)d;
     return;
   }
@@ -1269,9 +1271,10 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
-  z80_subCLeft(2);
+  if ((a & 0xff00) == 0x7f00) {
+    z80_subCLeft(3);
+    Pico.t.z80_buscycles += 7;
 
-  if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
       case 0x00: return PicoVideoRead8DataH(1);

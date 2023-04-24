@@ -47,9 +47,9 @@ static void SekSyncM68k(void)
 
   while ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0) {
     // the Z80 CPU is stealing some bus cycles from the 68K main CPU when 
-    // accessing the 68K RAM or ROM. Account for these by shortening the time
+    // accessing the main bus. Account for these by shortening the time
     // the 68K CPU runs.
-    int z80_buscyc = Pico.t.z80_buscycles;
+    int z80_buscyc = Pico.t.z80_buscycles >> (~Pico.m.scanline & 1);
     if (z80_buscyc <= cyc_do)
       SekExecM68k(cyc_do - z80_buscyc);
     else
@@ -65,8 +65,12 @@ static void SekSyncM68k(void)
 
 static __inline void SekRunM68k(int cyc)
 {
+  // refresh slowdown handling, 2 cycles every 128 - make this 1 every 64
+  // NB must be quite accurate, so handle fractions as well (c/f OutRunners)
+  static int refresh;
+  Pico.t.m68c_cnt += (cyc + refresh) >> 6;
+  refresh = (cyc + refresh) & 0x3f;
   Pico.t.m68c_aim += cyc;
-  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
 
   SekSyncM68k();
 }
@@ -101,8 +105,10 @@ static void do_timing_hacks_end(struct PicoVideo *pv)
   PicoVideoFIFOSync(CYCLES_M68K_LINE);
 
   // need rather tight Z80 sync for emulation of main bus cycle stealing
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80) && (Pico.m.scanline&1))
-    PicoSyncZ80(Pico.t.m68c_aim);
+  if (Pico.m.scanline&1) {
+    if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
+      PicoSyncZ80(Pico.t.m68c_aim);
+  }
 }
 
 static void do_timing_hacks_start(struct PicoVideo *pv)
