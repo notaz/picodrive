@@ -82,10 +82,12 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define PAHW_32X    (1<<1)
 #define PAHW_SVP    (1<<2)
 #define PAHW_PICO   (1<<3)
+
 #define PAHW_SMS    (1<<4)
 #define PAHW_GG     (1<<5)
 #define PAHW_SG     (1<<6)
 #define PAHW_SC     (1<<7)
+#define PAHW_8BIT   (PAHW_SMS|PAHW_GG|PAHW_SG|PAHW_SC)
 
 #define PHWS_AUTO   0
 #define PHWS_GG     1
@@ -221,7 +223,6 @@ void vidConvCpyRGB565(void *to, void *from, int pixels);
 #endif
 void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 // internals, NB must keep in sync with ASM draw functions
-#define PDRAW_SPRITES_MOVED (1<<0) // SAT address modified
 #define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority
 #define PDRAW_PARSE_SPRITES (1<<2) // SAT needs parsing
 #define PDRAW_INTERLACE     (1<<3)

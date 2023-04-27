@@ -1251,7 +1251,6 @@ void emu_cmn_forced_frame(int no_scale, int do_emu, void *buf)
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	PicoDrawSetOutBuf(buf, g_screen_ppitch * 2);
 	Pico.m.dirtyPal = 1;
-	Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 	if (do_emu)
 		PicoFrame();
 	else

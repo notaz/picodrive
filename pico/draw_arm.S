@@ -15,10 +15,7 @@
 
 .extern DrawStripInterlace
 
-.equ PDRAW_SPRITES_MOVED, (1<<0)
 .equ PDRAW_WND_DIFF_PRIO, (1<<1)
-.equ PDRAW_PARSE_SPRITES, (1<<2)
-.equ PDRAW_DIRTY_SPRITES, (1<<4)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
 .equ PDRAW_SHHI_DONE,     (1<<7)
 .equ PDRAW_32X_SCALE,     (1<<12)
@@ -800,11 +797,7 @@ DrawLayer:
 BackFill:
     stmfd   sp!, {r4-r9,lr}
 
-    mov     r0, r0, lsl #26
     ldr     lr, [r2, #OFS_EST_HighCol]
-    mov     r0, r0, lsr #26
-    add     lr, lr, #8
-
     orr     r0, r0, r1, lsl #7
     orr     r0, r0, r0, lsl #8
     orr     r0, r0, r0, lsl #16
@@ -818,6 +811,7 @@ BackFill:
     mov     r7, r0
 
     @ go go go!
+    add     lr, lr, #8
     stmia   lr!, {r0-r7} @ 10*8*4
     stmia   lr!, {r0-r7}
     stmia   lr!, {r0-r7}
