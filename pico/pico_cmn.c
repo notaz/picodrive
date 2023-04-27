@@ -168,10 +168,12 @@ static int PicoFrameHints(void)
     {
       // find the right moment for frame renderer, when display is no longer blanked
       if ((pv->reg[1]&0x40) || y > 100) {
-        PicoFrameFull();
+        if (Pico.est.rendstatus & PDRAW_SYNC_NEEDED)
+          PicoFrameFull();
 #ifdef DRAW_FINISH_FUNC
         DRAW_FINISH_FUNC();
 #endif
+        Pico.est.rendstatus &= ~PDRAW_SYNC_NEEDED;
         skip = 1;
       }
     }
@@ -191,10 +193,11 @@ static int PicoFrameHints(void)
   if (!skip)
   {
     if (Pico.est.DrawScanline < y)
-      PicoDrawSync(y - 1, 0, 0);
+      PicoVideoSync(-1);
 #ifdef DRAW_FINISH_FUNC
     DRAW_FINISH_FUNC();
 #endif
+    Pico.est.rendstatus &= ~PDRAW_SYNC_NEEDED;
   }
 #ifdef PICO_32X
   p32x_render_frame();

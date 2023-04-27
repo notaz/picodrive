@@ -809,13 +809,17 @@ static inline int InHblank(int offs)
   return SekCyclesDone() - Pico.t.m68c_line_start <= offs;
 }
 
-static void DrawSync(int skip)
+void PicoVideoSync(int skip)
 {
   int lines = Pico.video.reg[1]&0x08 ? 240 : 224;
-  int last = Pico.m.scanline - (skip || blankline == Pico.m.scanline);
+  int last = Pico.m.scanline - ((skip > 0) || blankline == Pico.m.scanline);
 
-  if (last < lines && !(PicoIn.opt & POPT_ALT_RENDERER) &&
-      !PicoIn.skipFrame && Pico.est.DrawScanline <= last) {
+  if (!(PicoIn.opt & POPT_ALT_RENDERER) && !PicoIn.skipFrame) {
+    if (last >= lines)
+      last = lines-1;
+    else // in active display, need to sync next frame as well
+      Pico.est.rendstatus |= PDRAW_SYNC_NEXT;
+
     //elprintf(EL_ANOMALY, "sync");
     if (blankline >= 0 && blankline < last) {
       PicoDrawSync(blankline, 1, 0);
@@ -825,6 +829,8 @@ static void DrawSync(int skip)
     if (last >= limitsprites)
       limitsprites = -1;
   }
+  if (skip >= 0)
+    Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
 }
 
 PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
@@ -849,7 +855,11 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         !(pvid->type == 1 && !(pvid->addr&1) && ((pvid->addr^SATaddr)&SATmask) && PicoMem.vram[pvid->addr>>1] == d) &&
         !(pvid->type == 3 && PicoMem.cram[(pvid->addr>>1) & 0x3f] == (d & 0xeee)) &&
         !(pvid->type == 5 && PicoMem.vsram[(pvid->addr>>1) & 0x3f] == (d & 0x7ff)))
-      DrawSync(InHblank(48)); // experimentally, Overdrive 2
+      // the vertical scroll value for this line must be read from VSRAM early,
+      // since the A/B tile row to be read depends on it. E.g. Skitchin, OD2
+      // in contrast, CRAM writes would have an immediate effect on the current
+      // pixel. XXX think about different offset values for different RAM types
+      PicoVideoSync(InHblank(30));
 
     if (!(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
@@ -881,7 +891,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
       CommandChange(pvid);
       // Check for dma:
       if (d & 0x80) {
-        DrawSync(InHblank(93));
+        PicoVideoSync(InHblank(93));
         CommandDma();
       }
     }
@@ -913,9 +923,10 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         }
         if (num == 12 && ((pvid->reg[12]^d)&0x01))
           PicoVideoFIFOMode(pvid->reg[1]&0x40, d & 1);
-        if (num <= 18 && pvid->reg[num] != d) // no sync for DMA setup
-          DrawSync(InHblank(93)); // Toy Story
-        pvid->reg[num]=d;
+        if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
+          // VDP regs 0-7,11-13,16-18 influence rendering, ignore all others
+          PicoVideoSync(InHblank(93)); // Toy Story
+        pvid->reg[num] = d;
 
         switch (num)
         {

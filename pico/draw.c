@@ -1910,6 +1910,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   int loffs = 8, lines = 224, coffs = 0, columns = 320;
   int sprep = est->rendstatus & PDRAW_DIRTY_SPRITES;
   int skipped = est->rendstatus & PDRAW_SKIP_FRAME;
+  int sync = est->rendstatus & (PDRAW_SYNC_NEEDED | PDRAW_SYNC_NEXT);
 
   // prepare to do this frame
   est->rendstatus = 0;
@@ -1935,7 +1936,12 @@ PICO_INTERNAL void PicoFrameStart(void)
     // mode_change() might reset rendstatus_old by calling SetColorFormat
     emu_video_mode_change(loffs, lines, coffs, columns);
     rendstatus_old = est->rendstatus & (PDRAW_INTERLACE|PDRAW_32_COLS|PDRAW_30_ROWS);
+    // mode_change() might clear buffers, redraw needed
+    est->rendstatus |= PDRAW_SYNC_NEEDED;
   }
+
+  if (sync | skipped)
+    est->rendstatus |= PDRAW_SYNC_NEEDED;
   if (PicoIn.skipFrame) // preserve this until something is rendered at last
     est->rendstatus |= PDRAW_SKIP_FRAME;
   if (sprep | skipped)
@@ -2030,6 +2036,14 @@ void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
   if (est->DrawScanline <= to &&
                 (est->rendstatus & (PDRAW_DIRTY_SPRITES|PDRAW_PARSE_SPRITES)))
     ParseSprites(to + 1, limit_sprites);
+  else if (!(est->rendstatus & PDRAW_SYNC_NEEDED)) {
+    // nothing has changed in VDP/VRAM and buffer is the same -> no sync needed
+    int count = to+1 - est->DrawScanline;
+    est->HighCol += count*HighColIncrement;
+    est->DrawLineDest = (char *)est->DrawLineDest + count*DrawLineDestIncrement;
+    est->DrawScanline = to+1;
+    return;
+  }
 
   for (line = est->DrawScanline; line < to; line++)
     PicoLine(line, offs, sh, bgc);
@@ -2135,6 +2149,8 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
     PicoDrawSetInternalBuf(dest, increment); // needed for SMS
     PicoDraw2SetOutBuf(dest, increment);
   } else if (dest != NULL) {
+    if (dest != DrawLineDestBase)
+      Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;
     Pico.est.DrawLineDest = (char *)DrawLineDestBase + Pico.est.DrawScanline * increment;
@@ -2157,6 +2173,8 @@ void PicoDrawSetOutBuf(void *dest, int increment)
 void PicoDrawSetInternalBuf(void *dest, int increment)
 {
   if (dest != NULL) {
+    if (dest != HighColBase)
+      Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
     HighColBase = dest;
     HighColIncrement = increment;
     Pico.est.HighCol = HighColBase + Pico.est.DrawScanline * increment;

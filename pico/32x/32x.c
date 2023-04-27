@@ -587,6 +587,8 @@ void PicoFrame32x(void)
     pcd_prepare_frame();
 
   PicoFrameStart();
+  if (Pico32xDrawMode != PDM32X_BOTH)
+    Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
   PicoFrameHints();
 
   elprintf(EL_32X, "poll: %02x %02x %02x",
