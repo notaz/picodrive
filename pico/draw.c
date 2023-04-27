@@ -1987,7 +1987,7 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
   est->DrawLineDest = (char *)est->DrawLineDest + DrawLineDestIncrement;
 }
 
-static void PicoLine(int line, int offs, int sh, int bgc)
+static void PicoLine(int line, int offs, int sh, int bgc, int off, int on)
 {
   struct PicoEState *est = &Pico.est;
   int skip = skip_next_line;
@@ -2006,8 +2006,17 @@ static void PicoLine(int line, int offs, int sh, int bgc)
 
   // Draw screen:
   BackFill(bgc, sh, est);
-  if (Pico.video.reg[1]&0x40)
+  if (Pico.video.reg[1]&0x40) {
+    int width = (Pico.video.reg[12]&1) ? 320 : 256;
     DrawDisplay(sh);
+    // partial line blanking (display on or off inside the line)
+    if (unlikely(off|on)) {
+      if (off > 0)
+        memset(est->HighCol+8 + off, bgc, width-off);
+      if (on > 0)
+        memset(est->HighCol+8, bgc, on);
+    }
+  }
 
   if (FinalizeLine != NULL)
     FinalizeLine(sh, line, est);
@@ -2019,7 +2028,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
   est->DrawLineDest = (char *)est->DrawLineDest + DrawLineDestIncrement;
 }
 
-void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
+void PicoDrawSync(int to, int off, int on)
 {
   struct PicoEState *est = &Pico.est;
   int line, offs = 0;
@@ -2035,7 +2044,7 @@ void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
   }
   if (est->DrawScanline <= to &&
                 (est->rendstatus & (PDRAW_DIRTY_SPRITES|PDRAW_PARSE_SPRITES)))
-    ParseSprites(to + 1, limit_sprites);
+    ParseSprites(to + 1, on);
   else if (!(est->rendstatus & PDRAW_SYNC_NEEDED)) {
     // nothing has changed in VDP/VRAM and buffer is the same -> no sync needed
     int count = to+1 - est->DrawScanline;
@@ -2046,14 +2055,22 @@ void PicoDrawSync(int to, int blank_last_line, int limit_sprites)
   }
 
   for (line = est->DrawScanline; line < to; line++)
-    PicoLine(line, offs, sh, bgc);
+    PicoLine(line, offs, sh, bgc, 0, 0);
 
   // last line
   if (line <= to)
   {
-    if (blank_last_line)
-         DrawBlankedLine(line, offs, sh, bgc);
-    else PicoLine(line, offs, sh, bgc);
+    int width2 = (Pico.video.reg[12]&1) ? 160 : 128;
+
+    // technically, VDP starts active display output at slot 12
+    if (unlikely(on|off) && (off >= width2 ||
+          // hack for timing inaccuracy, if on/off near borders
+          (off && off <= 24) || (on < width2 && on >= width2-24)))
+      DrawBlankedLine(line, offs, sh, bgc);
+    else {
+      if (on > width2) on = 0; // on, before start of line?
+      PicoLine(line, offs, sh, bgc, 2*off, 2*on);
+    }
     line++;
   }
   est->DrawScanline = line;

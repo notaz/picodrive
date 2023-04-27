@@ -138,10 +138,11 @@ void PicoVideoInit(void)
 }
 
 
-static int blankline;           // display disabled for this line
-static int limitsprites;
+static int linedisabled;    // display disabled on this line
+static int lineenabled;     // display enabled on this line
+static int lineoffset;      // offset at which dis/enable took place
 
-u32 SATaddr, SATmask;      // VRAM addr of sprite attribute table
+u32 SATaddr, SATmask;       // VRAM addr of sprite attribute table
 
 int (*PicoDmaHook)(u32 source, int len, unsigned short **base, u32 *mask) = NULL;
 
@@ -811,8 +812,9 @@ static inline int InHblank(int offs)
 
 void PicoVideoSync(int skip)
 {
+  struct VdpFIFO *vf = &VdpFIFO;
   int lines = Pico.video.reg[1]&0x08 ? 240 : 224;
-  int last = Pico.m.scanline - ((skip > 0) || blankline == Pico.m.scanline);
+  int last = Pico.m.scanline - (skip > 0);
 
   if (!(PicoIn.opt & POPT_ALT_RENDERER) && !PicoIn.skipFrame) {
     if (last >= lines)
@@ -821,13 +823,22 @@ void PicoVideoSync(int skip)
       Pico.est.rendstatus |= PDRAW_SYNC_NEXT;
 
     //elprintf(EL_ANOMALY, "sync");
-    if (blankline >= 0 && blankline < last) {
-      PicoDrawSync(blankline, 1, 0);
-      blankline = -1;
+    if (unlikely(linedisabled >= 0 && linedisabled <= last)) {
+      if (Pico.est.DrawScanline <= linedisabled) {
+        int sl = vf->fifo_hcounts[lineoffset/clkdiv];
+        PicoDrawSync(linedisabled, sl ? sl : 1, 0);
+      }
+      linedisabled = -1;
     }
-    PicoDrawSync(last, 0, last == limitsprites);
-    if (last >= limitsprites)
-      limitsprites = -1;
+    if (unlikely(lineenabled >= 0 && lineenabled <= last)) {
+      if (Pico.est.DrawScanline <= lineenabled) {
+        int sl = vf->fifo_hcounts[lineoffset/clkdiv];
+        PicoDrawSync(lineenabled, 0, sl ? sl : 1);
+      }
+      lineenabled = -1;
+    }
+    if (Pico.est.DrawScanline <= last)
+      PicoDrawSync(last, 0, 0);
   }
   if (skip >= 0)
     Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
@@ -911,19 +922,18 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         d &= 0xff;
         if (num == 0 && !(pvid->reg[0]&2) && (d&2))
           pvid->hv_latch = PicoVideoRead(0x08);
-        if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
-          PicoVideoFIFOMode(d & 0x40, pvid->reg[12]&1);
-          // handle line blanking before line rendering
-          if (InHblank(93)) {
-            // sprite rendering is limited if display is disabled and reenabled
-            // in HBLANK of the same scanline (Overdrive)
-            limitsprites = (d&0x40) && blankline == Pico.m.scanline ? Pico.m.scanline : -1;
-            blankline = (d&0x40) ? -1 : Pico.m.scanline;
-          }
-        }
         if (num == 12 && ((pvid->reg[12]^d)&0x01))
           PicoVideoFIFOMode(pvid->reg[1]&0x40, d & 1);
-        if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
+
+        if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
+          PicoVideoFIFOMode(d & 0x40, pvid->reg[12]&1);
+          // handle line blanking before line rendering. Only the last switch
+          // before the 1st sync for other reasons is honoured.
+          PicoVideoSync(1);
+          lineenabled = (d&0x40) ? Pico.m.scanline : -1;
+          linedisabled = (d&0x40) ? -1 : Pico.m.scanline;
+          lineoffset = SekCyclesDone() - Pico.t.m68c_line_start;
+	} else if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
           // VDP regs 0-7,11-13,16-18 influence rendering, ignore all others
           PicoVideoSync(InHblank(93)); // Toy Story
         pvid->reg[num] = d;
