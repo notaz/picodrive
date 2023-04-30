@@ -187,22 +187,23 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #else
 /* GP2X specific */
 #include <platform/gp2x/940ctl.h>
-#define YM2612Init(baseclock,rate,flags) do { \
-	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, flags); \
-	else               YM2612Init_(baseclock, rate, flags); \
-} while (0)
-#define YM2612ResetChip() do { \
-	if (PicoIn.opt&POPT_EXT_FM) YM2612ResetChip_940(); \
-	else               YM2612ResetChip_(); \
-} while (0)
-#define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) do { \
-	(PicoIn.opt&POPT_EXT_FM) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) : \
-				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty); \
-} while (0)
-#define YM2612PicoStateLoad() do { \
-	if (PicoIn.opt&POPT_EXT_FM) YM2612PicoStateLoad_940(); \
-	else               YM2612PicoStateLoad_(); \
-} while (0)
+static inline void YM2612Init(int baseclock, int rate, int flags) {
+	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, flags);
+	else               YM2612Init_(baseclock, rate, flags);
+}
+
+static inline void YM2612ResetChip(void) {
+	if (PicoIn.opt&POPT_EXT_FM) YM2612ResetChip_940();
+	else               YM2612ResetChip_();
+}
+static inline int YM2612UpdateOne(s32 *buffer, int length, int stereo, int is_buf_empty) {
+	return (PicoIn.opt&POPT_EXT_FM) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) :
+				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
+}
+static inline void YM2612PicoStateLoad(void) {
+	if (PicoIn.opt&POPT_EXT_FM) YM2612PicoStateLoad_940();
+	else               YM2612PicoStateLoad_();
+}
 #endif /* __GP2X__ */
 
 

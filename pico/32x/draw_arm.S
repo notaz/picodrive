@@ -201,7 +201,7 @@
     mov     r7, r7, ror #5
     orr     r7, r7, r7, ror #10+11
     orr     r7, r7, r12,lsl #1+16
-    lsr     r7, #16
+    mov     r7, r7, lsr #16
 
     tst     r7, #0x20        @ check for prio transfer
     bne     9f @ bg_loop

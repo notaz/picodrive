@@ -148,6 +148,7 @@ set_platform()
     CFLAGS="$CFLAGS -D__PSP__"
     MFLAGS="-march=allegrex"
     ARCH=mipsel
+    need_zlib="yes"
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -168,6 +169,8 @@ for opt do
   ;;
   --with-sdl-gles=*) have_gles="$optarg"
   ;;
+  --with-zlib=*) need_zlib="$optarg"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -182,6 +185,7 @@ if [ "$show_help" = "yes" ]; then
   echo "                           available: $sound_driver_list"
   echo "  --with-libavcodec=yes|no use libavcodec for mp3 decoding"
   echo "  --with-sdl-gles=yes|no   enable GLES usage for SDL"
+  echo "  --with-zlib=yes|no       use internal zlib"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS STRIP CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1

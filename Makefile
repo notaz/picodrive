@@ -53,7 +53,9 @@ ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "miyoo" "rpi1"))
 # very small caches, avoid optimization options making the binary much bigger
 CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp -ffast-math
 # this gets you about 20% better execution speed on 32bit arm/mips
-CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-tree-loop-if-convert -fno-regmove
+CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-regmove
+# Ouf, very old gcc toolchains (pre 4.6) don't have this option:
+CFLAGS += $(shell echo | $(CC) -ftree-loop-if-convert -x c -c -o /dev/null - 2>/dev/null && echo xfno-tree-loop-if-convert | tr x -)
 endif
 
 # default settings
@@ -209,7 +211,6 @@ OBJS += platform/gp2x/vid_pollux.o
 OBJS += platform/gp2x/warm.o 
 USE_FRONTEND = 1
 PLATFORM_MP3 = 1
-PLATFORM_ZLIB = 1
 endif
 ifeq "$(PLATFORM)" "psp"
 CFLAGS += -DUSE_BGR565 -G8 # -DLPRINTF_STDIO -DFW15
@@ -244,8 +245,6 @@ endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += platform/libretro/libretro-common/memmap/memmap.o
 endif
-
-PLATFORM_ZLIB ?= 1
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
@@ -425,12 +424,13 @@ pico/carthw_cfg.c: pico/carthw.cfg
 # preprocessed asm files most probably include the offsets file
 $(filter %.S,$(SRCS_COMMON)): pico/pico_int_offs.h
 
-# random deps
+# random deps - TODO remove this and compute dependcies automatically
 pico/carthw/svp/compiler.o : cpu/drc/emit_arm.c
 cpu/sh2/compiler.o : cpu/drc/emit_arm.c cpu/drc/emit_arm64.c cpu/drc/emit_ppc.c
 cpu/sh2/compiler.o : cpu/drc/emit_x86.c cpu/drc/emit_mips.c cpu/drc/emit_riscv.c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
-pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
-pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h
+pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c
+pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/memory.h
+$(shell grep -rl pico_int.h pico) : pico/pico_int.h
 # pico/cart.o : pico/carthw_cfg.c
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h

@@ -114,6 +114,7 @@
 #include <string.h>
 #include <math.h>
 
+#include "../pico_int.h"
 #include "ym2612.h"
 
 #ifndef EXTERNAL_YM2612

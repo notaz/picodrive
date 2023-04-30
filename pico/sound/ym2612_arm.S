@@ -168,7 +168,7 @@
 1:  @ EG_REL
     cmp     r0, #0x200           @ if ( volume >= 0x200 )
     movge   r0, #1024
-    subge   r0, #1
+    subge   r0, r0, #1
     movge   r3, #EG_OFF
     strgeb  r3, [r5,#0x17]       @ state
 
@@ -180,8 +180,8 @@
     cmpge   r3, #EG_REL+1
     ldrh    r3, [r5,#0x18]       @ tl
     rsbge   r0, r0, #0x200       @ volume = (0x200-volume) & MAX_ATT
-    lslge   r0, r0, #22
-    lsrge   r0, r0, #22
+    movge   r0, r0, lsl #22
+    movge   r0, r0, lsr #22
 
 11:
 #endif
@@ -207,7 +207,7 @@
     beq     1f
 
     tst     r0, #0x02
-    eorne   r0, r0, lsr #8                @ ssg ^= ssgn ^ 4
+    eorne   r0, r0, r0, lsr #8            @ ssg ^= ssgn ^ 4
     eorne   r0, r0, #0x4
     orrne   r0, r0, #0x400                @ ssgn = 4
     strneh  r0, [r5,#0x30]
@@ -258,8 +258,8 @@
     cmpge   r3, #EG_REL+1
     ldrh    r3, [r5,#0x18]                @ tl
     rsbge   r0, r0, #0x200                @ volume = (0x200-volume) & MAX_ATT
-    lslge   r0, r0, #22
-    lsrge   r0, r0, #22
+    movge   r0, r0, lsl #22
+    movge   r0, r0, lsr #22
 
     add     r0, r0, r3                    @ volume += tl
     strh    r0, [r5,#0x34]                @ vol_out
@@ -857,10 +857,10 @@ crl_smp_loop_end:
     tst     r0, r0
     beq     ctl_sample_skip
     orr     r4, r4, #8              @ have_output
-    lsr     r1, r0, #31             @ clip (saturate) sample to 14 bit
+    mov     r1, r0, lsr #31         @ clip (saturate) sample to 14 bit
     cmn     r1, r0, asr #13
     subne   r0, r1, #0x80000001
-    asrne   r0, r0, #18
+    movne   r0, r0, asr #18
     tst     r4, r1, lsl #7          @ (sample < 0) && dac?
     bicne   r0, r0, #0x1f
     subne   r0, r0, #7<<5

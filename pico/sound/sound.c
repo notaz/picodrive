@@ -8,12 +8,12 @@
  */
 
 #include <string.h>
+#include "../pico_int.h"
 #include "ym2612.h"
 #include "sn76496.h"
-#include "../pico_int.h"
-#include "mix.h"
 #include "emu2413/emu2413.h"
 #include "resampler.h"
+#include "mix.h"
 
 void (*PsndMix_32_to_16l)(s16 *dest, s32 *src, int count) = mix_32_to_16l_stereo;
 
@@ -89,7 +89,7 @@ static void YM2612Update(s32 *buffer, int length, int stereo)
   ymchans = YM2612UpdateOne(buffer, length, stereo, 1);
 }
 
-int YM2612UpdateFIR(s32 *buffer, int length, int stereo, int is_buf_empty)
+static int YM2612UpdateFIR(s32 *buffer, int length, int stereo, int is_buf_empty)
 {
   resampler_update(fmresampler, buffer, length, YM2612Update);
   return ymchans;

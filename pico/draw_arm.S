@@ -77,7 +77,7 @@
     beq     0f
     cmp     r4, #0xe
     orr     r4, r3, r4
-    biceq   r4, #0x80
+    biceq   r4, r4, #0x80
     strb    r4, [r1,#\offs]
 0:
 .endm
@@ -385,8 +385,8 @@ DrawLayer:
     beq     0f
     cmp     r3, #2
     mov     r3, r2, lsl #2        @ htab+=DrawScanline<<1; // Offset by line
-    biceq   r3, #0x1f             @ htab&=~0xf; // Offset by tile
-    andlt   r3, #0x1f
+    biceq   r3, r3, #0x1f         @ htab&=~0xf; // Offset by tile
+    andlt   r3, r3, #0x1f
     add     r4, r4, r3
 0:  add     r4, r4, r0, lsl #1    @ htab+=plane
     bic     r4, r4, #0x00ff0000   @ just in case
@@ -611,7 +611,7 @@ DrawLayer:
     @ r4 & r7 are scratch in this loop
 
     @ need to calc new ty?
-    lsls    r7, r10, #7           @ (cell&1)?
+    movs    r7, r10, lsl #7       @ (cell&1)?
     bmi     .dsloop_vs_subr1
 
     @ calc offset and read tileline code to r7, also calc ty
@@ -644,7 +644,7 @@ DrawLayer:
     ble     .dsloop_vs_exit
 
     @ need to calc new ty?
-    lsls    r7, r10, #7           @ (cell&1)?
+    movs    r7, r10, lsl #7       @ (cell&1)?
     bmi     0f
 
     @ calc offset and read tileline code to r7, also calc ty
@@ -2059,7 +2059,7 @@ FinalizeLine555:
     and     r8, lr, r8, lsl #1
     ldrh    r8, [r3, r8]
     and     r8, r8, r9
-    lsl     r8, r8, #16
+    mov     r8, r8, lsl #16
 
 .fl_20loop_bl2:
     ldr     r12, [r1], #4

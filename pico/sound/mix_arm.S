@@ -164,10 +164,10 @@ mix_16h_to_32_resample_stereo:
 
 m16_32_rss_loop:
     ldmia   r0, {r5-r8}
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     r12,[r1, r9, lsl #2]
     add     r4, r4, r3
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     lr ,[r1, r9, lsl #2]
     add     r4, r4, r3
     subs    r2, r2, #2
@@ -183,7 +183,7 @@ m16_32_rss_loop:
 m16_32_rss_end:
     tst     r2, #1
     ldmeqfd sp!, {r4-r9,pc}
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     lr ,[r1, r9, lsl #2]
     ldmia   r0, {r5,r6}
     mov     r12,lr, lsl #16
@@ -207,10 +207,10 @@ mix_16h_to_32_resample_mono:
 
 m16_32_rsm_loop:
     ldmia   r0, {r5-r6}
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     r12,[r1, r9, lsl #2]
     add     r4, r4, r3
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     lr ,[r1, r9, lsl #2]
     add     r4, r4, r3
     subs    r2, r2, #2
@@ -226,7 +226,7 @@ m16_32_rsm_loop:
 m16_32_rsm_end:
     tst     r2, #1
     ldmeqfd sp!, {r4-r6,r9,pc}
-    lsr     r9, r4, #16
+    mov     r9, r4, lsr #16
     ldr     lr ,[r1, r9, lsl #2]
     ldr     r5, [r0]
     mov     r12,lr, lsl #16
@@ -272,11 +272,11 @@ m16_32_rsm_end:
 @ lowpass filter
 @ in=int_sample (max 20 bit), y=filter memory, r12=alpha(Q8), r8=tmp
 .macro LPfilt in y
-@    asr     r8, \y, #8
+@    mov     r8, \y, asr #8
 @    rsb     r8, r8, \in, lsl #4		@ fixpoint 20.12
     sub     r8, \in, \y, asr #12		@ fixpoint 20.12
     mla     \y, r8, r12, \y
-    asr     \in, \y, #12
+    mov     \in, \y, asr #12
 .endm
 
 
@@ -551,8 +551,8 @@ m32_16l_st_l_no_unal2:
 mix_reset:
     ldr     r2, =filter
     rsb     r0, r0, #0x10000
-@    asr     r0, r0, #8
-    asr     r0, r0, #4
+@    mov     r0, r0, asr #8
+    mov     r0, r0, asr #4
     str     r0, [r2], #4
     mov     r1, #0
     str     r1, [r2], #4
