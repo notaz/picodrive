@@ -761,7 +761,7 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 	if ((imm + _CB(imm,1,11,12)) >> 12) {
 		emith_move_r_imm(AT, imm);
 		EMIT(R5_R_INSN(OP_REG^op32, f1&7,_, rd, rs, AT));
-	} else if (imm + (f1 == F1_AND) || rd != rs)
+	} else if (imm || f1 == F1_AND || rd != rs)
 		EMIT(R5_I_INSN(OP_IMM^op32, f1&7, rd, rs, imm));
 }
 
@@ -1035,7 +1035,7 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 		EMIT(R5_I_INSN(OP_LD, sz, rd, rs, o12));
 	} else {
 		EMIT(R5_MOVT_IMM(AT, o12 + _CB(o12,1,11,12))); \
-		EMIT(R5_R_INSN(OP_REG, F1_ADD,_, AT, rs, AT)); \
+		EMIT(R5_ADD_REG(AT, rs, AT)); \
 		EMIT(R5_I_INSN(OP_LD, sz, rd, AT, o12));
 	}
 }
@@ -1115,7 +1115,7 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 		EMIT(R5_S_INSN(OP_ST, sz, rt, rs, o12));
 	} else {
 		EMIT(R5_MOVT_IMM(AT, o12 + _CB(o12,1,11,12))); \
-		EMIT(R5_R_INSN(OP_REG, F1_ADD,_, AT, rs, AT)); \
+		EMIT(R5_ADD_REG(AT, rs, AT)); \
 		EMIT(R5_S_INSN(OP_ST, sz, rt, AT, o12));
 	}
 }

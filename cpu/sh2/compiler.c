@@ -260,7 +260,7 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
         printf("trace eof at %08lx\n",ftell(trace[idx]));
         exit(1);
       }
-      fsh2.sr = (fsh2.sr & 0xfff) | (sh2->sr & ~0xfff);
+      fsh2.sr = (fsh2.sr & 0xbff) | (sh2->sr & ~0xbff);
       fsh2.is_slave = idx;
       if (memcmp(&fsh2, sh2, offsetof(SH2, read8_map)) ||
           0)//memcmp(&fsh2.pdb_io_csum, &sh2->pdb_io_csum, sizeof(sh2->pdb_io_csum)))
@@ -3043,7 +3043,7 @@ static void emit_do_static_regs(int is_write, int tmpr)
 
 static uint32_t REGPARM(3) sh2_drc_divu32(uint32_t dv, uint32_t *dt, uint32_t ds)
 {
-  if (ds > dv && (uint16_t)ds == 0) {
+  if (likely(ds > dv && (uint16_t)ds == 0)) {
     // good case: no overflow, divisor not 0, lower 16 bits 0
     uint32_t quot = dv / (ds>>16), rem = dv - (quot * (ds>>16));
     if (~quot&1) rem -= ds>>16;
@@ -3068,16 +3068,15 @@ static uint32_t REGPARM(3) sh2_drc_divu32(uint32_t dv, uint32_t *dt, uint32_t ds
 
 static uint32_t REGPARM(3) sh2_drc_divu64(uint32_t dh, uint32_t *dl, uint32_t ds)
 {
-  if (ds > dh) {
+  uint64_t dv = *dl | ((uint64_t)dh << 32);
+  if (likely(ds > dh)) {
     // good case: no overflow, divisor not 0
-    uint64_t dv = *dl | ((uint64_t)dh << 32);
     uint32_t quot = dv / ds, rem = dv - ((uint64_t)quot * ds);
     if (~quot&1) rem -= ds;
     *dl = quot;
     return rem;
   } else {
     // bad case: use the sh2 algo to get the right result
-    uint64_t dv = *dl | ((uint64_t)dh << 32);
     int q = 0, t = 0, s = 32;
     while (s--) {
       uint64_t v = dv>>63;
@@ -3096,7 +3095,7 @@ static uint32_t REGPARM(3) sh2_drc_divu64(uint32_t dh, uint32_t *dl, uint32_t ds
 static uint32_t REGPARM(3) sh2_drc_divs32(int32_t dv, uint32_t *dt, int32_t ds)
 {
   uint32_t adv = abs(dv), ads = abs(ds)>>16;
-  if (ads > adv>>16 && ds != 0x80000000 && (int16_t)ds == 0) {
+  if (likely(ads > adv>>16 && ds != 0x80000000 && (int16_t)ds == 0)) {
     // good case: no overflow, divisor not 0 and not MIN_INT, lower 16 bits 0
     uint32_t quot = adv / ads, rem = adv - (quot * ads);
     int m1 = (rem ? dv^ds : ds) < 0;
@@ -3125,9 +3124,10 @@ static uint32_t REGPARM(3) sh2_drc_divs32(int32_t dv, uint32_t *dt, int32_t ds)
 static uint32_t REGPARM(3) sh2_drc_divs64(int32_t dh, uint32_t *dl, int32_t ds)
 {
   int64_t _dv = *dl | ((int64_t)dh << 32);
-  uint64_t adv = (_dv < 0 ? -_dv : _dv); // llabs isn't in older toolchains
   uint32_t ads = abs(ds);
-  if (ads > adv>>32 && ds != 0x80000000) {
+  if (likely(_dv >= 0 && ads > _dv>>32 && ds != 0x80000000) ||
+      likely(_dv < 0 && ads > -_dv>>32 && ds != 0x80000000)) {
+    uint64_t adv = (_dv < 0 ? -_dv : _dv); // no llabs in older toolchains
     // good case: no overflow, divisor not 0 and not MIN_INT
     uint32_t quot = adv / ads, rem = adv - ((uint64_t)quot * ads);
     int m1 = (rem ? dh^ds : ds) < 0;
@@ -3138,7 +3138,7 @@ static uint32_t REGPARM(3) sh2_drc_divs64(int32_t dh, uint32_t *dl, int32_t ds)
     return rem;
   } else {
     // bad case: use the sh2 algo to get the right result
-    uint64_t dv = *dl | ((uint64_t)dh << 32);
+    uint64_t dv = (uint64_t)_dv;
     int m = (uint32_t)ds>>31, q = (uint64_t)dv>>63, t = m^q, s = 32;
     while (s--) {
       uint64_t v = (uint64_t)dv>>63;
@@ -3539,7 +3539,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // if exiting a pinned loop pinned regs must be written back to ctx
         // since they are reloaded in the loop entry code
         emith_cmp_r_imm(sr, 0);
-        EMITH_JMP_START(DCOND_GE);
+        EMITH_JMP_START(DCOND_GT);
         rcache_save_pinned();
 
         if (blx_target_count < ARRAY_SIZE(blx_targets)) {
@@ -3569,7 +3569,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           tmp = rcache_get_tmp_arg(0);
           emith_cmp_r_imm(sr, 0);
           EMITH_SJMP_START(DCOND_GT);
-          emith_move_r_imm_c(DCOND_LT, tmp, pc);
+          emith_move_r_imm_c(DCOND_LE, tmp, pc);
           emith_jump_cond(DCOND_LE, sh2_drc_exit);
           EMITH_SJMP_END(DCOND_GT);
           rcache_free_tmp(tmp);
