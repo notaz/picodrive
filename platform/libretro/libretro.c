@@ -670,12 +670,7 @@ void retro_get_system_info(struct retro_system_info *info)
 {
    memset(info, 0, sizeof(*info));
    info->library_name = "PicoDrive";
-#ifndef GIT_VERSION
-#define _GIT_VERSION ""
-#else
-#define _GIT_VERSION "-" GIT_VERSION
-#endif
-   info->library_version = VERSION _GIT_VERSION;
+   info->library_version = VERSION;
    info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg|sg|sc|m3u|68k|sgd|pco";
    info->need_fullpath = true;
 }

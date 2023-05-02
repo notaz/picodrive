@@ -35,7 +35,9 @@
 #endif
 
 // FIXME
+#ifndef REVISION
 #define REVISION "0"
+#endif
 
 static const char *rom_exts[] = {
 	"zip", "bin",

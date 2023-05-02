@@ -1,5 +1,6 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
+ASAN ?= 0
 DEBUG ?= 0
 CFLAGS += -I$(PWD)
 CYCLONE_CC ?= gcc
@@ -41,22 +42,41 @@ ifneq ($(findstring gcc,$(shell $(CC) -v 2>&1)),)
 endif
 endif
 
+ifeq "$(ASAN)" "1"
+	CFLAGS += -fsanitize=address -fsanitize=leak -fsanitize=bounds -fno-omit-frame-pointer -fno-common -O1 -g
+	LDLIBS += -fsanitize=address -fsanitize=leak -fsanitize=bounds -static-libasan
+else
 ifeq "$(DEBUG)" "0"
 	CFLAGS += -O3 -DNDEBUG
+endif
 endif
 	LD = $(CC)
 	OBJOUT ?= -o
 	LINKOUT ?= -o
 endif
 
+
+chkCCflag = $(shell n=/dev/null; echo $(1) | tr " " "\n" | while read f; do \
+	    $(CC) $$f -x c -c $$n -o $$n 2>$$n && echo "_$$f" | tr -d _; done)
+
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "miyoo" "rpi1"))
 # very small caches, avoid optimization options making the binary much bigger
-CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp -ffast-math
-# this gets you about 20% better execution speed on 32bit arm/mips
-CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-regmove
-# Ouf, very old gcc toolchains (pre 4.6) don't have this option:
-CFLAGS += $(shell echo | $(CC) -ftree-loop-if-convert -x c -c -o /dev/null - 2>/dev/null && echo xfno-tree-loop-if-convert | tr x -)
+CFLAGS += -fno-common -fno-stack-protector -finline-limit=42 -fno-unroll-loops -ffast-math
+ifneq ($(call chkCCflag, -fipa-ra),) # gcc >= 5
+CFLAGS += $(call chkCCflag, -flto -fipa-pta -fipa-ra)
+else
+# these improve execution speed on 32bit arm/mips with gcc pre-5 toolchains
+CFLAGS += -fno-ipa-cp -fno-caller-saves -fno-guess-branch-probability -fno-regmove
+# very old gcc toolchains may not have these options
+CFLAGS += $(call chkCCflag, -fno-tree-loop-if-convert -fipa-pta)
 endif
+endif
+
+# revision info from repository if this not a tagged release
+ifeq "$(shell git describe --tags --exact-match HEAD 2>/dev/null)" ""
+REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
+endif
+CFLAGS += -DREVISION=\"$(REVISION)\"
 
 # default settings
 use_libchdr ?= 1

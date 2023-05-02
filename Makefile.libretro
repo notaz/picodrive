@@ -40,10 +40,8 @@ STATIC_LINKING_LINK:= 0
 LOW_MEMORY := 0
 TARGET_NAME := picodrive
 LIBM := -lm
-GIT_VERSION ?= $(shell git rev-parse --short HEAD || echo unknown)
-ifneq ($(GIT_VERSION),"unknown")
-	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
-endif
+REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
+
 
 fpic :=
 
@@ -68,7 +66,6 @@ else ifneq (,$(findstring x86,$(platform)))
 	ARCH := 86
         fpic := -fPIC
 	SHARED := -shared
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
 # AARCH64 generic
@@ -77,7 +74,6 @@ else ifeq ($(platform), aarch64)
 	ARCH = aarch64
         fpic := -fPIC
 	SHARED := -shared
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
 # Portable Linux
@@ -492,7 +488,6 @@ else ifeq ($(platform), miyoo)
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -fomit-frame-pointer -ffast-math -march=armv5te -mtune=arm926ej-s -D__GCW0__
 	HAVE_ARMv6 = 0
 	LOW_MEMORY = 1
@@ -604,7 +599,7 @@ else
 
 endif
 
-CFLAGS += -DNO_ZLIB -D__LIBRETRO__
+CFLAGS += -D__LIBRETRO__
 
 ifeq ($(USE_LIBRETRO_VFS),1)
 	CFLAGS += -DUSE_LIBRETRO_VFS
@@ -706,6 +701,8 @@ endif
 else
 	LD = $(CC)
 endif
+
+PLATFORM_ZLIB ?= 1
 
 include Makefile
 
