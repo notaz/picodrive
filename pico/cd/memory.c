@@ -71,9 +71,9 @@ void m68k_comm_check(u32 a)
   u32 cycles = SekCyclesDone();
   u32 clkdiff = cycles - Pico_mcd->m.m68k_poll_clk;
   pcd_sync_s68k(cycles, 0);
-  if (a >= 0x0e && !Pico_mcd->m.need_sync) {
+  if (a == 0x0e && !Pico_mcd->m.need_sync && (Pico_mcd->s68k_regs[3]&0x4)) {
     // there are cases when slave updates comm and only switches RAM
-    // over after that (mcd1b), so there must be a resync..
+    // over after that (mcd1 bios), so there must be a resync..
     SekEndRun(64);
     Pico_mcd->m.need_sync = 1;
   }
@@ -86,7 +86,7 @@ void m68k_comm_check(u32 a)
   }
   Pico_mcd->m.m68k_poll_cnt++;
   if(Pico_mcd->m.m68k_poll_cnt >= POLL_LIMIT)
-    SekEndRun(0);
+    SekEndRun(8);
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -241,7 +241,7 @@ write_comm:
     // slave. This can produce race conditions where slave switches RAM back to
     // master while master is delayed by interrupt before the check executes.
     // Delay slave a bit to make sure master can check before slave changes.
-    SekCycleCntS68k += 24;
+    SekCycleCntS68k += 24; // Silpheed
   }
   if (Pico_mcd->m.s68k_poll_a == (a & ~1))
   {
@@ -249,7 +249,7 @@ write_comm:
       elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
       SekSetStopS68k(0);
     }
-    Pico_mcd->m.s68k_poll_a = 0;
+    Pico_mcd->m.s68k_poll_cnt = 0;
   }
 }
 
@@ -259,6 +259,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
   u32 cycles, cnt = 0;
   if (SekIsStoppedS68k())
     return d;
+  SekEndRunS68k(8);
 
   cycles = SekCyclesDoneS68k();
   if (!SekNotPollingS68k && a == Pico_mcd->m.s68k_poll_a) {
@@ -266,7 +267,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
     if (clkdiff <= POLL_CYCLES) {
       cnt = Pico_mcd->m.s68k_poll_cnt + 1;
       //printf("-- diff: %u, cnt = %i\n", clkdiff, cnt);
-      if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
+      if (cnt > POLL_LIMIT) {
         SekSetStopS68k(1);
         elprintf(EL_CDPOLL, "s68k poll detected @%06x, a=%02x",
           SekPcS68k, a);
@@ -495,7 +496,7 @@ write_comm:
 
   Pico_mcd->s68k_regs[a] = (u8) d;
   if (Pico_mcd->m.m68k_poll_cnt)
-    SekEndRunS68k(0);
+    SekEndRunS68k(8);
   Pico_mcd->m.m68k_poll_cnt = 0;
 }
 
@@ -559,7 +560,7 @@ write_comm:
   r[a] = d >> 8;
   r[a + 1] = d;
   if (Pico_mcd->m.m68k_poll_cnt)
-    SekEndRunS68k(0);
+    SekEndRunS68k(8);
   Pico_mcd->m.m68k_poll_cnt = 0;
 }
 

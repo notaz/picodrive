@@ -283,7 +283,7 @@ void pcd_irq_s68k(int irq, int state)
     SekInterruptS68k(irq);
     if (SekIsStoppedS68k())
       SekSetStopS68k(0);
-    Pico_mcd->m.s68k_poll_a = 0;
+    Pico_mcd->m.s68k_poll_cnt = 0;
   } else
     SekInterruptClearS68k(irq);
 }
