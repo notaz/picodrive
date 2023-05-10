@@ -55,13 +55,15 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    p32x_sync_other_sh2(&msh2, m68k_cycles);
+    if (msh2.state & SH2_STATE_RUN)
+      sh2_end_run(&msh2, 0);
   }
 
   srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES & ~SH2_STATE_SLEEP, m68k_cycles);
-    p32x_sync_other_sh2(&ssh2, m68k_cycles);
+    if (ssh2.state & SH2_STATE_RUN)
+      sh2_end_run(&ssh2, 0);
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);

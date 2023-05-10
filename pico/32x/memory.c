@@ -1390,8 +1390,7 @@ static void PicoWrite16_bank(u32 a, u32 d)
 
 static void bank_map_handler(void)
 {
-  cpu68k_map_set(m68k_read8_map,   0x900000, 0x9fffff, PicoRead8_bank, 1);
-  cpu68k_map_set(m68k_read16_map,  0x900000, 0x9fffff, PicoRead16_bank, 1);
+  cpu68k_map_read_funcs(0x900000, 0x9fffff, PicoRead8_bank, PicoRead16_bank, 0);
 }
 
 static void bank_switch_rom_68k(int b)
@@ -1419,18 +1418,15 @@ static void bank_switch_rom_68k(int b)
     rs -= bank;
     if (rs > 0x100000)
       rs = 0x100000;
-    cpu68k_map_set(m68k_read8_map,  0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
-    cpu68k_map_set(m68k_read16_map, 0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
+    cpu68k_map_read_mem(0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
     elprintf(EL_32X, "bank %06x-%06x -> %06x", 0x900000, 0x900000 + rs - 1, bank);
   }
   else {
     bank = bank >> 19;
     bank2 = carthw_ssf2_banks[bank + 0] << 19;
-    cpu68k_map_set(m68k_read8_map,  0x900000, 0x97ffff, Pico.rom + bank2, 0);
-    cpu68k_map_set(m68k_read16_map, 0x900000, 0x97ffff, Pico.rom + bank2, 0);
+    cpu68k_map_read_mem(0x900000, 0x97ffff, Pico.rom + bank2, 0);
     bank2 = carthw_ssf2_banks[bank + 1] << 19;
-    cpu68k_map_set(m68k_read8_map,  0x980000, 0x9fffff, Pico.rom + bank2, 0);
-    cpu68k_map_set(m68k_read16_map, 0x980000, 0x9fffff, Pico.rom + bank2, 0);
+    cpu68k_map_read_mem(0x980000, 0x9fffff, Pico.rom + bank2, 0);
   }
 }
 
@@ -2242,10 +2238,8 @@ static sh2_write_handler *ssh2_write8_map[0x80], *ssh2_write16_map[0x80], *ssh2_
 
 void Pico32xSwapDRAM(int b)
 {
-  cpu68k_map_set(m68k_read8_map,   0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
-  cpu68k_map_set(m68k_read16_map,  0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
-  cpu68k_map_set(m68k_read8_map,   0x860000, 0x87ffff, Pico32xMem->dram[b], 0);
-  cpu68k_map_set(m68k_read16_map,  0x860000, 0x87ffff, Pico32xMem->dram[b], 0);
+  cpu68k_map_read_mem(0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
+  cpu68k_map_read_mem(0x860000, 0x87ffff, Pico32xMem->dram[b], 0);
   cpu68k_map_set(m68k_write8_map,  0x840000, 0x87ffff,
                  b ? m68k_write8_dram1_ow : m68k_write8_dram0_ow, 1);
   cpu68k_map_set(m68k_write16_map, 0x840000, 0x87ffff,
