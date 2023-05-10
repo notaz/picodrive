@@ -181,6 +181,7 @@ m_m68k_read8_r02:
 m_m68k_read8_r03:
     add     r1, r1, #0x110000
     stmfd   sp!, {r1, lr}
+    bic     r0, r0, #1
     bl      m68k_comm_check
     ldmfd   sp!, {r1, lr}
     ldrb    r0, [r1, #3]
@@ -223,6 +224,7 @@ m_m68k_read8_hi:
     bxge    lr
     add     r1, r1, r0
     stmfd   sp!, {r1, lr}
+    bic     r0, r0, #1
     bl      m68k_comm_check
     ldmfd   sp!, {r1, lr}
     ldrb    r0, [r1]
@@ -378,10 +380,10 @@ m_m68k_write16_regs:
     beq     m_m68k_write16_regs_spec
     and     r3, r1, #0xff
     add     r2, r0, #1
-    stmfd   sp!,{r2,r3,lr}
+    stmfd   sp!,{r2,r3,r12,lr}
     mov     r1, r1, lsr #8
     bl      m68k_reg_write8
-    ldmfd   sp!,{r0,r1,lr}
+    ldmfd   sp!,{r0,r1,r12,lr}
     b       m68k_reg_write8
 
 m_m68k_write16_regs_spec:               @ special case

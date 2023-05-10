@@ -91,31 +91,6 @@ PICO_INTERNAL int PicoResetMCD(void)
   return 0;
 }
 
-static void SekRunM68kOnce(void)
-{
-  int cyc_do;
-  pevt_log_m68k_o(EVT_RUN_START);
-
-  if ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0) {
-    Pico.t.m68c_cnt += cyc_do;
-
-#if defined(EMU_C68K)
-    PicoCpuCM68k.cycles = cyc_do;
-    CycloneRun(&PicoCpuCM68k);
-    Pico.t.m68c_cnt -= PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-    Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
-#elif defined(EMU_F68K)
-    Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
-#endif
-  }
-
-  SekCyclesLeft = 0;
-
-  SekTrace(0);
-  pevt_log_m68k_o(EVT_RUN_END);
-}
-
 static void SekRunS68k(unsigned int to)
 {
   int cyc_do;
@@ -281,8 +256,7 @@ void pcd_irq_s68k(int irq, int state)
 {
   if (state) {
     SekInterruptS68k(irq);
-    if (SekIsStoppedS68k())
-      SekSetStopS68k(0);
+    Pico_mcd->m.state_flags &= ~(PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP);
     Pico_mcd->m.s68k_poll_cnt = 0;
   } else
     SekInterruptClearS68k(irq);
@@ -315,7 +289,7 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
     if (event_time_next && CYCLES_GT(target, event_time_next))
       target = event_time_next;
 
-    if (SekIsStoppedS68k())
+    if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP))
       SekCycleCntS68k = SekCycleAimS68k = target;
     else
       SekRunS68k(target);
@@ -331,40 +305,42 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 #define pcd_run_cpus_normal pcd_run_cpus
 //#define pcd_run_cpus_lockstep pcd_run_cpus
 
-static void SekSyncM68k(void);
+static int SekSyncM68k(int once);
 
 void pcd_run_cpus_normal(int m68k_cycles)
 {
   Pico.t.m68c_aim += m68k_cycles;
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
-    if (SekShouldInterrupt())
+    if (SekShouldInterrupt()) {
+      Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
       Pico_mcd->m.m68k_poll_cnt = 0;
+    }
 
 #ifdef USE_POLL_DETECT
-    if (Pico_mcd->m.m68k_poll_cnt >= 16) {
+    if (Pico_mcd->m.state_flags & (PCD_ST_M68K_POLL|PCD_ST_M68K_SLEEP)) {
       int s68k_left;
       // main CPU is polling, (wake and) run sub only
-      if (SekIsStoppedS68k()) {
-        SekSetStopS68k(0);
-        Pico_mcd->m.s68k_poll_cnt = 0;
-      }
+      Pico_mcd->m.state_flags &= ~(PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP);
+      Pico_mcd->m.s68k_poll_cnt = 0;
       s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
 
       Pico.t.m68c_cnt = Pico.t.m68c_aim;
       if (s68k_left > 0)
         Pico.t.m68c_cnt -= ((long long)s68k_left * mcd_s68k_cycle_mult >> 16);
-      if (SekIsStoppedS68k()) {
+      if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP)) {
         // slave has stopped, wake master to avoid lockups
+        Pico_mcd->m.state_flags &= ~(PCD_ST_M68K_POLL|PCD_ST_M68K_SLEEP);
         Pico_mcd->m.m68k_poll_cnt = 0;
       }
+
       elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
         Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
     } else
 #endif
-      SekRunM68kOnce();
-    if (Pico_mcd->m.need_sync) {
-      Pico_mcd->m.need_sync = 0;
+      SekSyncM68k(1);
+    if (Pico_mcd->m.state_flags & PCD_ST_S68K_SYNC) {
+      Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SYNC;
       pcd_sync_s68k(Pico.t.m68c_cnt, 0);
     }
   }
@@ -375,7 +351,7 @@ void pcd_run_cpus_lockstep(int m68k_cycles)
   unsigned int target = Pico.t.m68c_aim + m68k_cycles;
   do {
     Pico.t.m68c_aim += 8;
-    SekSyncM68k();
+    SekSyncM68k(0);
     pcd_sync_s68k(Pico.t.m68c_aim, 0);
   } while (CYCLES_GT(target, Pico.t.m68c_aim));
 
@@ -437,6 +413,11 @@ void pcd_state_loaded(void)
   diff = cycles - Pico_mcd->pcm.update_cycles;
   if ((unsigned int)diff > 12500000/50)
     Pico_mcd->pcm.update_cycles = cycles;
+
+  if (Pico_mcd->m.need_sync) {
+    Pico_mcd->m.state_flags |= PCD_ST_S68K_SYNC;
+    Pico_mcd->m.need_sync = 0;
+  }
 
   // reschedule
   event_time_next = 0;

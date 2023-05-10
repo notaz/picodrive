@@ -38,7 +38,7 @@ static void SekExecM68k(int cyc_do)
   SekCyclesLeft = 0;
 }
 
-static void SekSyncM68k(void)
+static int SekSyncM68k(int once)
 {
   int cyc_do;
 
@@ -56,11 +56,14 @@ static void SekSyncM68k(void)
       z80_buscyc = cyc_do;
     Pico.t.m68c_cnt += z80_buscyc;
     Pico.t.z80_buscycles -= z80_buscyc;
+    if (once) break;
   }
 
   SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
   pprof_end(m68k);
+
+  return Pico.t.m68c_aim > Pico.t.m68c_cnt;
 }
 
 static __inline void SekRunM68k(int cyc)
@@ -72,7 +75,7 @@ static __inline void SekRunM68k(int cyc)
   refresh = (cyc + refresh) & 0x3f;
   Pico.t.m68c_aim += cyc;
 
-  SekSyncM68k();
+  SekSyncM68k(0);
 }
 
 static void SyncCPUs(unsigned int cycles)
@@ -300,7 +303,7 @@ static int PicoFrameHints(void)
     while (l-- > 0) {
       Pico.t.m68c_cnt -= CYCLES_M68K_LINE;
       do_timing_hacks_start(pv);
-      SekSyncM68k();
+      SekSyncM68k(0);
       do_timing_hacks_end(pv);
     }
   }

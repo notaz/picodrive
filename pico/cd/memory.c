@@ -71,11 +71,11 @@ void m68k_comm_check(u32 a)
   u32 cycles = SekCyclesDone();
   u32 clkdiff = cycles - Pico_mcd->m.m68k_poll_clk;
   pcd_sync_s68k(cycles, 0);
-  if (a == 0x0e && !Pico_mcd->m.need_sync && (Pico_mcd->s68k_regs[3]&0x4)) {
+  if (a == 0x0e && !(Pico_mcd->m.state_flags & PCD_ST_S68K_SYNC) && (Pico_mcd->s68k_regs[3]&0x4)) {
     // there are cases when slave updates comm and only switches RAM
     // over after that (mcd1 bios), so there must be a resync..
     SekEndRun(64);
-    Pico_mcd->m.need_sync = 1;
+    Pico_mcd->m.state_flags |= PCD_ST_S68K_SYNC;
   }
   Pico_mcd->m.m68k_poll_clk = cycles;
   if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a || clkdiff > POLL_CYCLES || clkdiff <= 16) {
@@ -85,8 +85,11 @@ void m68k_comm_check(u32 a)
     return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
-  if(Pico_mcd->m.m68k_poll_cnt >= POLL_LIMIT)
+  Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
+  if (Pico_mcd->m.m68k_poll_cnt >= POLL_LIMIT) {
+    Pico_mcd->m.state_flags |= PCD_ST_M68K_POLL;
     SekEndRun(8);
+  }
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -149,6 +152,7 @@ void m68k_reg_write8(u32 a, u32 d)
   u32 dold;
   a &= 0x3f;
 
+  Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
   Pico_mcd->m.m68k_poll_cnt = 0;
 
   switch (a) {
@@ -208,6 +212,8 @@ void m68k_reg_write8(u32 a, u32 d)
       }
       else
         d = (d & 0xc0) | (dold & 0x1c) | Pico_mcd->m.dmna_ret_2m;
+      if ((dold ^ d) & 0x1f)
+        remap_word_ram(d);
 
       goto write_comm;
     case 6:
@@ -243,12 +249,10 @@ write_comm:
     // Delay slave a bit to make sure master can check before slave changes.
     SekCycleCntS68k += 24; // Silpheed
   }
-  if (Pico_mcd->m.s68k_poll_a == (a & ~1))
-  {
-    if (SekIsStoppedS68k()) {
+  if ((Pico_mcd->m.s68k_poll_a ^ a) & ~1) {
+    if (Pico_mcd->m.state_flags & PCD_ST_S68K_POLL)
       elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
-      SekSetStopS68k(0);
-    }
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
     Pico_mcd->m.s68k_poll_cnt = 0;
   }
 }
@@ -257,7 +261,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
 {
 #ifdef USE_POLL_DETECT
   u32 cycles, cnt = 0;
-  if (SekIsStoppedS68k())
+  if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP))
     return d;
   SekEndRunS68k(8);
 
@@ -267,8 +271,9 @@ u32 s68k_poll_detect(u32 a, u32 d)
     if (clkdiff <= POLL_CYCLES) {
       cnt = Pico_mcd->m.s68k_poll_cnt + 1;
       //printf("-- diff: %u, cnt = %i\n", clkdiff, cnt);
+      Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
       if (cnt > POLL_LIMIT) {
-        SekSetStopS68k(1);
+        Pico_mcd->m.state_flags |= PCD_ST_S68K_POLL;
         elprintf(EL_CDPOLL, "s68k poll detected @%06x, a=%02x",
           SekPcS68k, a);
       }
@@ -376,9 +381,6 @@ void s68k_reg_write8(u32 a, u32 d)
           wram_2M_to_1M(Pico_mcd->word_ram2M);
         }
 
-        if ((d ^ dold) & 0x1d)
-          remap_word_ram(d);
-
         if ((d ^ dold) & 0x05)
           d &= ~2; // clear DMNA - swap complete
       }
@@ -387,10 +389,11 @@ void s68k_reg_write8(u32 a, u32 d)
         if (dold & 4) {
           elprintf(EL_CDREG3, "wram mode 1M->2M");
           wram_1M_to_2M(Pico_mcd->word_ram2M);
-          remap_word_ram(d);
         }
         d = (d & ~3) | Pico_mcd->m.dmna_ret_2m;
       }
+      if ((dold ^ d) & 0x1f)
+        remap_word_ram(d);
       goto write_comm;
     }
     case 4:
@@ -495,15 +498,18 @@ write_comm:
     return;
 
   Pico_mcd->s68k_regs[a] = (u8) d;
-  if (Pico_mcd->m.m68k_poll_cnt)
+  if ((Pico_mcd->m.m68k_poll_a ^ a) & ~1) {
     SekEndRunS68k(8);
-  Pico_mcd->m.m68k_poll_cnt = 0;
+    Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
+    Pico_mcd->m.m68k_poll_cnt = 0;
+  }
 }
 
 void s68k_reg_write16(u32 a, u32 d)
 {
   u8 *r = Pico_mcd->s68k_regs;
 
+  Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
   Pico_mcd->m.s68k_poll_cnt = 0;
 
   if ((a & 0x1f0) == 0x20)
@@ -559,9 +565,11 @@ write_comm:
 
   r[a] = d >> 8;
   r[a + 1] = d;
-  if (Pico_mcd->m.m68k_poll_cnt)
+  if ((Pico_mcd->m.m68k_poll_a ^ a) & ~1) {
     SekEndRunS68k(8);
-  Pico_mcd->m.m68k_poll_cnt = 0;
+    Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
+    Pico_mcd->m.m68k_poll_cnt = 0;
+  }
 }
 
 // -----------------------------------------------------------------
@@ -1065,35 +1073,104 @@ static void remap_prg_window(u32 r1, u32 r3)
   }
 }
 
+// if main or sub CPU accesses Word-RAM while it is assigned to the other CPU
+// GA doesn't assert DTACK, which means the CPU is blocked until the Word_RAM
+// is reassigned to it (e.g. Mega Race).
+static u32 m68k_wordram_read8(u32 a)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
+  SekEndRun(0);
+  return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
+}
+
+static u32 m68k_wordram_read16(u32 a)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
+  SekEndRun(0);
+  return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
+}
+
+static void m68k_wordram_write8(u32 a, u32 d)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
+  SekEndRun(0);
+  Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
+}
+
+static void m68k_wordram_write16(u32 a, u32 d)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
+  SekEndRun(0);
+  ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff] = d;
+}
+
+static u32 s68k_wordram_read8(u32 a)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
+  SekEndRunS68k(0);
+  return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
+}
+
+static u32 s68k_wordram_read16(u32 a)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
+  SekEndRunS68k(0);
+  return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
+}
+
+static void s68k_wordram_write8(u32 a, u32 d)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
+  SekEndRunS68k(0);
+  Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
+}
+
+static void s68k_wordram_write16(u32 a, u32 d)
+{
+  Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
+  SekEndRunS68k(0);
+  ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff] = d;
+}
+
 static void remap_word_ram(u32 r3)
 {
   void *bank;
 
   // WORD RAM
   if (!(r3 & 4)) {
-    // 2M mode. XXX: allowing access in all cases for simplicity
+    // 2M mode.
     bank = Pico_mcd->word_ram2M;
-    cpu68k_map_all_ram(0x200000, 0x23ffff, bank, 0);
-    cpu68k_map_all_ram(0x080000, 0x0bffff, bank, 1);
+    if (r3 & 1) {
+      Pico_mcd->m.state_flags &= ~PCD_ST_M68K_SLEEP;
+      cpu68k_map_all_ram(0x200000, 0x23ffff, bank, 0);
+      cpu68k_map_all_funcs(0x80000, 0xbffff,
+          s68k_wordram_read8, s68k_wordram_read16,
+          s68k_wordram_write8, s68k_wordram_write16, 1);
+    } else {
+      Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SLEEP;
+      cpu68k_map_all_ram(0x080000, 0x0bffff, bank, 1);
+      cpu68k_map_all_funcs(0x200000, 0x23ffff,
+          m68k_wordram_read8, m68k_wordram_read16,
+          m68k_wordram_write8, m68k_wordram_write16, 0);
+    }
     // TODO: handle 0x0c0000
   }
   else {
     int b0 = r3 & 1;
     int m = (r3 & 0x18) >> 3;
+    Pico_mcd->m.state_flags &= ~(PCD_ST_M68K_SLEEP|PCD_ST_S68K_SLEEP);
     bank = Pico_mcd->word_ram1M[b0];
     cpu68k_map_all_ram(0x200000, 0x21ffff, bank, 0);
     bank = Pico_mcd->word_ram1M[b0 ^ 1];
     cpu68k_map_all_ram(0x0c0000, 0x0effff, bank, 1);
     // "cell arrange" on m68k
-    cpu68k_map_set(m68k_read8_map,   0x220000, 0x23ffff, m68k_cell_read8[b0], 1);
-    cpu68k_map_set(m68k_read16_map,  0x220000, 0x23ffff, m68k_cell_read16[b0], 1);
-    cpu68k_map_set(m68k_write8_map,  0x220000, 0x23ffff, m68k_cell_write8[b0], 1);
-    cpu68k_map_set(m68k_write16_map, 0x220000, 0x23ffff, m68k_cell_write16[b0], 1);
+    cpu68k_map_all_funcs(0x220000, 0x23ffff,
+        m68k_cell_read8[b0], m68k_cell_read16[b0],
+        m68k_cell_write8[b0], m68k_cell_write16[b0], 0);
     // "decode format" on s68k
-    cpu68k_map_set(s68k_read8_map,   0x080000, 0x0bffff, s68k_dec_read8[b0 ^ 1], 1);
-    cpu68k_map_set(s68k_read16_map,  0x080000, 0x0bffff, s68k_dec_read16[b0 ^ 1], 1);
-    cpu68k_map_set(s68k_write8_map,  0x080000, 0x0bffff, s68k_dec_write8[b0 ^ 1][m], 1);
-    cpu68k_map_set(s68k_write16_map, 0x080000, 0x0bffff, s68k_dec_write16[b0 ^ 1][m], 1);
+    cpu68k_map_all_funcs(0x80000, 0xbffff,
+        s68k_dec_read8[b0^1], s68k_dec_read16[b0^1],
+        s68k_dec_write8[b0^1][m], s68k_dec_write16[b0^1][m], 1);
   }
 }
 

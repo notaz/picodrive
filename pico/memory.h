@@ -48,7 +48,10 @@ void z80_map_set(uptr *map, u16 start_addr, u16 end_addr,
     const void *func_or_mh, int is_func);
 void cpu68k_map_set(uptr *map, u32 start_addr, u32 end_addr,
     const void *func_or_mh, int is_func);
+void cpu68k_map_read_mem(u32 start_addr, u32 end_addr, void *ptr, int is_sub);
 void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub);
+void cpu68k_map_read_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r16)(u32), int is_sub);
+void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r16)(u32), void (*w8)(u32, u32), void (*w16)(u32, u32), int is_sub);
 void m68k_map_unmap(u32 start_addr, u32 end_addr);
 
 #define MAP_FLAG ((uptr)1 << (sizeof(uptr) * 8 - 1))

@@ -81,6 +81,38 @@ void cpu68k_map_set(uptr *map, u32 start_addr, u32 end_addr,
 }
 
 // more specialized/optimized function (does same as above)
+void cpu68k_map_read_mem(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
+{
+  uptr *r8map, *r16map;
+  uptr addr = (uptr)ptr;
+  int shift = M68K_MEM_SHIFT;
+  int i;
+
+  if (!is_sub) {
+    r8map = m68k_read8_map;
+    r16map = m68k_read16_map;
+  } else {
+    r8map = s68k_read8_map;
+    r16map = s68k_read16_map;
+  }
+
+  addr -= start_addr;
+  addr >>= 1;
+  for (i = start_addr >> shift; i <= end_addr >> shift; i++)
+    r8map[i] = r16map[i] = addr;
+#ifdef EMU_F68K
+  // setup FAME fetchmap
+  {
+    M68K_CONTEXT *ctx = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
+    int shiftout = 24 - FAMEC_FETCHBITS;
+    i = start_addr >> shiftout;
+    addr = (uptr)ptr - (i << shiftout);
+    for (; i <= (end_addr >> shiftout); i++)
+      ctx->Fetch[i] = addr;
+  }
+#endif
+}
+
 void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
 {
   uptr *r8map, *r16map, *w8map, *w16map;
@@ -115,6 +147,55 @@ void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
       ctx->Fetch[i] = addr;
   }
 #endif
+}
+
+void cpu68k_map_read_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r16)(u32), int is_sub)
+{
+  uptr *r8map, *r16map;
+  uptr ar8 = (uptr)r8, ar16 = (uptr)r16;
+  int shift = M68K_MEM_SHIFT;
+  int i;
+
+  if (!is_sub) {
+    r8map = m68k_read8_map;
+    r16map = m68k_read16_map;
+  } else {
+    r8map = s68k_read8_map;
+    r16map = s68k_read16_map;
+  }
+
+  ar8 = (ar8 >> 1 ) | MAP_FLAG;
+  ar16 = (ar16 >> 1 ) | MAP_FLAG;
+  for (i = start_addr >> shift; i <= end_addr >> shift; i++)
+    r8map[i] = ar8, r16map[i] = ar16;
+}
+
+void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r16)(u32), void (*w8)(u32, u32), void (*w16)(u32, u32), int is_sub)
+{
+  uptr *r8map, *r16map, *w8map, *w16map;
+  uptr ar8 = (uptr)r8, ar16 = (uptr)r16;
+  uptr aw8 = (uptr)w8, aw16 = (uptr)w16;
+  int shift = M68K_MEM_SHIFT;
+  int i;
+
+  if (!is_sub) {
+    r8map = m68k_read8_map;
+    r16map = m68k_read16_map;
+    w8map = m68k_write8_map;
+    w16map = m68k_write16_map;
+  } else {
+    r8map = s68k_read8_map;
+    r16map = s68k_read16_map;
+    w8map = s68k_write8_map;
+    w16map = s68k_write16_map;
+  }
+
+  ar8 = (ar8 >> 1 ) | MAP_FLAG;
+  ar16 = (ar16 >> 1 ) | MAP_FLAG;
+  aw8 = (aw8 >> 1 ) | MAP_FLAG;
+  aw16 = (aw16 >> 1 ) | MAP_FLAG;
+  for (i = start_addr >> shift; i <= end_addr >> shift; i++)
+    r8map[i] = ar8, r16map[i] = ar16, w8map[i] = aw8, w16map[i] = aw16;
 }
 
 static u32 m68k_unmapped_read8(u32 a)

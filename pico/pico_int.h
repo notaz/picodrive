@@ -506,7 +506,12 @@ struct mcd_pcm
 	} ch[8];
 };
 
-#define PCD_ST_S68K_RST 1
+#define PCD_ST_S68K_RST     1
+#define PCD_ST_S68K_SYNC    2
+#define PCD_ST_S68K_SLEEP   4
+#define PCD_ST_M68K_SLEEP   8
+#define PCD_ST_S68K_POLL   16
+#define PCD_ST_M68K_POLL   32
 
 struct mcd_misc
 {
