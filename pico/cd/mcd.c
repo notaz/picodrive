@@ -257,7 +257,7 @@ void pcd_irq_s68k(int irq, int state)
 {
   if (state) {
     SekInterruptS68k(irq);
-    Pico_mcd->m.state_flags &= ~(PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP);
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
     Pico_mcd->m.s68k_poll_cnt = 0;
   } else
     SekInterruptClearS68k(irq);
@@ -319,7 +319,7 @@ void pcd_run_cpus_normal(int m68k_cycles)
     }
 
 #ifdef USE_POLL_DETECT
-    if (Pico_mcd->m.state_flags & (PCD_ST_M68K_POLL|PCD_ST_M68K_SLEEP)) {
+    if (Pico_mcd->m.state_flags & PCD_ST_M68K_POLL) {
       int s68k_left;
       // main CPU is polling, (wake and) run sub only
       if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP)) {
@@ -333,7 +333,7 @@ void pcd_run_cpus_normal(int m68k_cycles)
         Pico.t.m68c_cnt -= ((long long)s68k_left * mcd_s68k_cycle_mult >> 16);
       if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP)) {
         // slave has stopped, wake master to avoid lockups
-        Pico_mcd->m.state_flags &= ~(PCD_ST_M68K_POLL|PCD_ST_M68K_SLEEP);
+        Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
         Pico_mcd->m.m68k_poll_cnt = 0;
       }
 

@@ -263,7 +263,6 @@ u32 s68k_poll_detect(u32 a, u32 d)
   u32 cycles, cnt = 0;
   if (Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP))
     return d;
-  SekEndRunS68k(8);
 
   cycles = SekCyclesDoneS68k();
   if (!SekNotPollingS68k && a == Pico_mcd->m.s68k_poll_a) {
@@ -274,9 +273,11 @@ u32 s68k_poll_detect(u32 a, u32 d)
       Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
       if (cnt > POLL_LIMIT) {
         Pico_mcd->m.state_flags |= PCD_ST_S68K_POLL;
+        SekEndRunS68k(8);
         elprintf(EL_CDPOLL, "s68k poll detected @%06x, a=%02x",
           SekPcS68k, a);
-      }
+      } else if (cnt > 2)
+        SekEndRunS68k(80);
     }
   }
   Pico_mcd->m.s68k_poll_a = a;
@@ -1073,59 +1074,55 @@ static void remap_prg_window(u32 r1, u32 r3)
   }
 }
 
-// if main or sub CPU accesses Word-RAM while it is assigned to the other CPU
+// if sub CPU accesses Word-RAM while it is assigned to the main CPU,
 // GA doesn't assert DTACK, which means the CPU is blocked until the Word_RAM
 // is reassigned to it (e.g. Mega Race).
-static u32 m68k_wordram_read8(u32 a)
+// since DTACK isn't on the expansion port, main cpu accesses are not blocked.
+// XXX is data read/written if main is accessing Word_RAM while not owning it?
+static u32 m68k_wordram_sub_read8(u32 a)
 {
-  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
-  SekEndRun(0);
-  return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
+  return 0xff;
+//  return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
 }
 
-static u32 m68k_wordram_read16(u32 a)
+static u32 m68k_wordram_sub_read16(u32 a)
 {
-  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
-  SekEndRun(0);
-  return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
+  return 0xffff;
+//  return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
 }
 
-static void m68k_wordram_write8(u32 a, u32 d)
+static void m68k_wordram_sub_write8(u32 a, u32 d)
 {
-  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
-  SekEndRun(0);
-  Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
+//  Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
 }
 
-static void m68k_wordram_write16(u32 a, u32 d)
+static void m68k_wordram_sub_write16(u32 a, u32 d)
 {
-  Pico_mcd->m.state_flags |= PCD_ST_M68K_SLEEP;
-  SekEndRun(0);
-  ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff] = d;
+//  ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff] = d;
 }
 
-static u32 s68k_wordram_read8(u32 a)
+static u32 s68k_wordram_main_read8(u32 a)
 {
   Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
   SekEndRunS68k(0);
   return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
 }
 
-static u32 s68k_wordram_read16(u32 a)
+static u32 s68k_wordram_main_read16(u32 a)
 {
   Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
   SekEndRunS68k(0);
   return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
 }
 
-static void s68k_wordram_write8(u32 a, u32 d)
+static void s68k_wordram_main_write8(u32 a, u32 d)
 {
   Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
   SekEndRunS68k(0);
   Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
 }
 
-static void s68k_wordram_write16(u32 a, u32 d)
+static void s68k_wordram_main_write16(u32 a, u32 d)
 {
   Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
   SekEndRunS68k(0);
@@ -1141,24 +1138,23 @@ static void remap_word_ram(u32 r3)
     // 2M mode.
     bank = Pico_mcd->word_ram2M;
     if (r3 & 1) {
-      Pico_mcd->m.state_flags &= ~PCD_ST_M68K_SLEEP;
       cpu68k_map_all_ram(0x200000, 0x23ffff, bank, 0);
       cpu68k_map_all_funcs(0x80000, 0xbffff,
-          s68k_wordram_read8, s68k_wordram_read16,
-          s68k_wordram_write8, s68k_wordram_write16, 1);
+          s68k_wordram_main_read8, s68k_wordram_main_read16,
+          s68k_wordram_main_write8, s68k_wordram_main_write16, 1);
     } else {
       Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SLEEP;
       cpu68k_map_all_ram(0x080000, 0x0bffff, bank, 1);
       cpu68k_map_all_funcs(0x200000, 0x23ffff,
-          m68k_wordram_read8, m68k_wordram_read16,
-          m68k_wordram_write8, m68k_wordram_write16, 0);
+          m68k_wordram_sub_read8, m68k_wordram_sub_read16,
+          m68k_wordram_sub_write8, m68k_wordram_sub_write16, 0);
     }
     // TODO: handle 0x0c0000
   }
   else {
     int b0 = r3 & 1;
     int m = (r3 & 0x18) >> 3;
-    Pico_mcd->m.state_flags &= ~(PCD_ST_M68K_SLEEP|PCD_ST_S68K_SLEEP);
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SLEEP;
     bank = Pico_mcd->word_ram1M[b0];
     cpu68k_map_all_ram(0x200000, 0x21ffff, bank, 0);
     bank = Pico_mcd->word_ram1M[b0 ^ 1];
