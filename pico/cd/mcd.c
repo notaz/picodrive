@@ -31,6 +31,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
 {
   int fmt_size;
 
+  SekResetS68k();
   SekCycleCntS68k = SekCycleAimS68k = 0;
 
   fmt_size = sizeof(formatted_bram);
