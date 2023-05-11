@@ -249,7 +249,7 @@ write_comm:
     // Delay slave a bit to make sure master can check before slave changes.
     SekCycleCntS68k += 24; // Silpheed
   }
-  if ((Pico_mcd->m.s68k_poll_a ^ a) & ~1) {
+  if (!((Pico_mcd->m.s68k_poll_a ^ a) & ~1)) {
     if (Pico_mcd->m.state_flags & PCD_ST_S68K_POLL)
       elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
     Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
@@ -498,7 +498,7 @@ write_comm:
     return;
 
   Pico_mcd->s68k_regs[a] = (u8) d;
-  if ((Pico_mcd->m.m68k_poll_a ^ a) & ~1) {
+  if (!((Pico_mcd->m.m68k_poll_a ^ a) & ~1)) {
     SekEndRunS68k(8);
     Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
     Pico_mcd->m.m68k_poll_cnt = 0;
@@ -565,7 +565,7 @@ write_comm:
 
   r[a] = d >> 8;
   r[a + 1] = d;
-  if ((Pico_mcd->m.m68k_poll_a ^ a) & ~1) {
+  if (!((Pico_mcd->m.m68k_poll_a ^ a) & ~1)) {
     SekEndRunS68k(8);
     Pico_mcd->m.state_flags &= ~PCD_ST_M68K_POLL;
     Pico_mcd->m.m68k_poll_cnt = 0;
