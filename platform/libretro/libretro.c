@@ -625,7 +625,7 @@ void retro_set_environment(retro_environment_t cb)
 
    static const struct retro_system_content_info_override content_overrides[] = {
       {
-         "gen|smd|md|32x|sms|gg|sg|sc|68k|sgd|pco", /* extensions */
+         "bin|gen|smd|md|32x|sms|gg|sg|sc|68k|sgd|pco", /* extensions */
 #if defined(LOW_MEMORY)
          true,                         /* need_fullpath */
 #else
