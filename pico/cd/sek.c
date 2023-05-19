@@ -32,6 +32,8 @@ static int new_irq_level(int level)
 {
   int level_new = 0, irqs;
   Pico_mcd->m.s68k_pend_ints &= ~(1 << level);
+  if (level == 2) // clear pending bit
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_IFL2;
   irqs = Pico_mcd->m.s68k_pend_ints;
   irqs &= Pico_mcd->s68k_regs[0x33];
   while ((irqs >>= 1)) level_new++;

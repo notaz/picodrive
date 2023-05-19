@@ -100,9 +100,9 @@ static u32 m68k_reg_read16(u32 a)
 
   switch (a) {
     case 0:
-      // here IFL2 is always 0, just like in Gens
-      d = ((Pico_mcd->s68k_regs[0x33] << 13) & 0x8000)
-        | Pico_mcd->m.busreq;
+      pcd_sync_s68k(SekCyclesDone(), 0);
+      d = ((Pico_mcd->s68k_regs[0x33] & PCDS_IEN2) << 13) |
+          (Pico_mcd->m.state_flags & PCD_ST_S68K_IFL2) | Pico_mcd->m.busreq;
       goto end;
     case 2:
       m68k_comm_check(a);
@@ -158,6 +158,8 @@ void m68k_reg_write8(u32 a, u32 d)
   switch (a) {
     case 0:
       d &= 1;
+      Pico_mcd->m.state_flags &= ~PCD_ST_S68K_IFL2;
+      if (d) Pico_mcd->m.state_flags |= PCD_ST_S68K_IFL2;
       if (d && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN2)) {
         elprintf(EL_INTS, "m68k: s68k irq 2");
         pcd_sync_s68k(SekCyclesDone(), 0);
@@ -179,7 +181,7 @@ void m68k_reg_write8(u32 a, u32 d)
       if (!(d & 1))
         Pico_mcd->m.state_flags |= PCD_ST_S68K_RST;
       else if (d == 1 && (Pico_mcd->m.state_flags & PCD_ST_S68K_RST)) {
-        Pico_mcd->m.state_flags &= ~PCD_ST_S68K_RST;
+        Pico_mcd->m.state_flags &= ~(PCD_ST_S68K_RST|PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP);
         elprintf(EL_CDREGS, "m68k: resetting s68k");
         SekResetS68k();
       }
@@ -193,8 +195,8 @@ void m68k_reg_write8(u32 a, u32 d)
       elprintf(EL_CDREGS, "m68k: prg wp=%02x", d);
       goto write_comm;
     case 3:
-      dold = Pico_mcd->s68k_regs[3];
       elprintf(EL_CDREG3, "m68k_regs w3: %02x @%06x", (u8)d, SekPc);
+      dold = Pico_mcd->s68k_regs[3];
       if ((d ^ dold) & 0xc0) {
         elprintf(EL_CDREGS, "m68k: prg bank: %i -> %i",
           (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
@@ -214,7 +216,6 @@ void m68k_reg_write8(u32 a, u32 d)
         d = (d & 0xc0) | (dold & 0x1c) | Pico_mcd->m.dmna_ret_2m;
       if ((dold ^ d) & 0x1f)
         remap_word_ram(d);
-
       goto write_comm;
     case 6:
       Pico_mcd->bios[MEM_BE2(0x72)] = d; // simple hint vector changer
@@ -223,6 +224,9 @@ void m68k_reg_write8(u32 a, u32 d)
       Pico_mcd->bios[MEM_BE2(0x73)] = d;
       elprintf(EL_CDREGS, "hint vector set to %04x%04x",
         ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
+      return;
+    case 8:
+      (void) cdc_host_r(); // acts same as reading
       return;
     case 0x0f:
       a = 0x0e;
@@ -277,7 +281,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
         elprintf(EL_CDPOLL, "s68k poll detected @%06x, a=%02x",
           SekPcS68k, a);
       } else if (cnt > 2)
-        SekEndRunS68k(80);
+        SekEndRunS68k(240);
     }
   }
   Pico_mcd->m.s68k_poll_a = a;
@@ -308,38 +312,47 @@ u32 s68k_reg_read16(u32 a)
 
   switch (a) {
     case 0:
-      return ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
+      d = ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
+      goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[2]<<8) | (Pico_mcd->s68k_regs[3]&0x1f);
       elprintf(EL_CDREG3, "s68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
-      return s68k_poll_detect(a, d);
+      s68k_poll_detect(a, d);
+      goto end;
+    case 4:
+      d = (Pico_mcd->s68k_regs[4]<<8) | (Pico_mcd->s68k_regs[5]&0x1f);
+      goto end;
     case 6:
-      return cdc_reg_r();
+      d = cdc_reg_r();
+      goto end;
     case 8:
-      return cdc_host_r();
+      d = cdc_host_r();
+      goto end;
     case 0xC:
       d = SekCyclesDoneS68k() - Pico_mcd->m.stopwatch_base_c;
       d /= 384;
       d &= 0x0fff;
       elprintf(EL_CDREGS, "s68k stopwatch timer read (%04x)", d);
-      return d;
+      goto end;
     case 0x30:
-      elprintf(EL_CDREGS, "s68k int3 timer read (%02x)", Pico_mcd->s68k_regs[31]);
-      return Pico_mcd->s68k_regs[31];
+      elprintf(EL_CDREGS, "s68k int3 timer read (%02x)", Pico_mcd->s68k_regs[0x31]);
+      d = Pico_mcd->s68k_regs[0x31];
+      goto end;
     case 0x34: // fader
-      return 0; // no busy bit
+      d = 0; // no busy bit
+      goto end;
     case 0x50: // font data (check: Lunar 2, Silpheed)
       READ_FONT_DATA(0x00100000);
-      return d;
+      goto end;
     case 0x52:
       READ_FONT_DATA(0x00010000);
-      return d;
+      goto end;
     case 0x54:
       READ_FONT_DATA(0x10000000);
-      return d;
+      goto end;
     case 0x56:
       READ_FONT_DATA(0x01000000);
-      return d;
+      goto end;
   }
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
@@ -347,6 +360,7 @@ u32 s68k_reg_read16(u32 a)
   if (a >= 0x0e && a < 0x30)
     return s68k_poll_detect(a, d);
 
+end:
   return d;
 }
 
@@ -361,8 +375,7 @@ void s68k_reg_write8(u32 a, u32 d)
       if (!(d & 1))
         pcd_soft_reset();
       return;
-    case 2:
-      return; // only m68k can change WP
+    case 2: a++; // byte access only, ignores LDS/UDS
     case 3: {
       int dold = Pico_mcd->s68k_regs[3];
       elprintf(EL_CDREG3, "s68k_regs w3: %02x @%06x", (u8)d, SekPcS68k);
@@ -399,33 +412,38 @@ void s68k_reg_write8(u32 a, u32 d)
     }
     case 4:
       elprintf(EL_CDREGS, "s68k CDC dest: %x", d&7);
-      Pico_mcd->s68k_regs[4] = (Pico_mcd->s68k_regs[4]&0xC0) | (d&7); // CDC mode
+      Pico_mcd->s68k_regs[a] = (d&7); // CDC mode
+      Pico_mcd->s68k_regs[0xa] = Pico_mcd->s68k_regs[0xb] = 0; // resets DMA
       return;
     case 5:
-      //dprintf("s68k CDC reg addr: %x", d&0xf);
-      break;
+      //dprintf("s68k CDC reg addr: %x", d&0x1f);
+      Pico_mcd->s68k_regs[a] = (d&0x1f);
+      return;
     case 7:
       cdc_reg_w(d & 0xff);
       return;
     case 0xa:
+    case 0xb:
+      // word access only. 68k sets both bus halves to value d.
       elprintf(EL_CDREGS, "s68k set CDC dma addr");
-      break;
+      Pico_mcd->s68k_regs[0xa] = Pico_mcd->s68k_regs[0xb] = d;
+      return;
     case 0xc:
     case 0xd: // 384 cycle stopwatch timer
       elprintf(EL_CDREGS|EL_CD, "s68k clear stopwatch (%x)", d);
       // does this also reset internal 384 cycle counter?
       Pico_mcd->m.stopwatch_base_c = SekCyclesDoneS68k();
       return;
-    case 0x0e:
-      a = 0x0f;
+    case 0x0e: a++;
     case 0x0f:
       goto write_comm;
+    case 0x30: a++;
     case 0x31: // 384 cycle int3 timer
       d &= 0xff;
       elprintf(EL_CDREGS|EL_CD, "s68k set int3 timer: %02x", d);
       Pico_mcd->s68k_regs[a] = (u8) d;
-      if (d) // d or d+1??
-        pcd_event_schedule_s68k(PCD_EVENT_TIMER3, d * 384);
+      if (d) // XXX: d or d+1? mcd-verificator results suggest d+1
+        pcd_event_schedule_s68k(PCD_EVENT_TIMER3, (d+1) * 384);
       else
         pcd_event_schedule(0, PCD_EVENT_TIMER3, 0);
       break;
@@ -439,6 +457,8 @@ void s68k_reg_write8(u32 a, u32 d)
           pcd_irq_s68k(4, 1);
         }
       }
+      if ((d ^ Pico_mcd->s68k_regs[0x33]) & ~d & PCDS_IEN2)
+	pcd_irq_s68k(2, 0);
       break;
     case 0x34: // fader
       Pico_mcd->s68k_regs[a] = (u8) d & 0x7f;
@@ -478,6 +498,8 @@ void s68k_reg_write8(u32 a, u32 d)
           s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]);
       }
       return;
+    case 0x4c: a++;
+      break;
     case 0x58:
       return;
   }
@@ -517,11 +539,18 @@ void s68k_reg_write16(u32 a, u32 d)
     goto write_comm;
 
   switch (a) {
+    case 0x02:
     case 0x0e:
-      // special case, 2 byte writes would be handled differently
-      // TODO: verify
-      d = (u8)d | (r[0xe] << 8);
-      goto write_comm;
+    case 0x30:
+    case 0x4c:
+      // these are only byte registers, LDS/UDS ignored
+      return s68k_reg_write8(a + 1, d);
+    case 0x08:
+      return (void) cdc_host_r(); // acts same as reading
+    case 0x0a: // DMA address
+      r[0xa] = d >> 8;
+      r[0xb] = d;
+      return;
     case 0x58: // stamp data size
       r[0x59] = d & 7;
       return;
@@ -634,19 +663,19 @@ static void PicoWriteM68k16_cell1(u32 a, u32 d)
 static u32 PicoReadM68k8_ramc(u32 a)
 {
   u32 d = 0;
-  if (a == 0x400001) {
+  if ((a & 0xf00001) == 0x400001) {
     if (Pico.sv.data != NULL)
       d = 3; // 64k cart
     return d;
   }
 
-  if ((a & 0xfe0000) == 0x600000) {
+  if ((a & 0xf00001) == 0x600001) {
     if (Pico.sv.data != NULL)
       d = Pico.sv.data[((a >> 1) & 0xffff) + 0x2000];
     return d;
   }
 
-  if (a == 0x7fffff)
+  if ((a & 0xf00001) == 0x700001)
     return Pico_mcd->m.bcram_reg;
 
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
@@ -661,15 +690,15 @@ static u32 PicoReadM68k16_ramc(u32 a)
 
 static void PicoWriteM68k8_ramc(u32 a, u32 d)
 {
-  if ((a & 0xfe0000) == 0x600000) {
+  if ((a & 0xf00001) == 0x600001) {
     if (Pico.sv.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
-      Pico.sv.data[((a>>1) & 0xffff) + 0x2000] = d;
+      Pico.sv.data[((a >> 1) & 0xffff) + 0x2000] = d;
       Pico.sv.changed = 1;
     }
     return;
   }
 
-  if (a == 0x7fffff) {
+  if ((a & 0xf00001) == 0x700001) {
     Pico_mcd->m.bcram_reg = d;
     return;
   }
@@ -902,15 +931,16 @@ static u32 PicoReadS68k16_bram(u32 a)
   u32 d;
   elprintf(EL_ANOMALY, "FIXME: s68k_bram r16: [%06x] @%06x", a, SekPcS68k);
   a = (a >> 1) & 0x1fff;
-  d = Pico_mcd->bram[a++];
-  d|= Pico_mcd->bram[a++] << 8; // probably wrong, TODO: verify
+  d = Pico_mcd->bram[a];
   return d;
 }
 
 static void PicoWriteS68k8_bram(u32 a, u32 d)
 {
-  Pico_mcd->bram[(a >> 1) & 0x1fff] = d;
-  Pico.sv.changed = 1;
+  if (a & 1) {
+    Pico_mcd->bram[(a >> 1) & 0x1fff] = d;
+    Pico.sv.changed = 1;
+  }
 }
 
 static void PicoWriteS68k16_bram(u32 a, u32 d)
@@ -918,7 +948,6 @@ static void PicoWriteS68k16_bram(u32 a, u32 d)
   elprintf(EL_ANOMALY, "s68k_bram w16: [%06x] %04x @%06x", a, d, SekPcS68k);
   a = (a >> 1) & 0x1fff;
   Pico_mcd->bram[a++] = d;
-  Pico_mcd->bram[a++] = d >> 8; // TODO: verify..
   Pico.sv.changed = 1;
 }
 
@@ -1079,28 +1108,6 @@ static void remap_prg_window(u32 r1, u32 r3)
 // is reassigned to it (e.g. Mega Race).
 // since DTACK isn't on the expansion port, main cpu accesses are not blocked.
 // XXX is data read/written if main is accessing Word_RAM while not owning it?
-static u32 m68k_wordram_sub_read8(u32 a)
-{
-  return 0xff;
-//  return Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff];
-}
-
-static u32 m68k_wordram_sub_read16(u32 a)
-{
-  return 0xffff;
-//  return ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff];
-}
-
-static void m68k_wordram_sub_write8(u32 a, u32 d)
-{
-//  Pico_mcd->word_ram2M[MEM_BE2(a) & 0x3ffff] = d;
-}
-
-static void m68k_wordram_sub_write16(u32 a, u32 d)
-{
-//  ((u16 *)Pico_mcd->word_ram2M)[(a >> 1) & 0x1ffff] = d;
-}
-
 static u32 s68k_wordram_main_read8(u32 a)
 {
   Pico_mcd->m.state_flags |= PCD_ST_S68K_SLEEP;
@@ -1145,9 +1152,7 @@ static void remap_word_ram(u32 r3)
     } else {
       Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SLEEP;
       cpu68k_map_all_ram(0x080000, 0x0bffff, bank, 1);
-      cpu68k_map_all_funcs(0x200000, 0x23ffff,
-          m68k_wordram_sub_read8, m68k_wordram_sub_read16,
-          m68k_wordram_sub_write8, m68k_wordram_sub_write16, 0);
+      m68k_map_unmap(0x200000, 0x23ffff);
     }
     // TODO: handle 0x0c0000
   }
@@ -1236,6 +1241,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   cpu68k_map_set(s68k_write16_map, 0xff0000, 0xffffff, PicoWriteS68k16_pr, 1);
 
   // RAMs
+  remap_prg_window(2,1);
   remap_word_ram(1);
 
 #ifdef EMU_C68K

@@ -166,7 +166,7 @@ static void pcd_int3_timer_event(unsigned int now)
 
   if (Pico_mcd->s68k_regs[0x31] != 0)
     pcd_event_schedule(now, PCD_EVENT_TIMER3,
-      Pico_mcd->s68k_regs[0x31] * 384);
+      (Pico_mcd->s68k_regs[0x31]+1) * 384);
 }
 
 static void pcd_dma_event(unsigned int now)
@@ -190,13 +190,13 @@ void pcd_event_schedule(unsigned int now, enum pcd_event event, int after)
 {
   unsigned int when;
 
-  when = now + after;
-  if (when == 0) {
+  if ((now|after) == 0) {
     // event cancelled
     pcd_event_times[event] = 0;
     return;
   }
 
+  when = now + after;
   when |= 1;
 
   elprintf(EL_CD, "cd: new event #%u %u->%u", event, now, when);

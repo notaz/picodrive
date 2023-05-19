@@ -511,6 +511,7 @@ struct mcd_pcm
 #define PCD_ST_S68K_SLEEP   4
 #define PCD_ST_S68K_POLL   16
 #define PCD_ST_M68K_POLL   32
+#define PCD_ST_S68K_IFL2   0x100
 
 struct mcd_misc
 {

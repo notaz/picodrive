@@ -404,7 +404,9 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
 {
   int ret;
 
-  if (stream->type == PMT_UNCOMPRESSED)
+  if (stream == NULL)
+    return -1;
+  else if (stream->type == PMT_UNCOMPRESSED)
   {
     ret = fread(ptr, 1, bytes, stream->file);
   }
@@ -514,8 +516,10 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
 
 size_t pm_read_audio(void *ptr, size_t bytes, pm_file *stream)
 {
+  if (stream == NULL)
+    return -1;
 #if !(CPU_IS_LE)
-  if (stream->type == PMT_UNCOMPRESSED)
+  else if (stream->type == PMT_UNCOMPRESSED)
   {
     // convert little endian audio samples from WAV file
     int ret = pm_read(ptr, bytes, stream);
@@ -542,7 +546,9 @@ size_t pm_read_audio(void *ptr, size_t bytes, pm_file *stream)
 
 int pm_seek(pm_file *stream, long offset, int whence)
 {
-  if (stream->type == PMT_UNCOMPRESSED)
+  if (stream == NULL)
+    return -1;
+  else if (stream->type == PMT_UNCOMPRESSED)
   {
     fseek(stream->file, offset, whence);
     return ftell(stream->file);

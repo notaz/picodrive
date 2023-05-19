@@ -244,65 +244,66 @@ int cdc_context_load_old(uint8 *state)
 #undef old_load
 }
 
-static void do_dma(enum dma_type type, int words_in)
+static void do_dma(enum dma_type type, int bytes_in)
 {
-	int dma_addr = (Pico_mcd->s68k_regs[0x0a] << 8) | Pico_mcd->s68k_regs[0x0b];
+  int dma_addr = (Pico_mcd->s68k_regs[0x0a] << 8) | Pico_mcd->s68k_regs[0x0b];
   int src_addr = cdc.dac & 0x3ffe;
   int dst_addr = dma_addr;
-  int words = words_in;
+  int bytes = bytes_in;
+  int words = bytes_in >> 1;
   int dst_limit = 0;
   uint8 *dst;
   int len;
 
   elprintf(EL_CD, "dma %d %04x->%04x %x",
-    type, cdc.dac, dst_addr, words_in);
+    type, cdc.dac, dst_addr, bytes_in);
 
   switch (type)
   {
     case pcm_ram_dma_w:
       dst_addr = (dst_addr << 2) & 0xffc;
-      if (dst_addr + words * 2 > 0x1000) {
+      if (dst_addr + bytes > 0x1000) {
         elprintf(EL_ANOMALY, "pcm dma oflow: %x %x", dst_addr, words);
-        words = (0x1000 - dst_addr) / 2;
+        bytes = 0x1000 - dst_addr;
       }
       dst = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank];
       dst = dst + dst_addr;
-      while (words > 0)
+      while (bytes > 0)
       {
-        if (src_addr + words * 2 > 0x4000) {
+        if (src_addr + bytes > 0x4000) {
           len = 0x4000 - src_addr;
           memcpy(dst, cdc.ram + src_addr, len);
           dst += len;
           src_addr = 0;
-          words -= len / 2;
+          bytes -= len;
           continue;
         }
-        memcpy(dst, cdc.ram + src_addr, words * 2);
+        memcpy(dst, cdc.ram + src_addr, bytes);
         break;
       }
       goto update_dma;
 
     case prg_ram_dma_w:
       dst_addr <<= 3;
-		  dst = Pico_mcd->prg_ram + dst_addr;
+      dst = Pico_mcd->prg_ram + dst_addr;
       dst_limit = 0x80000;
       break;
 
     case word_ram_0_dma_w:
       dst_addr = (dst_addr << 3) & 0x1fffe;
-			dst = Pico_mcd->word_ram1M[0] + dst_addr;
+      dst = Pico_mcd->word_ram1M[0] + dst_addr;
       dst_limit = 0x20000;
       break;
 
     case word_ram_1_dma_w:
       dst_addr = (dst_addr << 3) & 0x1fffe;
-			dst = Pico_mcd->word_ram1M[1] + dst_addr;
+      dst = Pico_mcd->word_ram1M[1] + dst_addr;
       dst_limit = 0x20000;
       break;
 
     case word_ram_2M_dma_w:
       dst_addr = (dst_addr << 3) & 0x3fffe;
-			dst = Pico_mcd->word_ram2M + dst_addr;
+      dst = Pico_mcd->word_ram2M + dst_addr;
       dst_limit = 0x40000;
       break;
 
@@ -329,13 +330,15 @@ static void do_dma(enum dma_type type, int words_in)
     break;
   }
 
+  bytes_in &= ~1; // Todo leftover byte?
+
 update_dma:
   /* update DMA addresses */
-  cdc.dac += words_in * 2;
+  cdc.dac += bytes_in;
   if (type == pcm_ram_dma_w)
-    dma_addr += words_in >> 1;
+    dma_addr += bytes_in >> 2;
   else
-    dma_addr += words_in >> 2;
+    dma_addr += bytes_in >> 3;
 
   Pico_mcd->s68k_regs[0x0a] = dma_addr >> 8;
   Pico_mcd->s68k_regs[0x0b] = dma_addr;
@@ -348,7 +351,7 @@ void cdc_dma_update(void)
   {
     /* transfer remaining words using 16-bit DMA */
     //cdc.dma_w((cdc.dbc + 1) >> 1);
-    do_dma(cdc.dma_w, (cdc.dbc + 1) >> 1);
+    do_dma(cdc.dma_w, cdc.dbc + 1);
 
     /* reset data byte counter (DBCH bits 4-7 should be set to 1) */
     cdc.dbc = 0xf000;
@@ -356,23 +359,25 @@ void cdc_dma_update(void)
     /* clear !DTEN and !DTBSY */
     cdc.ifstat |= (BIT_DTBSY | BIT_DTEN);
 
-    /* pending Data Transfer End interrupt */
-    cdc.ifstat &= ~BIT_DTEI;
-
-    /* Data Transfer End interrupt enabled ? */
-    if (cdc.ifctrl & BIT_DTEIEN)
-    {
-      /* level 5 interrupt enabled ? */
-      if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
-      {
-        /* update IRQ level */
-        elprintf(EL_INTS, "cdc DTE irq 5");
-        pcd_irq_s68k(5, 1);
-      }
-    }
-
     /* clear DSR bit & set EDT bit (SCD register $04) */
     Pico_mcd->s68k_regs[0x04+0] = (Pico_mcd->s68k_regs[0x04+0] & 0x07) | 0x80;
+
+    if (cdc.ifstat & BIT_DTEI) {
+      /* pending Data Transfer End interrupt */
+      cdc.ifstat &= ~BIT_DTEI;
+
+      /* Data Transfer End interrupt enabled ? */
+      if (cdc.ifctrl & BIT_DTEIEN)
+      {
+        /* level 5 interrupt enabled ? */
+        if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
+        {
+          /* update IRQ level */
+          elprintf(EL_INTS, "cdc DTE irq 5");
+          pcd_irq_s68k(5, 1);
+        }
+      }
+    }
 
     /* disable DMA transfer */
     cdc.dma_w = 0;
@@ -456,8 +461,11 @@ void cdc_reg_w(unsigned char data)
 #ifdef LOG_CDC
   elprintf(EL_STATUS, "CDC register %X write 0x%04x", Pico_mcd->s68k_regs[0x04+1] & 0x0F, data);
 #endif
-  switch (Pico_mcd->s68k_regs[0x04+1] & 0x0F)
+  switch (Pico_mcd->s68k_regs[0x04+1] & 0x1F)
   {
+    case 0x00:
+      break;
+
     case 0x01:  /* IFCTRL */
     {
       /* pending interrupts ? */
@@ -498,7 +506,7 @@ void cdc_reg_w(unsigned char data)
 
     case 0x03:  /* DBCH */
       cdc.dbc &= 0x00ff;
-      cdc.dbc |= data << 8;
+      cdc.dbc |= (data & 0x0f) << 8;
       Pico_mcd->s68k_regs[0x04+1] = 0x04;
       break;
 
@@ -638,6 +646,10 @@ void cdc_reg_w(unsigned char data)
       /* set CRCOK bit only if decoding is enabled */
       cdc.stat[0] = data & BIT_DECEN;
 
+      /* reset DECI if decoder turned off */
+      if (!cdc.stat[0])
+        cdc.ifstat |= BIT_DECI;
+
       /* update decoding mode */
       if (data & BIT_AUTORQ)
       {
@@ -692,17 +704,22 @@ void cdc_reg_w(unsigned char data)
 
     case 0x0f:  /* RESET */
       cdc_reset();
+      Pico_mcd->s68k_regs[0x04+1] = 0x10;
       break;
 
     default:  /* by default, SBOUT is not used */
+      Pico_mcd->s68k_regs[0x04+1] = (Pico_mcd->s68k_regs[0x04+1] + 1) & 0x1f;
       break;
   }
 }
 
 unsigned char cdc_reg_r(void)
 {
-  switch (Pico_mcd->s68k_regs[0x04+1] & 0x0F)
+  switch (Pico_mcd->s68k_regs[0x04+1] & 0x01F)
   {
+    case 0x00:
+      return 0xff;
+
     case 0x01:  /* IFSTAT */
       Pico_mcd->s68k_regs[0x04+1] = 0x02;
       return cdc.ifstat;
@@ -778,11 +795,12 @@ unsigned char cdc_reg_r(void)
       }
 #endif
 
-      Pico_mcd->s68k_regs[0x04+1] = 0x00;
+      Pico_mcd->s68k_regs[0x04+1] = 0x10;
       return data;
     }
 
     default:  /* by default, COMIN is always empty */
+      Pico_mcd->s68k_regs[0x04+1] = (Pico_mcd->s68k_regs[0x04+1] + 1) & 0x1f;
       return 0xff;
   }
 }
@@ -815,23 +833,27 @@ unsigned short cdc_host_r(void)
       /* clear !DTEN and !DTBSY */
       cdc.ifstat |= (BIT_DTBSY | BIT_DTEN);
 
-      /* pending Data Transfer End interrupt */
-      cdc.ifstat &= ~BIT_DTEI;
-
-      /* Data Transfer End interrupt enabled ? */
-      if (cdc.ifctrl & BIT_DTEIEN)
-      {
-        /* level 5 interrupt enabled ? */
-        if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
-        {
-          /* update IRQ level */
-          elprintf(EL_INTS, "cdc DTE irq 5");
-          pcd_irq_s68k(5, 1);
-        }
-      }
-
       /* clear DSR bit & set EDT bit (SCD register $04) */
       Pico_mcd->s68k_regs[0x04+0] = (Pico_mcd->s68k_regs[0x04+0] & 0x07) | 0x80;
+    } else if ((int16)cdc.dbc <= 2) {
+      if (cdc.ifstat & BIT_DTEI) {
+        /* pending Data Transfer End interrupt */
+        cdc.ifstat &= ~BIT_DTEI;
+
+        /* Data Transfer End interrupt enabled ? */
+        if (cdc.ifctrl & BIT_DTEIEN)
+        {
+          /* level 5 interrupt enabled ? */
+          if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
+          {
+            /* update IRQ level */
+            elprintf(EL_INTS, "cdc DTE irq 5");
+            pcd_irq_s68k(5, 1);
+          }
+        }
+      }
+      /* set DSR and EDT bit (SCD register $04) */
+      Pico_mcd->s68k_regs[0x04+0] = (Pico_mcd->s68k_regs[0x04+0] & 0x07) | 0xc0;
     }
 
     return data;
