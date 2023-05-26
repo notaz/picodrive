@@ -289,9 +289,11 @@ enum cd_track_type
   CT_ISO = 1,	/* 2048 B/sector */
   CT_BIN = 2,	/* 2352 B/sector */
   // audio tracks
-  CT_MP3 = 3,
-  CT_WAV = 4,
-  CT_CHD = 5,
+  CT_AUDIO = 8,
+  CT_RAW = CT_AUDIO | 1,
+  CT_CHD = CT_AUDIO | 2,
+  CT_MP3 = CT_AUDIO | 3,
+  CT_WAV = CT_AUDIO | 4,
 };
 
 typedef struct

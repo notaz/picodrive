@@ -66,16 +66,17 @@ void z80_map_set(uptr *map, u16 start_addr, u16 end_addr,
 void cpu68k_map_set(uptr *map, u32 start_addr, u32 end_addr,
     const void *func_or_mh, int is_func)
 {
-  xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
+  xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func & 1);
 #ifdef EMU_F68K
   // setup FAME fetchmap
-  if (!is_func)
+  if (!(is_func & 1))
   {
+    M68K_CONTEXT *ctx = is_func & 2 ? &PicoCpuFS68k : &PicoCpuFM68k;
     int shiftout = 24 - FAMEC_FETCHBITS;
     int i = start_addr >> shiftout;
     uptr base = (uptr)func_or_mh - (i << shiftout);
     for (; i <= (end_addr >> shiftout); i++)
-      PicoCpuFM68k.Fetch[i] = base;
+      ctx->Fetch[i] = base;
   }
 #endif
 }
@@ -997,18 +998,6 @@ PICO_INTERNAL void PicoMemSetup(void)
   PicoCpuFM68k.write_byte = (void *)m68k_write8;
   PicoCpuFM68k.write_word = (void *)m68k_write16;
   PicoCpuFM68k.write_long = (void *)m68k_write32;
-
-  // setup FAME fetchmap
-  {
-    int i;
-    // by default, point everything to first 64k of ROM
-    for (i = 0; i < M68K_FETCHBANK1 * 0xe0 / 0x100; i++)
-      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
-    // now real ROM
-    for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
-      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom;
-    // RAM already set
-  }
 #endif
 #ifdef EMU_M68K
   m68k_mem_setup();

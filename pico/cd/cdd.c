@@ -49,6 +49,9 @@
 
 cdd_t cdd;
 
+#define is_audio(index) \
+  (cdd.toc.tracks[index].type & CT_AUDIO)
+
 /* BCD conversion lookup tables */
 static const uint8 lut_BCD_8[100] =
 {
@@ -239,12 +242,12 @@ int cdd_context_load(uint8 *state)
   }
 
   /* seek to current track position */
-  if (!cdd.index)
+  if (!is_audio(cdd.index))
   {
     /* DATA track */
-    if (cdd.toc.tracks[0].fd)
+    if (cdd.toc.tracks[cdd.index].fd)
     {
-      pm_seek(cdd.toc.tracks[0].fd, lba * cdd.sectorSize, SEEK_SET);
+      pm_seek(cdd.toc.tracks[cdd.index].fd, lba * cdd.sectorSize, SEEK_SET);
     }
   }
 #ifdef USE_LIBTREMOR
@@ -318,7 +321,7 @@ int cdd_load(const char *filename, int type)
     cdd.sectorSize = 2048;
   }
 
-  ret = (type == CT_BIN) ? 2352 : 2048;
+  ret = (type == CT_ISO ? 2048 : 2352);
   if (ret != cdd.sectorSize)
     elprintf(EL_STATUS|EL_ANOMALY, "cd: type detection mismatch");
   pm_sectorsize(cdd.sectorSize, cdd.toc.tracks[0].fd);
@@ -507,17 +510,17 @@ int cdd_unload(void)
 void cdd_read_data(uint8 *dst)
 {
   /* only read DATA track sectors */
-  if ((cdd.lba >= 0) && (cdd.lba < cdd.toc.tracks[0].end))
+  if ((cdd.lba >= 0) && (cdd.lba < cdd.toc.tracks[cdd.index].end))
   {
     /* BIN format ? */
     if (cdd.sectorSize == 2352)
     {
       /* skip 16-byte header */
-      pm_seek(cdd.toc.tracks[0].fd, cdd.lba * 2352 + 16, SEEK_SET);
+      pm_seek(cdd.toc.tracks[cdd.index].fd, cdd.lba * 2352 + 16, SEEK_SET);
     }
 
     /* read sector data (Mode 1 = 2048 bytes) */
-    pm_read(dst, 2048, cdd.toc.tracks[0].fd);
+    pm_read(dst, 2048, cdd.toc.tracks[cdd.index].fd);
   }
 }
 
@@ -698,7 +701,7 @@ void cdd_update(void)
   if (cdd.status == CD_PLAY)
   {
     /* track type */
-    if (!cdd.index)
+    if (!is_audio(cdd.index))
     {
       /* DATA sector header (CD-ROM Mode 1) */
       uint8 header[4];
@@ -846,13 +849,13 @@ void cdd_update(void)
     }
 
     /* seek to current block */
-    if (!cdd.index)
+    if (!is_audio(cdd.index))
     {
       /* no AUDIO track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* DATA track */
-      pm_seek(cdd.toc.tracks[0].fd, cdd.lba * cdd.sectorSize, SEEK_SET);
+      pm_seek(cdd.toc.tracks[cdd.index].fd, cdd.lba * cdd.sectorSize, SEEK_SET);
     }
 #ifdef USE_LIBTREMOR
     else if (cdd.toc.tracks[cdd.index].vf.seekable)
@@ -914,7 +917,7 @@ void cdd_process(void)
 	  set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
 	  set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
 	  set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04;
+          Pico_mcd->s68k_regs[0x40+0] = is_audio(cdd.index) ? 0x00 : 0x04;
         } else if (Pico_mcd->s68k_regs[0x38+1] == 0x02) {
           /* then return valid track infos, e.g current track number in RS2-RS3 (fixes Lunar - The Silver Star) */
           Pico_mcd->s68k_regs[0x38+1] = 0x02;
@@ -957,7 +960,7 @@ void cdd_process(void)
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
+          Pico_mcd->s68k_regs[0x40+0] = is_audio(cdd.index) ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
           break;
         }
 
@@ -969,7 +972,7 @@ void cdd_process(void)
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
+          Pico_mcd->s68k_regs[0x40+0] = is_audio(cdd.index) ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
           break;
         }
 
@@ -1113,10 +1116,10 @@ void cdd_process(void)
       }
       
       /* seek to current block */
-      if (!index)
+      if (!is_audio(cdd.index))
       {
         /* DATA track */
-        pm_seek(cdd.toc.tracks[0].fd, lba * cdd.sectorSize, SEEK_SET);
+        pm_seek(cdd.toc.tracks[cdd.index].fd, lba * cdd.sectorSize, SEEK_SET);
       }
 #ifdef USE_LIBTREMOR
       else if (cdd.toc.tracks[index].vf.seekable)
@@ -1212,10 +1215,10 @@ void cdd_process(void)
       }
       
       /* seek to current block */
-      if (!index)
+      if (!is_audio(cdd.index))
       {
         /* DATA track */
-        pm_seek(cdd.toc.tracks[0].fd, lba * cdd.sectorSize, SEEK_SET);
+        pm_seek(cdd.toc.tracks[cdd.index].fd, lba * cdd.sectorSize, SEEK_SET);
       }
 #ifdef USE_LIBTREMOR
       else if (cdd.toc.tracks[index].vf.seekable)

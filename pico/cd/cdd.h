@@ -60,6 +60,7 @@
 /* CD track */
 typedef struct
 {
+  int type;
   char *fname;
   void *fd;
 #ifdef USE_LIBTREMOR

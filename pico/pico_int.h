@@ -566,9 +566,6 @@ typedef struct
   char pcm_regs_dirty;
 } mcd_state;
 
-// XXX: this will need to be reworked for cart+cd support.
-#define Pico_mcd ((mcd_state *)Pico.rom)
-
 // 32X
 #define P32XS_FM    (1<<15)
 #define P32XS_nCART (1<< 8)
@@ -773,6 +770,7 @@ int gfx_context_load(const unsigned char *state);
 void DmaSlowCell(u32 source, u32 a, int len, unsigned char inc);
 
 // cd/memory.c
+extern unsigned int pcd_base_address;
 PICO_INTERNAL void PicoMemSetupCD(void);
 u32 PicoRead8_mcd_io(u32 a);
 u32 PicoRead16_mcd_io(u32 a);
@@ -797,6 +795,8 @@ PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 #define PCDS_IEN5     (1<<5)
 #define PCDS_IEN6     (1<<6)
 
+extern mcd_state *Pico_mcd;
+
 PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
@@ -811,6 +811,7 @@ enum pcd_event {
   PCD_EVENT_COUNT,
 };
 extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
+
 void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
 void pcd_prepare_frame(void);

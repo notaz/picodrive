@@ -704,7 +704,6 @@ void cdc_reg_w(unsigned char data)
 
     case 0x0f:  /* RESET */
       cdc_reset();
-      Pico_mcd->s68k_regs[0x04+1] = 0x10;
       break;
 
     default:  /* by default, SBOUT is not used */
@@ -715,7 +714,7 @@ void cdc_reg_w(unsigned char data)
 
 unsigned char cdc_reg_r(void)
 {
-  switch (Pico_mcd->s68k_regs[0x04+1] & 0x01F)
+  switch (Pico_mcd->s68k_regs[0x04+1] & 0x1F)
   {
     case 0x00:
       return 0xff;
@@ -835,7 +834,9 @@ unsigned short cdc_host_r(void)
 
       /* clear DSR bit & set EDT bit (SCD register $04) */
       Pico_mcd->s68k_regs[0x04+0] = (Pico_mcd->s68k_regs[0x04+0] & 0x07) | 0x80;
-    } else if ((int16)cdc.dbc <= 2) {
+
+    } else if ((int16)cdc.dbc <= 2)
+    {
       if (cdc.ifstat & BIT_DTEI) {
         /* pending Data Transfer End interrupt */
         cdc.ifstat &= ~BIT_DTEI;

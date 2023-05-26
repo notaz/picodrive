@@ -16,6 +16,7 @@ static unsigned int mcd_s68k_cycle_mult;
 static unsigned int mcd_m68k_cycle_base;
 static unsigned int mcd_s68k_cycle_base;
 
+mcd_state *Pico_mcd;
 
 PICO_INTERNAL void PicoInitMCD(void)
 {
@@ -25,6 +26,10 @@ PICO_INTERNAL void PicoInitMCD(void)
 PICO_INTERNAL void PicoExitMCD(void)
 {
   cdd_unload();
+  if (Pico_mcd) {
+    plat_munmap(Pico_mcd, sizeof(mcd_state));
+    Pico_mcd = NULL;
+  }
 }
 
 PICO_INTERNAL void PicoPowerMCD(void)
@@ -52,7 +57,8 @@ PICO_INTERNAL void PicoPowerMCD(void)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
-  memset(Pico_mcd->bios + 0x70, 0xff, 4);
+  if (Pico.romsize <= 0x20000)
+    memset(Pico.rom + 0x70, 0xff, 4);
 }
 
 void pcd_soft_reset(void)

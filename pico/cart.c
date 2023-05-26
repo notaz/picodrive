@@ -726,11 +726,6 @@ static unsigned char *PicoCartAlloc(int filesize, int is_sms)
       rom_alloc_size = 0x10000;
   }
   else {
-    // make alloc size at least sizeof(mcd_state),
-    // in case we want to switch to CD mode
-    if (filesize < sizeof(mcd_state))
-      filesize = sizeof(mcd_state);
-
     // align to 512K for memhandlers
     rom_alloc_size = (filesize + 0x7ffff) & ~0x7ffff;
   }

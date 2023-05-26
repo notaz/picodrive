@@ -278,7 +278,7 @@ static int state_save(void *file)
     SekPackCpu(buff, 1);
     if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
       wram_1M_to_2M(Pico_mcd->word_ram2M);
-    memcpy(&Pico_mcd->m.hint_vector, Pico_mcd->bios + 0x72,
+    memcpy(&Pico_mcd->m.hint_vector, Pico.rom + 0x72,
       sizeof(Pico_mcd->m.hint_vector));
 
     CHECKED_WRITE_BUFF(CHUNK_S68K,     buff);
