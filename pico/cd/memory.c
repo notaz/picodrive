@@ -95,6 +95,14 @@ void m68k_comm_check(u32 a)
   }
 }
 
+u32 pcd_stopwatch_read(int sub)
+{
+  // ugh..
+  u32 d = sub ? SekCyclesDoneS68k() : pcd_cycles_m68k_to_s68k(SekCyclesDone());
+  d = (d - Pico_mcd->m.stopwatch_base_c) / 384;
+  return d & 0x0fff;
+}
+
 #ifndef _ASM_CD_MEMORY_C
 static u32 m68k_reg_read16(u32 a)
 {
@@ -121,14 +129,11 @@ static u32 m68k_reg_read16(u32 a)
     case 8:
       d = cdc_host_r();
       goto end;
-    case 0xA:
+    case 0xa:
       elprintf(EL_UIO, "m68k FIXME: reserved read");
       goto end;
-    case 0xC: // 384 cycle stopwatch timer
-      // ugh..
-      d = pcd_cycles_m68k_to_s68k(SekCyclesDone());
-      d = (d - Pico_mcd->m.stopwatch_base_c) / 384;
-      d &= 0x0fff;
+    case 0xc: // 384 cycle stopwatch timer
+      d = pcd_stopwatch_read(0);
       elprintf(EL_CDREGS, "m68k stopwatch timer read (%04x)", d);
       goto end;
   }
@@ -331,10 +336,8 @@ u32 s68k_reg_read16(u32 a)
     case 8:
       d = cdc_host_r();
       goto end;
-    case 0xC:
-      d = SekCyclesDoneS68k() - Pico_mcd->m.stopwatch_base_c;
-      d /= 384;
-      d &= 0x0fff;
+    case 0xc:
+      d = pcd_stopwatch_read(1);
       elprintf(EL_CDREGS, "s68k stopwatch timer read (%04x)", d);
       goto end;
     case 0x30:

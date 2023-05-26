@@ -195,6 +195,8 @@ m_m68k_read8_r06:
     ldrb    r0, [r1, #0x73]           @ IRQ vector
     bx      lr
 m_m68k_read8_r07:
+    PIC_LDR(r1, r2, Pico)
+    ldr     r1, [r1, #OFS_Pico_rom]
     ldrb    r0, [r1, #0x72]
     bx      lr
 m_m68k_read8_r08:
@@ -206,17 +208,13 @@ m_m68k_read8_r09:
     mov     r0, #0
     b       cdc_host_r
 m_m68k_read8_r0c:
-    add     r1, r1, #0x110000
-    add     r1, r1, #0x002200
-    ldr     r0, [r1, #0x14]           @ Pico_mcd->m.timer_stopwatch
-    mov     r0, r0, lsr #24
+    mov     r1, #0
+    bl      pcd_stopwatch_read
+    mov     r0, r0, lsr #8
     bx      lr
 m_m68k_read8_r0d:
-    add     r1, r1, #0x110000
-    add     r1, r1, #0x002200
-    ldr     r0, [r1, #0x14]
-    mov     r0, r0, lsr #16
-    bx      lr
+    mov     r1, #0
+    b       pcd_stopwatch_read
 m_m68k_read8_hi:
     cmp     r0, #0x30
     add     r1, r1, #0x110000
@@ -258,7 +256,7 @@ PicoRead16_mcd_io:
 m_m68k_read16_m68k_regs:
     PIC_LDR(r1, r2, Pico_mcd)
     and     r0, r0, #0x3e
-    ldr     r1, [r1,                  @ Pico.mcd
+    ldr     r1, [r1]                  @ Pico.mcd
     cmp     r0, #0x0e
     PIC_XB(lt ,r0, lsl #1)
     b       m_m68k_read16_hi
@@ -293,17 +291,16 @@ m_m68k_read16_r04:
     mov     r0, r0, lsl #8
     bx      lr
 m_m68k_read16_r06:
+    PIC_LDR(r1, r2, Pico)
+    ldr     r1, [r1, #OFS_Pico_rom]
     ldrh    r0, [r1, #0x72]           @ IRQ vector
     bx      lr
 m_m68k_read16_r08:
     mov     r0, #0
     b       cdc_host_r
 m_m68k_read16_r0c:
-    add     r1, r1, #0x110000
-    add     r1, r1, #0x002200
-    ldr     r0, [r1, #0x14]
-    mov     r0, r0, lsr #16
-    bx      lr
+    mov     r1, #0
+    b       pcd_stopwatch_read
 m_m68k_read16_hi:
     cmp     r0, #0x30
     add     r1, r1, #0x110000
