@@ -1274,6 +1274,22 @@ static const char *find_bios(int *region, const char *cd_fname)
    int i, count;
    FILE *f = NULL;
 
+   // look for MSU.MD rom file. XXX another extension list? ugh...
+   static const char *md_exts[] = { "gen", "smd", "md", "32x" };
+   char *ext = strrchr(cd_fname, '.');
+   int extpos = ext ? ext-cd_fname : strlen(cd_fname);
+   strcpy(path, cd_fname);
+   path[extpos++] = '.';
+   for (i = 0; i < ARRAY_SIZE(md_exts); i++) {
+      strcpy(path+extpos, md_exts[i]);
+      f = fopen(path, "rb");
+      if (f != NULL) {
+         log_cb(RETRO_LOG_INFO, "found MSU rom: %s\n", path);
+	 fclose(f);
+         return path;
+      }
+   }
+
    if (*region == 4) { // US
       files = biosfiles_us;
       count = sizeof(biosfiles_us) / sizeof(char *);
