@@ -351,10 +351,8 @@ static u32 p32x_reg_read16(u32 a)
     if (CYCLES_GT(cycles - msh2.m68krcycles_done, 244))
       p32x_sync_sh2s(cycles);
 
-    if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
+    if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL))
       SekSetStop(1);
-      SekEndRun(16);
-    }
     return sh2_poll_read(a, Pico32x.regs[a / 2], cycles, NULL);
   }
 #endif
@@ -2203,6 +2201,9 @@ static void get_bios(void)
 
     // startup code
     memcpy(&Pico32xMem->sh2_rom_m.b[0x200], msh2_code, sizeof(msh2_code));
+    if (!Pico.m.ncart_in && (PicoIn.AHW & PAHW_MCD))
+      // hack for MSU games (adjust delay loop for copying the MSU code to sub)
+      Pico32xMem->sh2_rom_m.w[0x224/2] = 0x0090;
   }
 
   // SSH2

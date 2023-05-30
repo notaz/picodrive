@@ -137,10 +137,9 @@ void p32x_reset_sh2s(void)
   if (p32x_bios_m == NULL) {
     sh2_set_gbr(0, 0x20004000);
 
-    if (!(PicoIn.AHW & PAHW_MCD)) {
+    if (!Pico.m.ncart_in) { // copy IDL from cartridge
       unsigned int idl_src, idl_dst, idl_size; // initial data load
       unsigned int vbr;
-
       // initial data
       idl_src = CPU_BE2(*(u32 *)(Pico.rom + 0x3d4)) & ~0xf0000000;
       idl_dst = CPU_BE2(*(u32 *)(Pico.rom + 0x3d8)) & ~0xf0000000;
