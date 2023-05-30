@@ -165,9 +165,13 @@ PicoRead8_mcd_io:
     PIC_BT(m_m68k_read8_r0d)
 m_m68k_read8_r00:
     add     r1, r1, #0x110000
-    ldr     r0, [r1, #0x30]
+    ldr     r0, [r1, #0x30]           @ Pico_mcd->s68k_regs
+    add     r1, r1, #0x002200
+    ldr     r1, [r1, #4]              @ Pico_mcd->m.state_flags
     and     r0, r0, #0x04000000       @ we need irq2 mask state
     mov     r0, r0, lsr #19
+    and     r1, r1, #0x00000100       @ irq2 pending
+    orr     r0, r0, r1, lsr #8
     bx      lr
 m_m68k_read8_r01:
     add     r1, r1, #0x110000
@@ -271,9 +275,12 @@ m_m68k_read16_r00:
     add     r1, r1, #0x110000
     ldr     r0, [r1, #0x30]
     add     r1, r1, #0x002200
-    ldrb    r1, [r1, #2]              @ Pico_mcd->m.busreq
+    ldrb    r2, [r1, #2]              @ Pico_mcd->m.busreq
+    ldr     r1, [r1, #4]
     and     r0, r0, #0x04000000       @ we need irq2 mask state
-    orr     r0, r1, r0, lsr #11
+    orr     r0, r2, r0, lsr #11
+    and     r1, r1, #0x00000100       @ irq2 pending
+    orr     r0, r1, r0
     bx      lr
 m_m68k_read16_r02:
     add     r1, r1, #0x110000

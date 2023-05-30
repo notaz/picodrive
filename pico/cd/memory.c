@@ -665,24 +665,44 @@ static void PicoWriteM68k16_cell1(u32 a, u32 d)
 }
 #endif
 
+// BIOS faking for MSU-MD, checks for "SEGA" at 0x400100 to detect CD drive
+static u8 bios_id[4] = "SEGA";
+
+static u32 PicoReadM68k8_bios(u32 a)
+{
+  if ((a & 0xfffffc) == BASE+0x100) // CD detection by MSU
+    return bios_id[a&3];
+  return 0;
+}
+
+static u32 PicoReadM68k16_bios(u32 a)
+{
+  if ((a & 0xfffffc) == BASE+0x100) // CD detection by MSU
+    return (bios_id[a&2]<<8) | bios_id[(a&2)+1];
+  return 0;
+}
+
 // RAM cart (400000 - 7fffff, optional)
 static u32 PicoReadM68k8_ramc(u32 a)
 {
   u32 d = 0;
-  if ((a & 0xf00001) == 0x400001) {
-    if (Pico.sv.data != NULL)
-      d = 3; // 64k cart
-    return d;
-  }
 
-  if ((a & 0xf00001) == 0x600001) {
-    if (Pico.sv.data != NULL)
-      d = Pico.sv.data[((a >> 1) & 0xffff) + 0x2000];
-    return d;
-  }
+  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+    if ((a & 0xf00001) == 0x400001) {
+      if (Pico.sv.data != NULL)
+        d = 3; // 64k cart
+      return d;
+    }
 
-  if ((a & 0xf00001) == 0x700001)
-    return Pico_mcd->m.bcram_reg;
+    if ((a & 0xf00001) == 0x600001) {
+      if (Pico.sv.data != NULL)
+        d = Pico.sv.data[((a >> 1) & 0xffff) + 0x2000];
+      return d;
+    }
+
+    if ((a & 0xf00001) == 0x700001)
+      return Pico_mcd->m.bcram_reg;
+  }
 
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
   return d;
@@ -690,25 +710,25 @@ static u32 PicoReadM68k8_ramc(u32 a)
 
 static u32 PicoReadM68k16_ramc(u32 a)
 {
-  elprintf(EL_ANOMALY, "ramcart r16: [%06x] @%06x", a, SekPcS68k);
-  if ((a & 0xfffffc) == BASE+0x100) // CD detection by MSU
-    return (~a & 2) ? 0x5345 : 0x4741; // "SEGA"
+  elprintf(EL_ANOMALY, "ramcart r16: [%06x] @%06x", a, SekPc);
   return PicoReadM68k8_ramc(a + 1);
 }
 
 static void PicoWriteM68k8_ramc(u32 a, u32 d)
 {
-  if ((a & 0xf00001) == 0x600001) {
-    if (Pico.sv.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
-      Pico.sv.data[((a >> 1) & 0xffff) + 0x2000] = d;
-      Pico.sv.changed = 1;
+  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+    if ((a & 0xf00001) == 0x600001) {
+      if (Pico.sv.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
+        Pico.sv.data[((a >> 1) & 0xffff) + 0x2000] = d;
+        Pico.sv.changed = 1;
+      }
+      return;
     }
-    return;
-  }
 
-  if ((a & 0xf00001) == 0x700001) {
-    Pico_mcd->m.bcram_reg = d;
-    return;
+    if ((a & 0xf00001) == 0x700001) {
+      Pico_mcd->m.bcram_reg = d;
+      return;
+    }
   }
 
   elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x",
@@ -1210,9 +1230,13 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   // setup default main68k map
   PicoMemSetup();
 
-  // main68k map (BIOS mapped by PicoMemSetup()):
+  // main68k map (BIOS or MSU mapped by PicoMemSetup()):
+  if (Pico.romsize > 0x20000) {
+    // MSU cartridge. Fake BIOS detection
+    cpu68k_map_set(m68k_read8_map,   0x400000, 0x41ffff, PicoReadM68k8_bios, 1);
+    cpu68k_map_set(m68k_read16_map,  0x400000, 0x41ffff, PicoReadM68k16_bios, 1);
   // RAM cart
-  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+  } else {
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x7fffff, PicoReadM68k8_ramc, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x7fffff, PicoReadM68k16_ramc, 1);
     cpu68k_map_set(m68k_write8_map,  0x400000, 0x7fffff, PicoWriteM68k8_ramc, 1);
