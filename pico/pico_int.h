@@ -770,7 +770,7 @@ int gfx_context_load(const unsigned char *state);
 void DmaSlowCell(u32 source, u32 a, int len, unsigned char inc);
 
 // cd/memory.c
-extern unsigned int pcd_base_address;
+extern u32 pcd_base_address;
 PICO_INTERNAL void PicoMemSetupCD(void);
 u32 PicoRead8_mcd_io(u32 a);
 u32 PicoRead16_mcd_io(u32 a);
