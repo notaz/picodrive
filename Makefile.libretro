@@ -40,7 +40,7 @@ STATIC_LINKING_LINK:= 0
 LOW_MEMORY := 0
 TARGET_NAME := picodrive
 LIBM := -lm
-REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
+GIT_REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
 
 
 fpic :=

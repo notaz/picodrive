@@ -74,9 +74,9 @@ endif
 
 # revision info from repository if this not a tagged release
 ifeq "$(shell git describe --tags --exact-match HEAD 2>/dev/null)" ""
-REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
+GIT_REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
 endif
-CFLAGS += -DREVISION=\"$(REVISION)\"
+CFLAGS += -DREVISION=\"$(GIT_REVISION)\"
 
 # default settings
 use_libchdr ?= 1
