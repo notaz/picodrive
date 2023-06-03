@@ -395,7 +395,7 @@ out:
   if (rom_file)
     pm_close(rom_file);
   if (rom_data)
-    free(rom_data);
+    PicoCartUnload();
   return media_type;
 }
 
