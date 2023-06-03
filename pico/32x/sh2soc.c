@@ -76,7 +76,7 @@ static void dmac_transfer_complete(SH2 *sh2, struct dma_chan *chan)
 {
   chan->chcr |= DMA_TE; // DMA has ended normally
 
-  p32x_sh2_poll_event(sh2, SH2_STATE_SLEEP, SekCyclesDone());
+  p32x_sh2_poll_event(sh2->poll_addr, sh2, SH2_STATE_SLEEP, SekCyclesDone());
   if (chan->chcr & DMA_IE)
     dmac_te_irq(sh2, chan);
 }
@@ -390,7 +390,7 @@ void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
     break;
   default:
     if ((a & 0x1c0) == 0x140)
-      p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
+      p32x_sh2_poll_event(a, sh2, SH2_STATE_CPOLL, SekCyclesDone());
   }
   DRC_RESTORE_SR(sh2);
 }
@@ -416,7 +416,7 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
   } else {
     r[MEM_BE2(a / 2)] = d;
     if ((a & 0x1c0) == 0x140)
-      p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
+      p32x_sh2_poll_event(a, sh2, SH2_STATE_CPOLL, SekCyclesDone());
   }
   DRC_RESTORE_SR(sh2);
 }
@@ -484,7 +484,7 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
       break;
     default:
       if ((a & 0x1c0) == 0x140)
-        p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
+        p32x_sh2_poll_event(a, sh2, SH2_STATE_CPOLL, SekCyclesDone());
   }
 
   DRC_RESTORE_SR(sh2);
