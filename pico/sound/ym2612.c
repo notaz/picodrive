@@ -140,7 +140,7 @@ void memset32(void *dest, int c, int count);
 #endif
 
 #ifndef INLINE
-#define INLINE static __inline
+#define INLINE __inline
 #endif
 
 #ifndef M_PI
@@ -525,7 +525,7 @@ static int g_lfo_ampm;
 
 
 /* OPN Mode Register Write */
-INLINE void set_timers( int v )
+static INLINE void set_timers( int v )
 {
 	/* b7 = CSM MODE */
 	/* b6 = 3 slot mode */
@@ -546,7 +546,7 @@ INLINE void set_timers( int v )
 		ym2612.OPN.ST.status &= ~1;
 }
 
-INLINE void recalc_volout(FM_SLOT *SLOT)
+static INLINE void recalc_volout(FM_SLOT *SLOT)
 {
 	INT16 vol_out = SLOT->volume;
 	if ((SLOT->ssg&0x0c) == 0x0c)
@@ -554,7 +554,7 @@ INLINE void recalc_volout(FM_SLOT *SLOT)
 	SLOT->vol_out = vol_out + SLOT->tl;
 }
 
-INLINE void FM_KEYON(int c , int s )
+static INLINE void FM_KEYON(int c , int s )
 {
 	FM_SLOT *SLOT = &ym2612.CH[c].SLOT[s];
 	if( !SLOT->key )
@@ -574,7 +574,7 @@ INLINE void FM_KEYON(int c , int s )
 	}
 }
 
-INLINE void FM_KEYOFF(int c , int s )
+static INLINE void FM_KEYOFF(int c , int s )
 {
 	FM_SLOT *SLOT = &ym2612.CH[c].SLOT[s];
 	if( SLOT->key )
@@ -597,7 +597,7 @@ INLINE void FM_KEYOFF(int c , int s )
 
 
 /* set detune & multiple */
-INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
+static INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 {
 	SLOT->mul = (v&0x0f)? (v&0x0f)*2 : 1;
 	SLOT->DT  = ym2612.OPN.ST.dt_tab[(v>>4)&7];
@@ -605,7 +605,7 @@ INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 }
 
 /* set total level */
-INLINE void set_tl(FM_SLOT *SLOT, int v)
+static INLINE void set_tl(FM_SLOT *SLOT, int v)
 {
 	SLOT->tl = (v&0x7f)<<(ENV_BITS-7); /* 7bit TL */
 	if (SLOT->state > EG_REL)
@@ -613,7 +613,7 @@ INLINE void set_tl(FM_SLOT *SLOT, int v)
 }
 
 /* set attack rate & key scale  */
-INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
+static INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 {
 	UINT8 old_KSR = SLOT->KSR;
 	int eg_sh_ar, eg_sel_ar;
@@ -643,7 +643,7 @@ INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 }
 
 /* set decay rate */
-INLINE void set_dr(FM_SLOT *SLOT, int v)
+static INLINE void set_dr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_d1r, eg_sel_d1r;
 
@@ -656,7 +656,7 @@ INLINE void set_dr(FM_SLOT *SLOT, int v)
 }
 
 /* set sustain rate */
-INLINE void set_sr(FM_SLOT *SLOT, int v)
+static INLINE void set_sr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_d2r, eg_sel_d2r;
 
@@ -669,7 +669,7 @@ INLINE void set_sr(FM_SLOT *SLOT, int v)
 }
 
 /* set release rate */
-INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
+static INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_rr, eg_sel_rr;
 
@@ -688,7 +688,7 @@ INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 
 
 
-INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
+static INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
 {
 	int ret, sin = (phase>>16) + (pm>>1);
 	int neg = sin & 0x200;
@@ -705,7 +705,7 @@ INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
 	return neg ? -ret : ret;
 }
 
-INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
+static INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
 {
 	int ret, sin = (phase+pm)>>16;
 	int neg = sin & 0x200;
@@ -723,7 +723,7 @@ INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
 
 #if !defined(_ASM_YM2612_C) || defined(EXTERNAL_YM2612)
 /* advance LFO to next sample */
-INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
+static INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 {
 	UINT8 pos;
 	UINT8 prev_pos;
@@ -761,7 +761,7 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 	return lfo_ampm;
 }
 
-INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt, UINT32 ssg_en)
+static INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt, UINT32 ssg_en)
 {
 	INT32 volume = SLOT->volume;
 	UINT32 pack = SLOT->eg_pack[SLOT->state - 1];
@@ -854,7 +854,7 @@ INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt, UINT32 ssg_en)
 	SLOT->volume = volume;
 }
 
-INLINE UINT32 update_ssg_eg_phase(FM_SLOT *SLOT, UINT32 phase)
+static INLINE UINT32 update_ssg_eg_phase(FM_SLOT *SLOT, UINT32 phase)
 {
 	if (SLOT->ssg&0x01) {
 		if (SLOT->ssg&0x02) {
@@ -1338,7 +1338,7 @@ static int chan_render(s32 *buffer, int length, int c, UINT32 flags) // flags: s
 }
 
 /* update phase increment and envelope generator */
-INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
+static INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 {
 	int ksr, fdt;
 
@@ -1388,7 +1388,7 @@ INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 }
 
 /* update phase increment counters */
-INLINE void refresh_fc_eg_chan(FM_CH *CH)
+static INLINE void refresh_fc_eg_chan(FM_CH *CH)
 {
 	if( CH->SLOT[SLOT1].Incr==-1){
 		int fc = CH->fc;
@@ -1400,7 +1400,7 @@ INLINE void refresh_fc_eg_chan(FM_CH *CH)
 	}
 }
 
-INLINE void refresh_fc_eg_chan_sl3(void)
+static INLINE void refresh_fc_eg_chan_sl3(void)
 {
 	if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
 	{

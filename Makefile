@@ -74,7 +74,7 @@ endif
 
 # revision info from repository if this not a tagged release
 ifeq "$(shell git describe --tags --exact-match HEAD 2>/dev/null)" ""
-GIT_REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
+GIT_REVISION ?= -$(shell git rev-parse --short HEAD || echo unknown)
 endif
 CFLAGS += -DREVISION=\"$(GIT_REVISION)\"
 
