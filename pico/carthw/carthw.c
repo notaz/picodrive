@@ -133,7 +133,7 @@ static carthw_state_chunk carthw_Xin1_state[] =
 	{ 0,            0,                         NULL }
 };
 
-// TODO: test a0, reads, w16
+// TODO: reads should also work, but then we need to handle open bus
 static void carthw_Xin1_write8(u32 a, u32 d)
 {
 	if ((a & 0xffff00) != 0xa13000) {
@@ -141,12 +141,23 @@ static void carthw_Xin1_write8(u32 a, u32 d)
 		return;
 	}
 
-	carthw_Xin1_do(a, 0x3f, 16);
+	carthw_Xin1_do(a, 0x3e, 16);
+}
+
+static void carthw_Xin1_write16(u32 a, u32 d)
+{
+  if ((a & 0xffff00) != 0xa13000) {
+    PicoWrite16_io(a, d);
+    return;
+  }
+
+  carthw_Xin1_write8(a + 1, d);
 }
 
 static void carthw_Xin1_mem_setup(void)
 {
-	cpu68k_map_set(m68k_write8_map, 0xa10000, 0xa1ffff, carthw_Xin1_write8, 1);
+	cpu68k_map_set(m68k_write8_map,  0xa10000, 0xa1ffff, carthw_Xin1_write8, 1);
+	cpu68k_map_set(m68k_write16_map, 0xa10000, 0xa1ffff, carthw_Xin1_write16, 1);
 }
 
 static void carthw_Xin1_reset(void)
