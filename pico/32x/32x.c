@@ -120,6 +120,7 @@ void Pico32xStartup(void)
 
   rendstatus_old = -1;
 
+  Pico32xPrepare();
   emu_32x_startup();
 }
 
@@ -580,10 +581,6 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 
 void PicoFrame32x(void)
 {
-  // XXX this is somehow misplaced here
-  sh2_execute_prepare(&msh2, PicoIn.opt & POPT_EN_DRC);
-  sh2_execute_prepare(&ssh2, PicoIn.opt & POPT_EN_DRC);
-
   if (PicoIn.AHW & PAHW_MCD)
     pcd_prepare_frame();
 
@@ -625,6 +622,12 @@ void Pico32xStateLoaded(int is_early)
   p32x_timers_recalc();
   p32x_pwm_state_loaded();
   p32x_run_events(SekCyclesDone());
+}
+
+void Pico32xPrepare(void)
+{
+  sh2_execute_prepare(&msh2, PicoIn.opt & POPT_EN_DRC);
+  sh2_execute_prepare(&ssh2, PicoIn.opt & POPT_EN_DRC);
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
