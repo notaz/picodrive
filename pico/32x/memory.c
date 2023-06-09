@@ -59,7 +59,7 @@ static void (*m68k_write16_io)(u32 a, u32 d);
 #define REG8IN16(ptr, offs) ((u8 *)ptr)[MEM_BE2(offs)]
 
 // poll detection
-#define POLL_THRESHOLD 9  // Primal Rage
+#define POLL_THRESHOLD 11  // Primal Rage speed, Blackthorne intro
 
 static struct {
   u32 addr1, addr2, cycles;
