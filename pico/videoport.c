@@ -17,7 +17,8 @@ enum { clkdiv = 2 };    // CPU clock granularity: one of 1,2,4,8
 
 // VDP Slot timing, taken from http://gendev.spritesmind.net/
 //     forum/viewtopic.php?f=22&t=851&sid=d5701a71396ee7f700c74fb7cd85cb09
-// Thank you very much for the great work, Nemesis!
+//     http://plutiedev.com/mirror/kabuto-hardware-notes
+// Thank you very much for the great work, Nemesis, Kabuto!
 
 // Slot clock is sysclock/20 for h32 and sysclock/16 for h40.
 // One scanline is 63.7us/63.5us (h32/h40) long which is 488.6/487.4 68k cycles.
@@ -30,13 +31,15 @@ enum { slcpu = 488 };
 // is generated also depends on the video mode.
 enum { hint32 = 0x85, gapstart32 = 0x94, gapend32 = 0xe9};
 enum { hint40 = 0xa5, gapstart40 = 0xb7, gapend40 = 0xe5};
+// XXX Kabuto says gapend40 is 0xe4, but then a line would've 211 slots, while
+// it's 210 in all other sources I looked at?
 
 // The horizontal sync period (HBLANK) is 30/37 slots (h32/h40):
 // h32: 4 slots front porch (1.49us), 13 HSYNC (4.84us), 13 back porch (4.84us)
 // h40: 5 slots front porch (1.49us), 16 HSYNC (4.77us), 16 back porch (4.77us)
-// HBLANK starts in slot 0x93/0xb4, according to Nemesis' measurements.
+// HBLANK starts in slot 0x93/0xb3 and ends after slot 0x05 (from Kabuto's doc)
 enum { hboff32 = 0x93-hint32, hblen32 = 0xf8-(gapend32-gapstart32)-hint32};//30
-enum { hboff40 = 0xb4-hint40, hblen40 = 0xf8-(gapend40-gapstart40)-hint40};//37
+enum { hboff40 = 0xb3-hint40, hblen40 = 0xf8-(gapend40-gapstart40)-hint40};//37
 
 // number of slots in a scanline
 #define slots32	(0x100-(gapend32-gapstart32)) // 171
@@ -1030,7 +1033,8 @@ static u32 VideoSr(const struct PicoVideo *pv)
 {
   unsigned int hp = pv->reg[12]&1 ? hboff40*488/slots40 : hboff32*488/slots32;
   unsigned int hl = pv->reg[12]&1 ? hblen40*488/slots40 : hblen32*488/slots32;
-  unsigned int c = SekCyclesDone() - Pico.t.m68c_line_start;
+  // XXX -2 is to please notaz' testpico, but why is this?
+  unsigned int c = SekCyclesDone()-2 - Pico.t.m68c_line_start;
   u32 d;
 
   PicoVideoFIFOSync(c);

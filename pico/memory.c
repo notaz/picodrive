@@ -1039,10 +1039,24 @@ static void m68k_mem_setup(void)
 static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
-    int mclk_z80 = (z80_cyclesLeft<0 ? Pico.t.z80c_aim : z80_cyclesDone()) * 15;
-    int mclk_line = Pico.t.z80_scanline * 488 * 7;
-    while (mclk_z80 - mclk_line >= 488 * 7)
-      Pico.t.z80_scanline++, mclk_line += 488 * 7;
+    // ugh... compute by dividing cycles since frame start by cycles per line
+    // need some fractional resolution here, else there may be an extra line
+    int cycles_line = cycles_68k_to_z80(488 << 8); // cycles per line, as Q8
+    int cycles_z80 = (z80_cyclesLeft<0 ? Pico.t.z80c_aim:z80_cyclesDone())<<8;
+    int cycles = cycles_line * Pico.t.z80_scanline;
+    // approximation by multiplying with inverse
+    if (cycles_z80 - cycles >= 2*cycles_line) {
+      // compute 1/cycles_line, storing the result to avoid future dividing
+      static int cycles_line_o, cycles_line_i;
+      if (cycles_line_o != cycles_line)
+        { cycles_line_o = cycles_line, cycles_line_i = (1<<22) / cycles_line; }
+      // compute lines = diff/cycles_line = diff*(1/cycles_line)
+      int lines = ((cycles_z80 - cycles) * cycles_line_i) >> 22;
+      Pico.t.z80_scanline += lines, cycles += cycles_line * lines;
+    }
+    // handle any rounding leftover
+    while (cycles_z80 - cycles >= cycles_line)
+      Pico.t.z80_scanline ++, cycles += cycles_line;
     return Pico.t.z80_scanline;
   }
 
@@ -1342,7 +1356,8 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
   if ((a & 0xff00) == 0x7f00) {
-    z80_subCLeft(3);
+    static int f; f = (f&0xff) + 0x8c; // 0.6
+    z80_subCLeft(2+(f>>8)); // 3.3 per kabuto, but notaz' test implies 2.6 ?!?
     Pico.t.z80_buscycles += 7;
 
     switch (a & 0x0d)
@@ -1368,9 +1383,10 @@ static unsigned char z80_md_bank_read(unsigned short a)
   unsigned char ret;
 
   // account for 68K bus access on both CPUs.
+  static int f; f = (f&0xff) + 0x4c; // 0.3
+  z80_subCLeft(3+(f>>8)); // 3.3 per kabuto
   // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
-  z80_subCLeft(3);
   Pico.t.z80_buscycles += 7;
 
   addr68k = Pico.m.z80_bank68k << 15;
@@ -1413,9 +1429,10 @@ static void z80_md_bank_write(unsigned int a, unsigned char data)
   unsigned int addr68k;
 
   // account for 68K bus access on both CPUs.
+  static int f; f = (f&0xff) + 0x4c; // 0.3
+  z80_subCLeft(3+(f>>8)); // 3.3 per kabuto
   // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68K CPU runs
-  z80_subCLeft(3);
   Pico.t.z80_buscycles += 7;
 
   addr68k = Pico.m.z80_bank68k << 15;

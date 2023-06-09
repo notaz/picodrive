@@ -205,7 +205,7 @@ extern struct DrZ80 drZ80;
   (Pico.t.z80c_aim - z80_cyclesLeft)
 
 // one line has 488 68K cycles and 228 Z80 cycles, 228/488*8192=3827
-#define cycles_68k_to_z80(x) ((x) * 3857 >> 13)
+#define cycles_68k_to_z80(x) ((x) * 3847 >> 13)
 
 // ----------------------- SH2 CPU -----------------------
 
