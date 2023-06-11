@@ -1915,20 +1915,20 @@ PICO_INTERNAL void PicoFrameStart(void)
   // prepare to do this frame
   est->rendstatus = 0;
 
-  if ((PicoIn.AHW & PAHW_32X) && (*est->PicoOpt & POPT_ALT_RENDERER))
-    est->rendstatus |= PDRAW_BORDER_32; // no scaling for fastest
-  else if (PicoIn.AHW & PAHW_32X) // H32 upscaling, before mixing in 32X layer
-    est->rendstatus |= PDRAW_32X_SCALE|PDRAW_SOFTSCALE;
-  else if (PicoIn.opt & POPT_EN_SOFTSCALE)
-    est->rendstatus |= PDRAW_SOFTSCALE;
+  if (PicoIn.AHW & PAHW_32X) // H32 upscaling, before mixing in 32X layer
+    est->rendstatus = (*est->PicoOpt & POPT_ALT_RENDERER) ?
+                PDRAW_BORDER_32 : PDRAW_32X_SCALE|PDRAW_SOFTSCALE;
   else if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
     est->rendstatus |= PDRAW_BORDER_32;
+
+  if ((PicoIn.opt & POPT_EN_SOFTSCALE) && !(*est->PicoOpt & POPT_ALT_RENDERER))
+    est->rendstatus |= PDRAW_SOFTSCALE;
 
   if ((est->Pico->video.reg[12] & 6) == 6)
     est->rendstatus |= PDRAW_INTERLACE; // interlace mode
   if (!(est->Pico->video.reg[12] & 1)) {
     est->rendstatus |= PDRAW_32_COLS;
-    if (est->rendstatus & PDRAW_BORDER_32) {
+    if (!(est->rendstatus & PDRAW_SOFTSCALE)) {
       columns = 256;
       coffs = 32;
     }
@@ -1945,7 +1945,8 @@ PICO_INTERNAL void PicoFrameStart(void)
     rendlines = lines;
     // mode_change() might reset rendstatus_old by calling SetColorFormat
     emu_video_mode_change(loffs, lines, coffs, columns);
-    rendstatus_old = est->rendstatus & (PDRAW_INTERLACE|PDRAW_32_COLS|PDRAW_30_ROWS);
+    rendstatus_old = est->rendstatus & (PDRAW_BORDER_32|PDRAW_INTERLACE|
+                PDRAW_32X_SCALE|PDRAW_SOFTSCALE|PDRAW_32_COLS|PDRAW_30_ROWS);
     // mode_change() might clear buffers, redraw needed
     est->rendstatus |= PDRAW_SYNC_NEEDED;
   }
