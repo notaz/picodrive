@@ -597,11 +597,6 @@ static void DrawDisplayFull(void)
 	}
 	est->Draw2Start = scrstart;
 
-	// 32C border for centering? (for asm)
-	est->rendstatus &= ~PDRAW_BORDER_32;
-	if ((est->rendstatus&PDRAW_32_COLS) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
-		est->rendstatus |= PDRAW_BORDER_32;
-
 	planestart = scrstart, planeend = scrend;
 	winstart = scrstart, winend = scrend;
 

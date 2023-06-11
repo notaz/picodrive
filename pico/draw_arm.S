@@ -18,7 +18,9 @@
 .equ PDRAW_WND_DIFF_PRIO, (1<<1)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
 .equ PDRAW_SHHI_DONE,     (1<<7)
+.equ PDRAW_BORDER_32,     (1<<9)
 .equ PDRAW_32X_SCALE,     (1<<12)
+.equ PDRAW_SOFTSCALE,     (1<<15)
 
 @ helpers
 .macro add_c24 d s c
@@ -1642,7 +1644,7 @@ FinalizeLine555:
     ldr     r5, [r11, #OFS_EST_PicoOpt]
     ldr     r1, [r11, #OFS_EST_HighCol]
     ldr     r0, [r11, #OFS_EST_DrawLineDest]
-    ldr     r4, [r5]
+    ldr     r4, [r11, #OFS_EST_rendstatus]
     ldr     r7, [r5, #OFS_PicoIn_AHW-OFS_PicoIn_opt]
     ldrb    r12,[r8, #OFS_Pico_video_reg+12]
     ldrb    r6, [r8, #OFS_Pico_video_reg+0]
@@ -1664,7 +1666,7 @@ FinalizeLine555:
 
 .fl_gg20col:
     mov     r2, #160/8		@ len = 160
-    tst     r4, #0x4000		@ EN_SOFTSCALE?
+    tst     r4, #PDRAW_SOFTSCALE
     bne     .fl_20scale_RGB555	@ scale 160->320
     b       .fl_checkborder
 
@@ -1675,15 +1677,15 @@ FinalizeLine555:
     mov     r2, #256/8		@ len = 256
 
 .fl_check32scaling:
-    tst     r4, #0x4000		@ EN_SOFTSCALE?
+    tst     r4, #PDRAW_SOFTSCALE
     rsbne   r7, r2, #256/8
     addne   r0, r0, r7, lsl #3	@ pd += (256-len)>>1
     bne     .fl_32scale_RGB555	@ scale 256->320
 
 .fl_checkborder:
-    tst     r4, #0x0100		@ DIS_32C_BORDER?
-    rsbeq   r7, r2, #320/8	@ pd += (320-len)/2
-    addeq   r0, r0, r7, lsl #3
+    tst     r4, #PDRAW_BORDER_32
+    rsbne   r7, r2, #320/8	@ pd += (320-len)/2
+    addne   r0, r0, r7, lsl #3
 
 .fl_40colRGB555:
 #ifdef UNALIGNED_DRAWLINEDEST
