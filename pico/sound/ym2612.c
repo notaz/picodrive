@@ -1886,6 +1886,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 	switch( a & 3 ){
 	case 0:	/* address port 0 */
 	case 2:	/* address port 1 */
+		/* reminder: this is not used, see ym2612_write_local() */
 		ym2612.OPN.ST.address = v;
 		ym2612.addr_A1 = (a & 2) >> 1;
 		ret = 0;

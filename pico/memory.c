@@ -1112,31 +1112,20 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   int addr;
 
   a &= 3;
-  if (a == 1 && ym2612.OPN.ST.address == 0x2a) /* DAC data */
-  {
-    int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
-    //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
-    if (ym2612.dacen)
-      PsndDoDAC(cycles);
-    ym2612.dacout = ((int)d - 0x80) << 6;
-    return 0;
-  }
-
   switch (a)
   {
     case 0: /* address port 0 */
+    case 2: /* address port 1 */
       ym2612.OPN.ST.address = d;
-      ym2612.addr_A1 = 0;
+      ym2612.addr_A1 = (a & 2) >> 1;
 #ifdef __GP2X__
       if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
 #endif
       return 0;
 
     case 1: /* data port 0    */
-      if (ym2612.addr_A1 != 0)
-        return 0;
-
-      addr = ym2612.OPN.ST.address;
+    case 3: /* data port 1    */
+      addr = ym2612.OPN.ST.address | ((int)ym2612.addr_A1 << 8);
       ym2612.REGS[addr] = d;
 
       switch (addr)
@@ -1201,6 +1190,14 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           }
           return 0;
         }
+        case 0x2a: { /* DAC data */
+          int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+          //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
+          if (ym2612.dacen)
+            PsndDoDAC(cycles);
+          ym2612.dacout = ((int)d - 0x80) << 6;
+          return 0;
+        }
         case 0x2b: { /* DAC Sel  (YM2612) */
           ym2612.dacen = d & 0x80;
 #ifdef __GP2X__
@@ -1209,22 +1206,6 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           return 0;
         }
       }
-      break;
-
-    case 2: /* address port 1 */
-      ym2612.OPN.ST.address = d;
-      ym2612.addr_A1 = 1;
-#ifdef __GP2X__
-      if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
-#endif
-      return 0;
-
-    case 3: /* data port 1    */
-      if (ym2612.addr_A1 != 1)
-        return 0;
-
-      addr = ym2612.OPN.ST.address | 0x100;
-      ym2612.REGS[addr] = d;
       break;
   }
 
