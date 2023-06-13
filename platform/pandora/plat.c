@@ -384,8 +384,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	g_osd_y = fb_top + fb_h - 8;
 
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
+	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 4, 0);
 	vout_fbdev_clear(layer_fb);
-	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 4);
 	plat_video_flip();
 
 	PicoDrawSetOutFormat(PDF_RGB555, 0);

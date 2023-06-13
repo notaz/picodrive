@@ -127,7 +127,7 @@ set_platform()
   pandora)
     sound_drivers="oss alsa"
     have_libavcodec="yes"
-    MFLAGS="-mcpu=cortex-a8 -mfpu=neon -mfloat-abi=hard"
+    MFLAGS="-mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp"
     ;;
   gp2x | wiz | caanoo)
     sound_drivers="oss"
