@@ -61,14 +61,15 @@ chkCCflag = $(shell n=/dev/null; echo $(1) | tr " " "\n" | while read f; do \
 
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "miyoo" "rpi1"))
 # very small caches, avoid optimization options making the binary much bigger
-CFLAGS += -fno-common -fno-stack-protector -finline-limit=42 -fno-unroll-loops -ffast-math
+CFLAGS += -fno-common -finline-limit=42 -fno-unroll-loops -ffast-math
+CFLAGS += $(call chkCCflag, -fno-stack-protector)
 ifneq ($(call chkCCflag, -fipa-ra),) # gcc >= 5
 CFLAGS += $(call chkCCflag, -flto -fipa-pta -fipa-ra)
 else
 # these improve execution speed on 32bit arm/mips with gcc pre-5 toolchains
-CFLAGS += -fno-ipa-cp -fno-caller-saves -fno-guess-branch-probability -fno-regmove
+CFLAGS += -fno-caller-saves -fno-guess-branch-probability -fno-regmove
 # very old gcc toolchains may not have these options
-CFLAGS += $(call chkCCflag, -fno-tree-loop-if-convert -fipa-pta)
+CFLAGS += $(call chkCCflag, -fno-tree-loop-if-convert -fipa-pta -fno-ipa-cp)
 endif
 endif
 
