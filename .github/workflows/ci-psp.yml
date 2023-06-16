@@ -1,0 +1,20 @@
+name: CI (PSP)
+on: [push, pull_request]
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install dependencies
+      run: |
+        whoami
+        sudo apt-get update -qq
+        sudo apt-get install -y wget
+        wget https://github.com/pspdev/pspdev/releases/download/latest/pspdev-ubuntu-latest.tar.gz
+        tar -C /tmp/ -xf pspdev-ubuntu-latest.tar.gz
+    - name: configure
+      run: DUMP_CONFIG_LOG=1 PATH=$PATH:/tmp/pspdev/bin CROSS_COMPILE=psp- ./configure --platform=psp
+    - name: make
+      run: PATH=$PATH:/tmp/pspdev/bin CROSS_COMPILE=psp- make

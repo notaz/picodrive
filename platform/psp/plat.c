@@ -321,14 +321,21 @@ end:
 
 /* stubs for libflac (embedded in libchdr) */
 #include <utime.h>
-#include <malloc.h>
 
 int chown(const char *pathname, uid_t owner, gid_t group) { return -1; }
 int chmod(const char *pathname, mode_t mode) { return -1; }
 int utime(const char *filename, const struct utimbuf *times) { return -1; }
-int posix_memalign(void **memptr, size_t alignment, size_t size)
-	{ *memptr = memalign(alignment, size); return 0; }
 #endif
+
+#include <malloc.h>
+#include <errno.h>
+
+int posix_memalign(void **p, size_t align, size_t size)
+{
+	if (p)
+		*p = memalign(align, size);
+	return (p ? *p ? 0 : ENOMEM : EINVAL);
+}
 
 int _flush_cache (char *addr, const int size, const int op)
 {

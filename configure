@@ -149,7 +149,6 @@ set_platform()
     CFLAGS="$CFLAGS -D__PSP__"
     MFLAGS="-march=allegrex"
     ARCH=mipsel
-    need_zlib="yes"
     ;;
   *)
     fail "unsupported platform: $platform"
