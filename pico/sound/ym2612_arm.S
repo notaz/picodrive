@@ -198,10 +198,10 @@
     ldrb    r2, [r5,#0x17]                @ state
     ldrh    r3, [r5,#0x1a]                @ volume
     tst     r0, #0x08                     @ ssg enabled &&
-    beq     9f
+    beq     10f
     cmp     r2, #EG_REL+1                 @   state > EG_REL &&
     cmpge   r3, #0x200                    @   volume >= 0x200?
-    blt     9f
+    blt     10f
 
     tst     r0, #0x01
     beq     1f
@@ -245,6 +245,15 @@
     movgt   r2, #EG_ATT
 8:  strb    r2, [r5,#0x17]                @ state
 9:
+    ldrb    r0, [r5,#0x30]                @ ssg
+    ldrh    r2, [r5,#0x18]                @ tl
+    cmp     r0, #0x0c
+    rsbge   r3, r3, #0x200                @ volume = (0x200-volume) & MAX_ATT
+    movge   r3, r3, lsl #22
+    movge   r3, r3, lsr #22
+    add     r3, r3, r2                    @ volume += tl
+    strh    r3, [r5,#0x34]                @ vol_out
+10:
 .endm
 
 @ r5=slot, trashes: r0,r2,r3
@@ -703,11 +712,11 @@ ssg_upd_loop:
     addne   lr, lr, #4
     addne   r5, r5, #SLOT_STRUCT_SIZE
 #else
-    add     lr, lr, #4*2
+    add     lr, lr, #4
     add     r5, r5, #SLOT_STRUCT_SIZE*2
     update_ssg_eg
     subs    r6, r6, #2
-    subne   lr, lr, #4
+    addne   lr, lr, #4
     subne   r5, r5, #SLOT_STRUCT_SIZE
 #endif
     bne     ssg_upd_loop
@@ -861,8 +870,9 @@ crl_smp_loop_end:
     cmn     r1, r0, asr #13
     subne   r0, r1, #0x80000001
     movne   r0, r0, asr #18
-    tst     r4, r1, lsl #7          @ (sample < 0) && dac?
+    tst     r4, #0x80               @ dac?
     bicne   r0, r0, #0x1f
+    tst     r4, r1, lsl #7          @ (sample < 0) && dac?
     subne   r0, r0, #7<<5
     tst     r12, #1
     beq     ctl_sample_mono

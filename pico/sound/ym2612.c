@@ -550,7 +550,7 @@ static INLINE void recalc_volout(FM_SLOT *SLOT)
 {
 	INT16 vol_out = SLOT->volume;
 	if ((SLOT->ssg&0x0c) == 0x0c)
-		vol_out = (0x200 - SLOT->volume) & MAX_ATT_INDEX;
+		vol_out = (0x200 - vol_out) & MAX_ATT_INDEX;
 	SLOT->vol_out = vol_out + SLOT->tl;
 }
 
@@ -880,7 +880,7 @@ static INLINE UINT32 update_ssg_eg_phase(FM_SLOT *SLOT, UINT32 phase)
 			}
 		}
 	}
-//	recalc_volout(SLOT);
+	recalc_volout(SLOT);
 	return phase;
 }
 #endif
@@ -1663,8 +1663,8 @@ static int OPNWriteReg(int r, int v)
 		SLOT->ssg ^= SLOT->ssgn;
 		if (v&0x08) ym2612.ssg_mask |=   1<<(OPN_SLOT(r) + c*4);
 		else        ym2612.ssg_mask &= ~(1<<(OPN_SLOT(r) + c*4));
-//		if (SLOT->state > EG_REL)
-//			recalc_volout(SLOT);
+		if (SLOT->state > EG_REL)
+			recalc_volout(SLOT);
 		break;
 
 	case 0xa0:
