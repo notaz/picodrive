@@ -1136,31 +1136,26 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
                                      : ((ym2612.OPN.ST.TA & 0x3fc)|(d&3));
           if (ym2612.OPN.ST.TA != TAnew)
           {
+            int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+            ym2612_sync_timers(cycles, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
             //elprintf(EL_STATUS, "timer a set %i", TAnew);
             ym2612.OPN.ST.TA = TAnew;
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
             Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
-            if (ym2612.OPN.ST.mode & 1) {
-              // this is not right, should really be done on overflow only
-              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
-              Pico.t.timer_a_next_oflow = (cycles << 8) + Pico.t.timer_a_step;
-            }
             elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, Pico.t.timer_a_next_oflow>>8);
           }
           return 0;
         }
         case 0x26: // timer B
           if (ym2612.OPN.ST.TB != d) {
+            int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+            ym2612_sync_timers(cycles, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
             //elprintf(EL_STATUS, "timer b set %i", d);
             ym2612.OPN.ST.TB = d;
             //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
             Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
-            if (ym2612.OPN.ST.mode & 2) {
-              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
-              Pico.t.timer_b_next_oflow = (cycles << 8) + Pico.t.timer_b_step;
-            }
             elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, Pico.t.timer_b_next_oflow>>8);
           }
           return 0;

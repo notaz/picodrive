@@ -406,7 +406,7 @@ void PDebugZ80Frame(void)
   if (PicoIn.sndOut)
     PsndGetSamples(lines);
 
-  timers_cycle();
+  timers_cycle(Pico.t.z80c_aim);
   Pico.t.m68c_aim = Pico.t.m68c_cnt;
 }
 
