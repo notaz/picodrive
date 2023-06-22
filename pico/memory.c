@@ -1334,12 +1334,22 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 // -----------------------------------------------------------------
 //                        z80 memhandlers
 
+static void access_68k_bus(int delay) // bus delay as Q8
+{
+  // 68k bus access delay for z80. The fractional part needs to be accumulated
+  // until an additional cycle is full. That is then added to the integer part.
+  Pico.t.z80_busdelay = (delay&0xff) + (Pico.t.z80_busdelay&0xff); // accumulate
+  z80_subCLeft((delay>>8) + (Pico.t.z80_busdelay>>8));
+  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
+  // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
+  Pico.t.z80_buscycles += 7;
+}
+
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
   if ((a & 0xff00) == 0x7f00) {
-    static int f; f = (f&0xff) + 0x8c; // 0.6
-    z80_subCLeft(2+(f>>8)); // 3.3 per kabuto, but notaz' test implies 2.6 ?!?
-    Pico.t.z80_buscycles += 7;
+    // 68k bus access delay=3.3 per kabuto, for notaz picotest 2.4<=delay<2.55?
+    access_68k_bus(0x280); // Q8, picotest: 0x266(>=2.4) - 0x28b(<2.55)
 
     switch (a & 0x0d)
     {
@@ -1363,12 +1373,8 @@ static unsigned char z80_md_bank_read(unsigned short a)
   unsigned int addr68k;
   unsigned char ret;
 
-  // account for 68K bus access on both CPUs.
-  static int f; f = (f&0xff) + 0x4c; // 0.3
-  z80_subCLeft(3+(f>>8)); // 3.3 per kabuto
-  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
-  // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
-  Pico.t.z80_buscycles += 7;
+  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.0<delay<3.3
+  access_68k_bus(0x340); // // Q8, picotest: 0x301(>3.0)-0x34c(<3.3)
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k |= a & 0x7fff;
@@ -1409,12 +1415,8 @@ static void z80_md_bank_write(unsigned int a, unsigned char data)
 {
   unsigned int addr68k;
 
-  // account for 68K bus access on both CPUs.
-  static int f; f = (f&0xff) + 0x4c; // 0.3
-  z80_subCLeft(3+(f>>8)); // 3.3 per kabuto
-  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
-  // the 68K. Count the stolen cycles to be accounted later in the 68K CPU runs
-  Pico.t.z80_buscycles += 7;
+  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.0<delay<3.3
+  access_68k_bus(0x340); // // Q8, picotest: 0x301(>3.0)-0x34c(<3.3)
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k += a & 0x7fff;
