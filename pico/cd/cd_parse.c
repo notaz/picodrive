@@ -172,7 +172,8 @@ cd_data_t *chd_parse(const char *fname)
 		}
 		memset(&data->tracks[count], 0, sizeof(data->tracks[0]));
 
-		data->tracks[count].fname = strdup(fname);
+		if (count == 1)
+			data->tracks[count].fname = strdup(fname);
 	        if (!strcmp(type, "MODE1_RAW") || !strcmp(type, "MODE2_RAW")) {
 		        data->tracks[count].type = CT_BIN;
 	        } else if (!strcmp(type, "MODE1") || !strcmp(type, "MODE2_FORM1")) {
