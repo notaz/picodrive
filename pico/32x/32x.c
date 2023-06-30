@@ -124,6 +124,20 @@ void Pico32xStartup(void)
   emu_32x_startup();
 }
 
+void Pico32xShutdown(void)
+{
+  sh2_finish(&msh2);
+  sh2_finish(&ssh2);
+
+  Pico32x.vdp_regs[6] = P32XS_RV;
+
+  rendstatus_old = -1;
+
+  PicoIn.AHW &= ~PAHW_32X;
+  PicoMemSetup();
+  emu_32x_startup();
+}
+
 void p32x_reset_sh2s(void)
 {
   elprintf(EL_32X, "sh2 reset");
@@ -195,13 +209,11 @@ void PicoPower32x(void)
 
 void PicoUnload32x(void)
 {
-  sh2_finish(&msh2);
-  sh2_finish(&ssh2);
+  Pico32xShutdown();
+
   if (Pico32xMem != NULL)
     plat_munmap(Pico32xMem, sizeof(*Pico32xMem));
   Pico32xMem = NULL;
-
-  PicoIn.AHW &= ~PAHW_32X;
 }
 
 void PicoReset32x(void)
@@ -452,7 +464,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
 
   elprintf(EL_32X, "sh2 sync to %u", m68k_target);
 
-  if (!(Pico32x.regs[0] & P32XS_nRES)) {
+  if (!(Pico32x.regs[0] & P32XS_nRES) || !(Pico32x.regs[0] & P32XS_ADEN)) {
     msh2.m68krcycles_done = ssh2.m68krcycles_done = m68k_target;
     return; // rare
   }

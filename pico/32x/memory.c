@@ -416,7 +416,10 @@ static void p32x_reg_write8(u32 a, u32 d)
       REG8IN16(r, 0x00) = d & 0x80;
       return;
     case 0x01: // adapter ctl: RES and ADEN writable
-      if ((d ^ r[0]) & d & P32XS_nRES)
+      if ((d ^ r[0]) & ~d & P32XS_ADEN) {
+        d |= P32XS_nRES;
+        Pico32xShutdown();
+      } else if ((d ^ r[0]) & d & P32XS_nRES)
         p32x_reset_sh2s();
       REG8IN16(r, 0x01) &= ~(P32XS_nRES|P32XS_ADEN);
       REG8IN16(r, 0x01) |= d & (P32XS_nRES|P32XS_ADEN);
@@ -581,7 +584,10 @@ static void p32x_reg_write16(u32 a, u32 d)
 
   switch (a/2) {
     case 0x00/2: // adapter ctl
-      if ((d ^ r[0]) & d & P32XS_nRES)
+      if ((d ^ r[0]) & ~d & P32XS_ADEN) {
+        d |= P32XS_nRES;
+        Pico32xShutdown();
+      } else if ((d ^ r[0]) & d & P32XS_nRES)
         p32x_reset_sh2s();
       r[0] &= ~(P32XS_FM|P32XS_nRES|P32XS_ADEN);
       r[0] |= d & (P32XS_FM|P32XS_nRES|P32XS_ADEN);
@@ -1240,7 +1246,10 @@ void PicoWrite8_32x(u32 a, u32 d)
       }
       return;
     }
-
+    if (a == 7) {
+      r[0x06/2] &= ~P32XS_RV;
+      r[0x06/2] |= d & P32XS_RV;
+    }
     // allow only COMM for now
     if ((a & 0x30) == 0x20) {
       u8 *r8 = (u8 *)r;
@@ -1268,6 +1277,10 @@ void PicoWrite16_32x(u32 a, u32 d)
         p32x_reg_write16(a, d); // forward for reset processing
       }
       return;
+    }
+    if (a == 6) {
+      r[0x06/2] &= ~P32XS_RV;
+      r[0x06/2] |= d & P32XS_RV;
     }
 
     // allow only COMM for now
