@@ -873,16 +873,15 @@ void ym2612_unpack_state(void);
 
 #define TIMER_NO_OFLOW 0x70000000
 
-// NB ~0.2% timers speed up (1/8(A), 2(B) z80 cycles), HACK for A/V sync in OD2
 // tA =    72 * (1024 - TA) / M, with M = mclock/2
-#define TIMER_A_TICK_ZCYCLES (cycles_68k_to_z80(256LL*   72*2)-32) // Q8
+#define TIMER_A_TICK_ZCYCLES cycles_68k_to_z80(256LL*   72*2) // Q8
 // tB = 16*72 * ( 256 - TB) / M
-#define TIMER_B_TICK_ZCYCLES (cycles_68k_to_z80(256LL*16*72*2)-32*16) // Q8
+#define TIMER_B_TICK_ZCYCLES cycles_68k_to_z80(256LL*16*72*2) // Q8
 
 #define timers_cycle(ticks) \
-  if (Pico.t.timer_a_next_oflow > 0 && Pico.t.timer_a_next_oflow < TIMER_NO_OFLOW) \
+  if (Pico.t.timer_a_next_oflow < TIMER_NO_OFLOW) \
     Pico.t.timer_a_next_oflow -= ticks << 8; \
-  if (Pico.t.timer_b_next_oflow > 0 && Pico.t.timer_b_next_oflow < TIMER_NO_OFLOW) \
+  if (Pico.t.timer_b_next_oflow < TIMER_NO_OFLOW) \
     Pico.t.timer_b_next_oflow -= ticks << 8; \
   ym2612_sync_timers(0, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
 
