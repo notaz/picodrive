@@ -286,9 +286,9 @@ z80_xmap_rebase_sp:
 	sub r2,z80pc,r1
 	str r2,[cpucontext,#previouspc]
 .endif
-	ldrplb r0,[z80pc],#1
-	ldrpl pc,[opcodes,r0, lsl #2]
-	bmi z80_execute_end
+	ldrgtb r0,[z80pc],#1
+	ldrgt pc,[opcodes,r0, lsl #2]
+	ble z80_execute_end
 .endm
 
 .macro eatcycles cycs
@@ -1442,8 +1442,8 @@ DrZ80Run:
 	PIC_LDR(opcodes, r0, MAIN_opcodes)
 
 	cmp z80_icount,#0     ;@ irq might have used all cycles
-	ldrplb r0,[z80pc],#1
-	ldrpl pc,[opcodes,r0, lsl #2]
+	ldrgtb r0,[z80pc],#1
+	ldrgt pc,[opcodes,r0, lsl #2]
 
 
 z80_execute_end:
