@@ -908,8 +908,7 @@ void PicoCartUnload(void)
     PicoCartUnloadHook = NULL;
   }
 
-  if (PicoIn.AHW & PAHW_32X)
-    PicoUnload32x();
+  PicoUnload32x();
 
   if (Pico.rom != NULL) {
     SekFinishIdleDet();

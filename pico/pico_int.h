@@ -995,6 +995,7 @@ void Pico32xInit(void);
 void PicoPower32x(void);
 void PicoReset32x(void);
 void Pico32xStartup(void);
+void Pico32xShutdown(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
 void Pico32xStateLoaded(int is_early);
