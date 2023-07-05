@@ -700,6 +700,13 @@ void cdd_update(void)
   /* reading disc */
   if (cdd.status == CD_PLAY)
   {
+    if (cdd.index >= cdd.toc.last)
+    {
+      /* end of disc */
+      cdd.status = CD_END;
+      return;
+    }
+
     /* track type */
     if (!is_audio(cdd.index))
     {
@@ -714,7 +721,7 @@ void cdd_update(void)
       /* data track sector read is controlled by CDC */
       cdd.lba += cdc_decoder_update(header);
     }
-    else if (cdd.index < cdd.toc.last)
+    else
     {
       uint8 header[4] = { 0, };
 
@@ -730,12 +737,6 @@ void cdd_update(void)
  
       /* next audio block is automatically read */
       cdd.lba++;
-    }
-    else
-    {
-      /* end of disc */
-      cdd.status = CD_END;
-      return;
     }
 
     /* check end of current track */

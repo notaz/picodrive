@@ -57,7 +57,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
-  if (Pico.romsize <= 0x20000)
+  if (Pico.romsize <= 0x20000) // hack to detect BIOS, no GA HINT vector for MSU
     memset(Pico.rom + 0x70, 0xff, 4);
 }
 
