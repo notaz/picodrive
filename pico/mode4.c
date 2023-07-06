@@ -753,13 +753,14 @@ void PicoFrameStartSMS(void)
   } else {
     if ((mode & 4) && (Pico.video.reg[0] & 0x20)) {
       // SMS mode 4 with 1st column blanked
-      columns = 248;
       Pico.est.rendstatus |= PDRAW_SMS_BLANK_1;
+      columns = 248;
     }
 
     switch (mode) {
     // SMS2 only 224/240 line modes, e.g. Micro Machines
     case 0x06|0x08:
+        Pico.est.rendstatus |= PDRAW_30_ROWS;
         loffs = screen_offset = 0;
         lines = 240;
         break;
@@ -775,9 +776,11 @@ void PicoFrameStartSMS(void)
   coffs = (FinalizeLineSMS == NULL && columns == 248 ? 8 : 0);
   if (FinalizeLineSMS != NULL && (PicoIn.opt & POPT_EN_SOFTSCALE)) {
     // softscaling always generates 320px, but no scaling in 8bit fast
+    Pico.est.rendstatus |= PDRAW_SOFTSCALE;
     coffs = 0;
     columns = 320;
   } else if (!(PicoIn.opt & POPT_DIS_32C_BORDER)) {
+    Pico.est.rendstatus |= PDRAW_BORDER_32;
     line_offset -= coffs;
     coffs = (320-columns) / 2;
     if (FinalizeLineSMS == NULL)

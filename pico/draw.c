@@ -1944,9 +1944,9 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (est->rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
     // mode_change() might reset rendstatus_old by calling SetColorFormat
+    int rendstatus = est->rendstatus;
     emu_video_mode_change(loffs, lines, coffs, columns);
-    rendstatus_old = est->rendstatus & (PDRAW_BORDER_32|PDRAW_INTERLACE|
-                PDRAW_32X_SCALE|PDRAW_SOFTSCALE|PDRAW_32_COLS|PDRAW_30_ROWS);
+    rendstatus_old = rendstatus;
     // mode_change() might clear buffers, redraw needed
     est->rendstatus |= PDRAW_SYNC_NEEDED;
   }
