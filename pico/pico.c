@@ -228,6 +228,8 @@ void PicoLoopPrepare(void)
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
 
+  if (PicoIn.AHW & PAHW_MCD)
+    PicoMCDPrepare();
   if (PicoIn.AHW & PAHW_32X)
     Pico32xPrepare();
 }

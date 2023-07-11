@@ -123,18 +123,13 @@ static void SekRunS68k(unsigned int to)
   pprof_end(s68k);
 }
 
-static void pcd_set_cycle_mult(void)
+void PicoMCDPrepare(void)
 {
-  unsigned int div;
-
-  if (Pico.m.pal)
-    div = 50*313*488;
-  else
-    div = 60*262*488;
-
-  // ~1.63 for NTSC, ~1.645 for PAL; round to nearest, x/y+0.5 -> (x+y/2)/y
-  mcd_m68k_cycle_mult = ((12500000ull << 16) + div/2) / div;
-  mcd_s68k_cycle_mult = ((1ull*div << 16)  + 6250000) / 12500000;
+  // ~1.63 for NTSC, ~1.645 for PAL
+#define DIV_ROUND(x,y) ((x)+(y)/2) / (y) // round to nearest, x/y+0.5 -> (x+y/2)/y
+  unsigned int osc = (Pico.m.pal ? OSC_PAL : OSC_NTSC);
+  mcd_m68k_cycle_mult = DIV_ROUND(12500000ull << 16, osc / 7);
+  mcd_s68k_cycle_mult = DIV_ROUND(1ull * osc << 16, 7 * 12500000);
 }
 
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
@@ -312,11 +307,13 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 #define pcd_run_cpus_normal pcd_run_cpus
 //#define pcd_run_cpus_lockstep pcd_run_cpus
 
+static void SekAimM68k(int cyc, int mult);
 static int SekSyncM68k(int once);
 
 void pcd_run_cpus_normal(int m68k_cycles)
 {
-  Pico.t.m68c_aim += m68k_cycles;
+  // TODO this is suspicious. ~1 cycle refresh delay every 256 cycles?
+  SekAimM68k(m68k_cycles, 0x43); // Fhey area
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
     if (SekShouldInterrupt()) {
@@ -376,8 +373,6 @@ void pcd_run_cpus_lockstep(int m68k_cycles)
 
 void pcd_prepare_frame(void)
 {
-  pcd_set_cycle_mult();
-
   // need this because we can't have direct mapping between
   // master<->slave cycle counters because of overflows
   mcd_m68k_cycle_base = Pico.t.m68c_aim;
@@ -397,7 +392,6 @@ void pcd_state_loaded(void)
   unsigned int cycles;
   int diff;
 
-  pcd_set_cycle_mult();
   pcd_state_loaded_mem();
 
   memset(Pico_mcd->pcm_mixbuf, 0, sizeof(Pico_mcd->pcm_mixbuf));
@@ -407,8 +401,7 @@ void pcd_state_loaded(void)
 
   // old savestates..
   cycles = pcd_cycles_m68k_to_s68k(Pico.t.m68c_aim);
-  diff = cycles - SekCycleAimS68k;
-  if (diff < -1000 || diff > 1000) {
+  if (CYCLES_GE(cycles - SekCycleAimS68k, 1000)) {
     SekCycleCntS68k = SekCycleAimS68k = cycles;
   }
   if (pcd_event_times[PCD_EVENT_CDC] == 0) {

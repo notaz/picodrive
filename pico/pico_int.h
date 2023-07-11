@@ -204,7 +204,7 @@ extern struct DrZ80 drZ80;
 #define z80_cyclesDone() \
   (Pico.t.z80c_aim - z80_cyclesLeft)
 
-// 68k clock = OSC/7, z80 clock = OSC/15, 68k:z80 ratio = 7/15*8192=3822.9
+// 68k clock = OSC/7, z80 clock = OSC/15, 68k:z80 ratio = 7/15 = 3822.9/8192
 #define cycles_68k_to_z80(x) ((x) * 3823 >> 13)
 
 // ----------------------- SH2 CPU -----------------------
@@ -443,6 +443,7 @@ struct PicoTiming
   unsigned int m68c_aim;
   unsigned int m68c_frame_start;        // m68k cycles
   unsigned int m68c_line_start;
+  int refresh_delay;
 
   unsigned int z80c_cnt;                // z80 cycles done (this frame)
   unsigned int z80c_aim;
@@ -523,7 +524,7 @@ struct mcd_misc
   unsigned int   stopwatch_base_c;
   unsigned short m68k_poll_a;
   unsigned short m68k_poll_cnt;
-  unsigned short s68k_poll_a;
+  unsigned short s68k_poll_a;     // 10
   unsigned short s68k_poll_cnt;
   unsigned int   s68k_poll_clk;
   unsigned char  bcram_reg;       // 18: battery-backed RAM cart register
@@ -640,7 +641,8 @@ struct Pico32x
   unsigned char pad1;
   unsigned short pwm_p[2];       // pwm pos in fifo
   unsigned int pwm_cycle_p;      // pwm play cursor (32x cycles)
-  unsigned int reserved[6];
+  unsigned int hint_counter;
+  unsigned int reserved[5];
 };
 
 struct Pico32xMem
@@ -803,6 +805,7 @@ PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
 PICO_INTERNAL int  PicoResetMCD(void);
 PICO_INTERNAL void PicoFrameMCD(void);
+PICO_INTERNAL void PicoMCDPrepare(void);
 
 enum pcd_event {
   PCD_EVENT_CDC,

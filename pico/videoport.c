@@ -21,25 +21,27 @@ enum { clkdiv = 2 };    // CPU clock granularity: one of 1,2,4,8
 // Thank you very much for the great work, Nemesis, Kabuto!
 
 // Slot clock is sysclock/20 for h32 and sysclock/16 for h40.
-// One scanline is 63.7us/63.5us (h32/h40) long which is 488.6/487.4 68k cycles.
-// Assume 488 for everything.
+// One scanline is 63.7us/64.3us (ntsc/pal) long which is ~488.57 68k cycles.
+// Approximate by 488 for VDP.
 // 1 slot is 488/171 = 2.8538 68k cycles in h32, and 488/210 = 2.3238 in h40.
 enum { slcpu = 488 };
 
 // VDP has a slot counter running from 0x00 to 0xff every scanline, but it has
 // a gap depending on the video mode. The slot in which a horizontal interrupt
 // is generated also depends on the video mode.
+// NB Kabuto says gapend40 is 0xe4. That's technically correct, since slots 0xb6
+// and 0xe4 are only half slots. Ignore 0xe4 here and make 0xb6 a full slot.
 enum { hint32 = 0x85, gapstart32 = 0x94, gapend32 = 0xe9};
 enum { hint40 = 0xa5, gapstart40 = 0xb7, gapend40 = 0xe5};
-// XXX Kabuto says gapend40 is 0xe4, but then a line would've 211 slots, while
-// it's 210 in all other sources I looked at?
 
 // The horizontal sync period (HBLANK) is 30/37 slots (h32/h40):
 // h32: 4 slots front porch (1.49us), 13 HSYNC (4.84us), 13 back porch (4.84us)
 // h40: 5 slots front porch (1.49us), 16 HSYNC (4.77us), 16 back porch (4.77us)
-// HBLANK starts in slot 0x93/0xb3 and ends after slot 0x05 (from Kabuto's doc)
+// HBLANK starts at slot 0x93/0xb4 and ends in the middle of slot 0x05/0x06,
+// NB VDP slows down the h40 clock to h32 during HSYNC for 17 slots to get the
+// right sync timing. Ignored in the slot calculation, but hblen40 is correct.
 enum { hboff32 = 0x93-hint32, hblen32 = 0xf8-(gapend32-gapstart32)-hint32};//30
-enum { hboff40 = 0xb3-hint40, hblen40 = 0xf8-(gapend40-gapstart40)-hint40};//37
+enum { hboff40 = 0xb4-hint40, hblen40 = 0xf8-(gapend40-gapstart40)-hint40};//37
 
 // number of slots in a scanline
 #define slots32	(0x100-(gapend32-gapstart32)) // 171
@@ -263,7 +265,7 @@ void PicoVideoFIFOSync(int cycles)
 
   // calculate #slots since last executed slot
   slots = Cyc2Sl(vf, cycles) - vf->fifo_slot;
-  if (!slots || !vf->fifo_ql) return;
+  if (slots <= 0 || !vf->fifo_ql) return;
 
   // advance FIFO queue by #done slots
   done = slots;
@@ -308,7 +310,7 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
     }
   }
   if (vf->fifo_ql && ((vf->fifo_total > level) | bd))
-    cycles = 488; // not completed in this scanline
+    cycles = slcpu; // not completed in this scanline
   if (cycles > ocyc)
     burn = cycles - ocyc;
 
@@ -430,7 +432,7 @@ void PicoVideoFIFOMode(int active, int h40)
   vf->fifo_hcounts = vdphcounts[h40];
   // recalculate FIFO slot for new mode
   vf->fifo_slot = Cyc2Sl(vf, lc);
-  vf->fifo_maxslot = Cyc2Sl(vf, 488);
+  vf->fifo_maxslot = Cyc2Sl(vf, slcpu);
 }
 
 // VDP memory rd/wr
@@ -1031,10 +1033,9 @@ update_irq:
 
 static u32 VideoSr(const struct PicoVideo *pv)
 {
-  unsigned int hp = pv->reg[12]&1 ? hboff40*488/slots40 : hboff32*488/slots32;
-  unsigned int hl = pv->reg[12]&1 ? hblen40*488/slots40 : hblen32*488/slots32;
-  // XXX -2 is to please notaz' testpico, but why is this?
-  unsigned int c = SekCyclesDone()-2 - Pico.t.m68c_line_start;
+  unsigned int hp = pv->reg[12]&1 ? hboff40*488.5/slots40 : hboff32*488.5/slots32;
+  unsigned int hl = pv->reg[12]&1 ? hblen40*488.5/slots40 : hblen32*488.5/slots32;
+  unsigned int c = SekCyclesDone() - Pico.t.m68c_line_start;
   u32 d;
 
   PicoVideoFIFOSync(c);

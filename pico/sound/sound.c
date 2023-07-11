@@ -177,7 +177,7 @@ void PsndRerate(int preserve_state)
   // samples per line (Q16)
   Pico.snd.smpl_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
   // samples per z80 clock (Q20)
-  Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488;
+  Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488.5;
   // samples per 44.1 KHz sample
   Pico.snd.cdda_mult = 65536LL * 44100 / PicoIn.sndRate;
   Pico.snd.cdda_div  = 65536LL * PicoIn.sndRate / 44100;

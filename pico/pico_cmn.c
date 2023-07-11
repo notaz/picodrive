@@ -66,15 +66,22 @@ static int SekSyncM68k(int once)
   return Pico.t.m68c_aim > Pico.t.m68c_cnt;
 }
 
+static __inline void SekAimM68k(int cyc, int mult)
+{
+  // refresh slowdown, for cart: 2 cycles every 128 - make this 1 every 64,
+  // for RAM: seems to be 0-3 every 128. Carts usually run from the cart
+  // area, but MCD games only use RAM, hence a different multiplier is needed.
+  // NB must be quite accurate, so handle fractions as well (c/f OutRunners)
+  int delay = (Pico.t.refresh_delay += cyc*mult) >> 14;
+  Pico.t.m68c_cnt += delay;
+  Pico.t.refresh_delay -= delay << 14;
+  Pico.t.m68c_aim += cyc;
+}
+
 static __inline void SekRunM68k(int cyc)
 {
-  // refresh slowdown handling, 2 cycles every 128 - make this 1 every 64
-  // NB must be quite accurate, so handle fractions as well (c/f OutRunners)
-  static int refresh;
-  Pico.t.m68c_cnt += (cyc + refresh) >> 6;
-  refresh = (cyc + refresh) & 0x3f;
-  Pico.t.m68c_aim += cyc;
-
+  // TODO 0x100 would by 2 cycles/128, moreover far too sensitive
+  SekAimM68k(cyc, 0x10c); // OutRunners, testpico, VDPFIFOTesting
   SekSyncM68k(0);
 }
 
@@ -108,10 +115,9 @@ static void do_timing_hacks_end(struct PicoVideo *pv)
   PicoVideoFIFOSync(CYCLES_M68K_LINE);
 
   // need rather tight Z80 sync for emulation of main bus cycle stealing
-  if (Pico.m.scanline&1) {
+  if (Pico.m.scanline&1)
     if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
       PicoSyncZ80(Pico.t.m68c_aim);
-  }
 }
 
 static void do_timing_hacks_start(struct PicoVideo *pv)
@@ -122,6 +128,8 @@ static void do_timing_hacks_start(struct PicoVideo *pv)
   // XXX how to handle Z80 bus cycle stealing during DMA correctly?
   if ((Pico.t.z80_buscycles -= cycles) < 0)
     Pico.t.z80_buscycles = 0;
+  if (Pico.m.scanline&1)
+    Pico.t.m68c_aim += 1; // add cycle each other line for 488.5 cycles/line
 }
 
 static int PicoFrameHints(void)
@@ -167,7 +175,7 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-    if (!skip && (PicoIn.opt & POPT_ALT_RENDERER))
+    if ((PicoIn.opt & POPT_ALT_RENDERER) && !skip)
     {
       // find the right moment for frame renderer, when display is no longer blanked
       if ((pv->reg[1]&0x40) || y > 100) {

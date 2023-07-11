@@ -1041,11 +1041,11 @@ static int get_scanline(int is_from_z80)
   if (is_from_z80) {
     // ugh... compute by dividing cycles since frame start by cycles per line
     // need some fractional resolution here, else there may be an extra line
-    int cycles_line = cycles_68k_to_z80(488 << 8)+1; // cycles per line, as Q8
+    int cycles_line = cycles_68k_to_z80((unsigned)(488.5*256))+1; // cycles per line, Q8
     int cycles_z80 = (z80_cyclesLeft<0 ? Pico.t.z80c_aim:z80_cyclesDone())<<8;
     int cycles = cycles_line * Pico.t.z80_scanline;
     // approximation by multiplying with inverse
-    if (cycles_z80 - cycles >= 2*cycles_line) {
+    if (cycles_z80 - cycles >= 4*cycles_line) {
       // compute 1/cycles_line, storing the result to avoid future dividing
       static int cycles_line_o, cycles_line_i;
       if (cycles_line_o != cycles_line)
@@ -1150,7 +1150,6 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
       switch (addr)
       {
-        // NB, OD2 A/V sync HACK: lower timer step by 1/4 z80 cycle (=64 in Q8)
         case 0x24: // timer A High 8
         case 0x25: { // timer A Low 2
           int TAnew = (addr == 0x24) ? ((ym2612.OPN.ST.TA & 0x03)|(((int)d)<<2))
@@ -1163,7 +1162,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TA = TAnew;
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
-            Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew) - 64;
+            Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, Pico.t.timer_a_next_oflow>>8);
           }
           return 0;
@@ -1176,7 +1175,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TB = d;
             //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
-            Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d) - 64;
+            Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d);
             elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, Pico.t.timer_b_next_oflow>>8);
           }
           return 0;
@@ -1350,7 +1349,7 @@ static void access_68k_bus(int delay) // bus delay as Q8
   // until an additional cycle is full. That is then added to the integer part.
   Pico.t.z80_busdelay = (delay&0xff) + (Pico.t.z80_busdelay&0xff); // accumulate
   z80_subCLeft((delay>>8) + (Pico.t.z80_busdelay>>8));
-  // don't use SekCyclesBurn(7) here since the Z80 doesn't run in cycle lock to
+  // don't use SekCyclesBurn() here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
   Pico.t.z80_buscycles += 7;
 }
@@ -1358,8 +1357,8 @@ static void access_68k_bus(int delay) // bus delay as Q8
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
   if ((a & 0xff00) == 0x7f00) {
-    // 68k bus access delay=3.3 per kabuto, for notaz picotest 2.4<=delay<2.55?
-    access_68k_bus(0x280); // Q8, picotest: 0x266(>=2.4) - 0x28b(<2.55)
+    // 68k bus access delay=3.3 per kabuto, for notaz picotest 2.42<delay<2.57?
+    access_68k_bus(0x280); // Q8, picotest: 0x26d(>2.42) - 0x292(<2.57)
 
     switch (a & 0x0d)
     {
@@ -1383,8 +1382,8 @@ static unsigned char z80_md_bank_read(unsigned short a)
   unsigned int addr68k;
   unsigned char ret;
 
-  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.0<delay<3.3
-  access_68k_bus(0x340); // // Q8, picotest: 0x301(>3.0)-0x34c(<3.3)
+  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.02<delay<3.32
+  access_68k_bus(0x340); // Q8, picotest: 0x306(>3.02)-0x351(<3.32)
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k |= a & 0x7fff;
@@ -1425,8 +1424,8 @@ static void z80_md_bank_write(unsigned int a, unsigned char data)
 {
   unsigned int addr68k;
 
-  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.0<delay<3.3
-  access_68k_bus(0x340); // // Q8, picotest: 0x301(>3.0)-0x34c(<3.3)
+  // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.02<delay<3.32
+  access_68k_bus(0x340); // Q8, picotest: 0x306(>3.02)-0x351(<3.32)
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k += a & 0x7fff;
