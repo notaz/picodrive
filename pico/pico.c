@@ -225,6 +225,15 @@ void PicoLoopPrepare(void)
     // force setting possibly changed..
     Pico.m.pal = (PicoIn.regionOverride == 2 || PicoIn.regionOverride == 8) ? 1 : 0;
 
+  if (Pico.m.pal) {
+    Pico.t.vcnt_wrap = 0x103;
+    Pico.t.vcnt_adj = 57;
+  }
+  else {
+    Pico.t.vcnt_wrap = 0xEB;
+    Pico.t.vcnt_adj = 6;
+  }
+
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
 

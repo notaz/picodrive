@@ -136,7 +136,6 @@ static int PicoFrameHints(void)
 {
   struct PicoVideo *pv = &Pico.video;
   int lines, y, lines_vis, skip;
-  int vcnt_wrap, vcnt_adj;
   int hint; // Hint counter
 
   pevt_log_m68k_o(EVT_FRAME_START);
@@ -144,7 +143,6 @@ static int PicoFrameHints(void)
   skip = PicoIn.skipFrame;
 
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
-  pv->v_counter = Pico.m.scanline = 0;
   z80_resetCycles();
   PsndStartFrame();
 
@@ -153,16 +151,13 @@ static int PicoFrameHints(void)
   // === active display ===
   pv->status |= PVS_ACTIVE;
 
-  for (y = 0; ; y++)
+  for (y = 0;; y++)
   {
-    pv->v_counter = Pico.m.scanline = y;
-    if ((pv->reg[12]&6) == 6) { // interlace mode 2
-      pv->v_counter <<= 1;
-      pv->v_counter |= pv->v_counter >> 8;
-      pv->v_counter &= 0xff;
-    }
+    Pico.m.scanline = y;
+    pv->v_counter = PicoVideoGetV(y);
 
-    if ((y == 224 && !(pv->reg[1] & 8)) || y == 240)
+    lines_vis = (pv->reg[1] & 8) ? 240 : 224;
+    if (y == lines_vis)
       break;
 
     PAD_DELAY();
@@ -268,25 +263,11 @@ static int PicoFrameHints(void)
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
   // === VBLANK ===
-  if (Pico.m.pal) {
-    lines = 313;
-    vcnt_wrap = 0x103;
-    vcnt_adj = 57;
-  }
-  else {
-    lines = 262;
-    vcnt_wrap = 0xEB;
-    vcnt_adj = 6;
-  }
-
+  lines = Pico.m.pal ? 313 : 262;
   for (y++; y < lines - 1; y++)
   {
-    pv->v_counter = Pico.m.scanline = y;
-    if (y >= vcnt_wrap)
-      pv->v_counter -= vcnt_adj;
-    if ((pv->reg[12]&6) == 6)
-      pv->v_counter = (pv->v_counter << 1) | 1;
-    pv->v_counter &= 0xff;
+    Pico.m.scanline = y;
+    pv->v_counter = PicoVideoGetV(y);
 
     PAD_DELAY();
 

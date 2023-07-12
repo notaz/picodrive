@@ -454,6 +454,8 @@ struct PicoTiming
 
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
   int timer_b_next_oflow, timer_b_step;
+
+  int vcnt_wrap, vcnt_adj;
 };
 
 struct PicoSound
@@ -912,6 +914,13 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 
   if (((a^SATaddr) & SATmask) == 0)
     UpdateSAT(a, d);
+}
+
+static __inline u8 PicoVideoGetV(int scanline)
+{
+  if (scanline >= Pico.t.vcnt_wrap) scanline -= Pico.t.vcnt_adj;
+  if ((Pico.video.reg[12]&6) == 6) scanline = (scanline<<1) | 1;
+  return scanline;
 }
 
 PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d);

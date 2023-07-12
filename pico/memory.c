@@ -1367,7 +1367,7 @@ static unsigned char z80_md_vdp_read(unsigned short a)
       case 0x04: return PicoVideoRead8CtlH(1);
       case 0x05: return PicoVideoRead8CtlL(1);
       case 0x08:
-      case 0x0c: return get_scanline(1); // FIXME: make it proper
+      case 0x0c: return PicoVideoGetV(get_scanline(1));
       case 0x09:
       case 0x0d: return Pico.m.rotate++;
     }
