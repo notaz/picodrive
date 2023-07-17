@@ -590,6 +590,15 @@ static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
   0x40007080 /* S.Harrier EU */ , 0x40007038 /* Taito Chase */,
 };
 
+// TMR product codes and hardware type for known GG in SMS mode
+static u32 gg_smsmode[] = { // cf https://smspower.org/Tags/SMS-GG
+  0x60002401 /* Castl.Ilusion */, 0x60101018 /* Chase HQ */,
+  0x70709018 /* Olympic Gold */ , 0x70009038 /* Outrun EU */,
+  0x60801068 /* Predator 2 */   , 0x70408098 /* Prince.Persia */,
+  0x50101037 /* Rastan Saga */  , 0x70006018 /* RC Grandprix */,
+  0x60002415 /* Super Kickoff */, 0x60801108 /* WWF.Steelcage */,
+};
+
 void PicoResetMS(void)
 {
   unsigned tmr;
@@ -629,6 +638,11 @@ void PicoResetMS(void)
       for (i = 0; i < sizeof(region_pal)/sizeof(*region_pal); i++)
         if (id == region_pal[i] && !PicoIn.regionOverride) {
           Pico.m.pal = 1; // requires 50Hz timing
+          break;
+        }
+      for (i = 0; i < sizeof(gg_smsmode)/sizeof(*gg_smsmode); i++)
+        if (id == gg_smsmode[i] && !PicoIn.hwSelect) {
+          PicoIn.AHW &= ~PAHW_GG; // requires SMS mode
           break;
         }
       break;
