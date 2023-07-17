@@ -128,8 +128,7 @@ static void do_timing_hacks_start(struct PicoVideo *pv)
   // XXX how to handle Z80 bus cycle stealing during DMA correctly?
   if ((Pico.t.z80_buscycles -= cycles) < 0)
     Pico.t.z80_buscycles = 0;
-  if (Pico.m.scanline&1)
-    Pico.t.m68c_aim += 1; // add cycle each other line for 488.5 cycles/line
+  Pico.t.m68c_aim += Pico.m.scanline&1; // add 1 every 2 lines for 488.5 cycles
 }
 
 static int PicoFrameHints(void)
@@ -151,14 +150,13 @@ static int PicoFrameHints(void)
   // === active display ===
   pv->status |= PVS_ACTIVE;
 
-  for (y = 0;; y++)
+  for (y = 0; y < 240; y++)
   {
-    Pico.m.scanline = y;
-    pv->v_counter = PicoVideoGetV(y);
-
-    lines_vis = (pv->reg[1] & 8) ? 240 : 224;
-    if (y == lines_vis)
+    if (y == 224 && !(pv->reg[1] & 8))
       break;
+
+    Pico.m.scanline = y;
+    pv->v_counter = PicoVideoGetV(y, 0);
 
     PAD_DELAY();
 
@@ -170,7 +168,7 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-    if ((PicoIn.opt & POPT_ALT_RENDERER) && !skip)
+    if (unlikely(PicoIn.opt & POPT_ALT_RENDERER) && !skip)
     {
       // find the right moment for frame renderer, when display is no longer blanked
       if ((pv->reg[1]&0x40) || y > 100) {
@@ -213,6 +211,8 @@ static int PicoFrameHints(void)
   lines_vis = (pv->reg[1] & 8) ? 240 : 224;
   if (y == lines_vis)
     pv->status &= ~PVS_ACTIVE;
+  Pico.m.scanline = y;
+  pv->v_counter = PicoVideoGetV(y, 0);
 
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
@@ -267,7 +267,7 @@ static int PicoFrameHints(void)
   for (y++; y < lines - 1; y++)
   {
     Pico.m.scanline = y;
-    pv->v_counter = PicoVideoGetV(y);
+    pv->v_counter = PicoVideoGetV(y, 1);
 
     PAD_DELAY();
 

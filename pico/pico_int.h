@@ -916,9 +916,9 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
     UpdateSAT(a, d);
 }
 
-static __inline u8 PicoVideoGetV(int scanline)
+static __inline u8 PicoVideoGetV(int scanline, int maywrap)
 {
-  if (scanline >= Pico.t.vcnt_wrap) scanline -= Pico.t.vcnt_adj;
+  if (maywrap && scanline >= Pico.t.vcnt_wrap) scanline -= Pico.t.vcnt_adj;
   if ((Pico.video.reg[12]&6) == 6) scanline = (scanline<<1) | 1;
   return scanline;
 }
