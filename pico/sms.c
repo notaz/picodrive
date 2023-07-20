@@ -139,7 +139,7 @@ static unsigned char z80_sms_in(unsigned short a)
   a &= 0xff;
   elprintf(EL_IO, "z80 port %04x read", a);
   if(a >= 0xf0){
-    if (PicoIn.opt & POPT_EN_YM2413){
+    if (Pico.m.hardware & PMS_HW_FM) {
       switch(a)
       {
       case 0xf0:
@@ -216,7 +216,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
   a &= 0xff;
   if (a >= 0xf0){
-    if (PicoIn.opt & POPT_EN_YM2413){
+    if (Pico.m.hardware & PMS_HW_FM) {
       switch(a)
       {
         case 0xf0:
@@ -579,8 +579,12 @@ static void xwrite(unsigned int a, unsigned char d)
   }
 }
 
+// Try to detect some tricky cases by their TMR header
+// NB Codemasters, some Betas, most unlicensed games have no or invalid TMRs.
+// if the cksum header is valid mark this by 0x.fff.... and use that instead
+
 // TMR product codes and hardware type for known 50Hz-only games
-static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
+static u32 region_pal[] = { // cf Meka, meka/meka.nam
   0x40207067 /* Addams Family */, 0x40207020 /* Back.Future 3 */,
   0x40207058 /* Battlemaniacs */, 0x40007105 /* Cal.Games 2 */,
   0x40207065 /* Dracula */      , 0x40007109 /* Home Alone */,
@@ -588,21 +592,32 @@ static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
   0x40002519 /* Quest.Yak */    , 0x40207064 /* Robocop 3 */,
   0x40205014 /* Sens.Soccer */  , 0x40002573 /* Sonic Blast */,
   0x40007080 /* S.Harrier EU */ , 0x40007038 /* Taito Chase */,
+  0x40009015 /* Sonic 2 EU */   , /* NBA Jam: no valid id/cksum in TMR */
+  0x4fff8872 /* Excell.Dizzy */ , 0x4ffffac4 /* Fantast.Dizzy */,
+  0x4fff4a89 /* Csm.Spacehead */, 0x4fffe352 /* Micr.Machines */,
 };
 
-// TMR product codes and hardware type for known GG in SMS mode
-static u32 gg_smsmode[] = { // cf https://smspower.org/Tags/SMS-GG
-  0x60002401 /* Castl.Ilusion */, 0x60101018 /* Chase HQ */,
+// TMR product codes and hardware type for known non-FM games
+static u32 no_fmsound[] = { // cf Meka, meka/meka.pat
+  0x40002070 /* Walter Payton */, 0x40007020 /* American Pro */,
+  0x4fffe890 /* Wanted */
+};
+
+// TMR product codes and hardware type for known GG carts running in SMS mode
+// NB GG carts having the system type set to 4 (eg. HTH games) run as SMS anyway
+static u32 gg_smsmode[] = { // cf https://www.smspower.org/Tags/SMS-GG
+  0x60002401 /* Castl.Ilusion */, 0x60101018 /* Taito Chase */,
   0x70709018 /* Olympic Gold */ , 0x70009038 /* Outrun EU */,
   0x60801068 /* Predator 2 */   , 0x70408098 /* Prince.Persia */,
   0x50101037 /* Rastan Saga */  , 0x70006018 /* RC Grandprix */,
   0x60002415 /* Super Kickoff */, 0x60801108 /* WWF.Steelcage */,
+  /* Excell.Dizzy, Fantast.Dizzy, Super Tetris: no valid id/cksum in TMR */
 };
 
 void PicoResetMS(void)
 {
   unsigned tmr;
-  int id, hw, i;
+  u32 id, hw, ck, i;
 
   // set preselected hw/mapper from config
   if (PicoIn.hwSelect) {
@@ -619,6 +634,9 @@ void PicoResetMS(void)
   Pico.m.hardware |= PMS_HW_JAP; // default region Japan if no TMR header
   if (PicoIn.regionOverride > 2)
     Pico.m.hardware &= ~PMS_HW_JAP;
+  Pico.m.hardware |= PMS_HW_FM;
+  if (!(PicoIn.opt & POPT_EN_YM2413))
+    Pico.m.hardware &= ~PMS_HW_FM;
 
   // check if the ROM header contains more system information
   for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
@@ -635,14 +653,21 @@ void PicoResetMS(void)
           Pico.m.hardware |= PMS_HW_JAP; // region Japan
       }
       id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]) & 0xf0f0ffff;
+      ck = (CPU_LE4(*(u32 *)&Pico.rom[tmr-8])>>16) | (id&0xf0000000) | 0xfff0000;
       for (i = 0; i < sizeof(region_pal)/sizeof(*region_pal); i++)
-        if (id == region_pal[i] && !PicoIn.regionOverride) {
+        if ((id == region_pal[i] || ck == region_pal[i]) && !PicoIn.regionOverride)
+        {
           Pico.m.pal = 1; // requires 50Hz timing
           break;
         }
       for (i = 0; i < sizeof(gg_smsmode)/sizeof(*gg_smsmode); i++)
-        if (id == gg_smsmode[i] && !PicoIn.hwSelect) {
+        if ((id == gg_smsmode[i] || ck == gg_smsmode[i]) && !PicoIn.hwSelect) {
           PicoIn.AHW &= ~PAHW_GG; // requires SMS mode
+          break;
+        }
+      for (i = 0; i < sizeof(no_fmsound)/sizeof(*no_fmsound); i++)
+        if ((id == no_fmsound[i] || ck == no_fmsound[i])) {
+          Pico.m.hardware &= ~PMS_HW_FM; // incompatible with FM
           break;
         }
       break;
