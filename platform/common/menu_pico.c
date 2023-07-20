@@ -417,7 +417,8 @@ static const char *mgn_saveloadcfg(int id, int *offs);
 const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
-static char h_play34[] = "only for MD(+add-ons) with Team/4 way";
+static char h_play34[] = "Works only for Megadrive/CD/32X games having\n"
+				"support for Team player or 4 way play";
 
 static menu_entry e_menu_keyconfig[] =
 {
@@ -459,12 +460,16 @@ static int menu_loop_keyconfig(int id, int keys)
 
 // ------------ MD options menu ------------
 
-static const char h_fmfilter[] = "improves sound quality but is noticeably slower\n"
-				"best option if native rate isn't working";
+static const char h_fmsound[]  = "Disabling improves performance, but breaks sound";
+static const char h_dacnoise[] = "Megadrive 1 has DAC noise, Megadrive 2 doesn't";
+static const char h_fmfilter[] = "Improves sound accuracy but is noticeably slower,\n"
+				"best´quality if native rate isn't working";
 
 static menu_entry e_menu_md_options[] =
 {
 	mee_enum      ("Renderer",        MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_onoff_h   ("FM audio",        MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM, h_fmsound),
+	mee_onoff_h   ("FM DAC noise",    MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
 	mee_onoff_h   ("FM filtering",    MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
 	mee_end,
 };
@@ -486,8 +491,6 @@ static const char h_cdda[]   = "Play audio tracks from mp3s/wavs/bins";
 static const char h_cdpcm[]  = "Emulate PCM audio chip for effects/voices/music";
 static const char h_srcart[] = "Emulate the save RAM cartridge accessory\n"
 				"most games don't need this";
-static const char h_scfx[]   = "Emulate scale/rotate ASIC chip for graphics effects\n"
-				"disable to improve performance";
 
 static menu_entry e_menu_cd_options[] =
 {
@@ -495,7 +498,6 @@ static menu_entry e_menu_cd_options[] =
 	mee_onoff_h("CDDA audio",           MA_CDOPT_CDDA,          PicoIn.opt, POPT_EN_MCD_CDDA, h_cdda),
 	mee_onoff_h("PCM audio",            MA_CDOPT_PCM,           PicoIn.opt, POPT_EN_MCD_PCM, h_cdpcm),
 	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoIn.opt, POPT_EN_MCD_RAMCART, h_srcart),
-	mee_onoff_h("Scale/Rot. fx",        MA_CDOPT_SCALEROT_CHIP, PicoIn.opt, POPT_EN_MCD_GFX, h_scfx),
 	mee_end,
 };
 
@@ -538,21 +540,14 @@ static const char *mgn_opt_sh2cycles(int id, int *offs)
 	return static_buff;
 }
 
-static const char h_32x_enable[] = "Enable emulation of the 32X addon";
 static const char h_pwm[]        = "Disabling may improve performance, but break sound";
 static const char h_pwmopt[]     = "Enabling may improve performance, but break sound";
-static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
-				   "lower values speed up emulation but break games\n"
-				   "at least 11000 recommended for compatibility";
 
 static menu_entry e_menu_32x_options[] =
 {
-	mee_onoff_h   ("32X enabled",       MA_32XOPT_ENABLE_32X,  PicoIn.opt, POPT_EN_32X, h_32x_enable),
 	mee_enum      ("32X renderer",      MA_32XOPT_RENDERER,    currentConfig.renderer32x, renderer_names32x),
-	mee_onoff_h   ("PWM sound",         MA_32XOPT_PWM,         PicoIn.opt, POPT_EN_PWM, h_pwm),
+	mee_onoff_h   ("PWM audio",         MA_32XOPT_PWM,         PicoIn.opt, POPT_EN_PWM, h_pwm),
 	mee_onoff_h   ("PWM IRQ optimization", MA_OPT2_PWM_IRQ_OPT, PicoIn.opt, POPT_PWM_IRQ_OPT, h_pwmopt),
-	mee_cust_h    ("Master SH2 cycles", MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
-	mee_cust_h    ("Slave SH2 cycles",  MA_32XOPT_SSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_end,
 };
 
@@ -578,14 +573,14 @@ static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG
 static const char *gg_ghosting_opts[] = { "OFF", "weak", "normal", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", "Korea XOR", "Sega 32K RAM", NULL };
 static const char h_smsfm[] = "FM sound is only supported by few games\nOther games may crash with FM enabled";
-static const char h_ghost[] = "simulates the inertia of the GG LCD display";
+static const char h_ghost[] = "Simulates the inertia of the GG LCD display";
 
 static menu_entry e_menu_sms_options[] =
 {
 	mee_enum      ("System",            MA_SMSOPT_HARDWARE, PicoIn.hwSelect, sms_hardwares),
+	mee_enum      ("Cartridge mapping", MA_SMSOPT_MAPPER, PicoIn.mapper, sms_mappers),
 	mee_enum_h    ("Game Gear LCD ghosting", MA_SMSOPT_GHOSTING, currentConfig.ghosting, gg_ghosting_opts, h_ghost),
 	mee_onoff_h   ("FM Sound Unit",     MA_OPT2_ENABLE_YM2413, PicoIn.opt, POPT_EN_YM2413, h_smsfm),
-	mee_enum      ("Cartridge mapping", MA_SMSOPT_MAPPER, PicoIn.mapper, sms_mappers),
 	mee_end,
 };
 
@@ -602,21 +597,23 @@ static int menu_loop_sms_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+static const char h_gglcd[] = "Show full VDP image with borders if disabled";
 static const char h_ovrclk[] = "Will break some games, keep at 0";
+static const char h_dynarec[] = "Disabling dynarecs massively slows down 32X";
+static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
+				   "lower values speed up emulation but break games\n"
+				   "at least 11000 recommended for compatibility";
 
 static menu_entry e_menu_adv_options[] =
 {
-	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
-	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
-	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
-	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
-	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
-	mee_onoff     ("Enable YM2612 DAC noise",  MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC),
-	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
-	mee_onoff     ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD),
-	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
-	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
+	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
+	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
+	mee_onoff_h   ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD, h_gglcd),
+	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
+	mee_onoff_h   ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC, h_dynarec),
+	mee_cust_h    ("Master SH2 cycles",        MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
+	mee_cust_h    ("Slave SH2 cycles",         MA_32XOPT_SSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	MENU_OPTIONS_ADV
 	mee_end,
 };
@@ -695,16 +692,19 @@ static const char *mgn_opt_alpha(int id, int *offs)
 	return static_buff;
 }
 
-static const char h_quality[] = "native is the Megadrive sound chip rate (~53000),\n"
-				"best quality, but might not work on some devices";
+static const char h_ensound[] = "Disabling turns off sound output, however all\n"
+				"enabled sound components are still emulated";
+static const char h_quality[] = "native: Megadrive FM hardware rate (~53000Hz),\n"
+				"best quality, but may not work on some devices";
 static const char h_lowpass[] = "Low pass filter for sound closer to real hardware";
+static const char h_lpalpha[] = "Higher values have more impact";
 
 static menu_entry e_menu_snd_options[] =
 {
-	mee_onoff     ("Enable sound",    MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
-	mee_cust_h    ("Sound Quality",   MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound, h_quality),
+	mee_onoff_h   ("Enable sound",    MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND, h_ensound),
+	mee_cust_h    ("Sound quality",   MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound, h_quality),
 	mee_onoff_h   ("Sound filter",    MA_OPT_SOUND_FILTER,  PicoIn.opt, POPT_EN_SNDFILTER, h_lowpass),
-	mee_cust      ("Filter strength", MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha),
+	mee_cust_h    ("Filter strength", MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha, h_lpalpha),
 	mee_end,
 };
 
@@ -1211,6 +1211,8 @@ static int main_menu_handler(int id, int keys)
 		rom_fname_reload = NULL;
 		ret_name = menu_loop_romsel(rom_fname_loaded,
 			sizeof(rom_fname_loaded), rom_exts, NULL);
+//		ret_name = menu_loop_romsel_d(rom_fname_loaded,
+//			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
 		if (ret_name != NULL) {
 			lprintf("selected file: %s\n", ret_name);
 			rom_fname_reload = ret_name;
@@ -1305,6 +1307,8 @@ static int mh_tray_load_cd(int id, int keys)
 	rom_fname_reload = NULL;
 	ret_name = menu_loop_romsel(rom_fname_loaded,
 			sizeof(rom_fname_loaded), rom_exts, NULL);
+//	ret_name = menu_loop_romsel_d(rom_fname_loaded,
+//			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
 	if (ret_name == NULL)
 		return 0;
 
@@ -1364,9 +1368,16 @@ void menu_update_msg(const char *msg)
 /* hidden options for config engine only */
 static menu_entry e_menu_hidden[] =
 {
-	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, POPT_ACC_SPRITES),
-	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
-	mee_onoff("SDL fullscreen mode", MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
+	mee_onoff("Accurate sprites",         MA_OPT_ACC_SPRITES,    PicoIn.opt, POPT_ACC_SPRITES),
+	mee_onoff("autoload savestates",      MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
+	mee_onoff("SDL fullscreen mode",      MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1),
+	mee_onoff("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
+	mee_onoff("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
+	mee_onoff("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
+	mee_onoff("Enable YM2612 DAC noise",  MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC),
+	mee_onoff("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
+	mee_onoff("Scale/Rot. fx",            MA_CDOPT_SCALEROT_CHIP, PicoIn.opt, POPT_EN_MCD_GFX),
+	mee_onoff("32X enabled",              MA_32XOPT_ENABLE_32X,  PicoIn.opt, POPT_EN_32X),
 	mee_end,
 };
 
