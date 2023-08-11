@@ -592,10 +592,9 @@ void emu_32x_startup(void)
    PicoDrawSetOutFormat(vout_format, 0);
    vout_16bit = 1;
 
-   if ((vm_current_start_line != -1) &&
-       (vm_current_line_count != -1) &&
-       (vm_current_start_col != -1) &&
-       (vm_current_col_count != -1))
+   if (vout_buf &&
+       (vm_current_start_line != -1) && (vm_current_line_count != -1) &&
+       (vm_current_start_col != -1) && (vm_current_col_count != -1))
       emu_video_mode_change(
             vm_current_start_line, vm_current_line_count,
             vm_current_start_col, vm_current_col_count);
@@ -2014,10 +2013,9 @@ static void update_variables(bool first_run)
    /* setup video if required */
    if (vout_format != old_vout_format)
    {
-      if ((vm_current_start_line != -1) &&
-          (vm_current_line_count != -1) &&
-          (vm_current_start_col != -1) &&
-          (vm_current_col_count != -1))
+      if (vout_buf &&
+          (vm_current_start_line != -1) && (vm_current_line_count != -1) &&
+          (vm_current_start_col != -1) && (vm_current_col_count != -1))
          emu_video_mode_change(
                vm_current_start_line, vm_current_line_count,
                vm_current_start_col, vm_current_col_count);
@@ -2390,6 +2388,10 @@ void retro_deinit(void)
 {
    size_t i;
 
+   PicoExit();
+
+   disk_init();
+
 #ifdef _3DS
    linearFree(vout_buf);
 #elif defined(RENDER_GSKIT_PS2)
@@ -2407,10 +2409,6 @@ void retro_deinit(void)
    if (vout_ghosting_buf)
       free(vout_ghosting_buf);
    vout_ghosting_buf = NULL;
-
-   PicoExit();
-
-   disk_init();
 
    libretro_supports_bitmasks = false;
 }
