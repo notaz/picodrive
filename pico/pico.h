@@ -79,7 +79,8 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
 
-#define PQUIRK_FORCE_6BTN   (1<<0)
+#define PQUIRK_FORCE_6BTN      (1<<0)
+#define PQUIRK_NO_Z80_BUS_LOCK (1<<1)
 
 // the emulator is configured and some status is reported
 // through this global state (not saved in savestates)
