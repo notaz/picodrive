@@ -1,21 +1,18 @@
-This is my foray into dynamic recompilation using PicoDrive, a
-Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS emulator.
+This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
+emulator, which was originally written having ARM-based handheld devices
+in mind, but later had got various improvements for other architectures
+too, like SH2 recompilers for MIPS (mips32r2), ARM64 (armv8), RISC-V (RV64IM)
+and PowerPC (G4/2.03).
 
-I added support for MIPS (mips32r2), ARM64 (armv8), RISC-V (RV64IM) and
-PowerPC (G4/2.03) support to the SH2 recompiler, as well as spent much effort to
-optimize the DRC-generated code. I also optimized SH2 memory access inside the
-emulator, and did some work on M68K/SH2 CPU synchronization to fix some problems
-and speed up the emulator.
+PicoDrive was the first emulator ever to properly emulate Virtua Racing and
+it's SVP chip.
 
-It got a bit out of hand. I ended up doing fixes and optimizations all over the
-place, mainly for 32X and CD, graphics handling, sound, and probably some more,
-see the commit history. As a result, 32X emulation speed has improved a lot, a
-lot of bugs were fixed, and some new features (e.g. chd file support) have been
-added.
+Currently the main development happens in the
+[irixxxx's fork](https://github.com/irixxxx/picodrive),
+[notaz's repo](https://github.com/notaz/picodrive) isn't updated as much.
 
 ### compiling
 
-I mainly worked with standalone PicoDrive versions as created by configure/make.
 A list of platforms for which this is possible can be obtained with
 
 > configure --help
