@@ -371,7 +371,7 @@ static void system_announce(void)
 	} else if (PicoIn.AHW & PAHW_32X) {
 		sys_name = "32X";
 	} else {
-		sys_name = "MegaDrive";
+		sys_name = "Mega Drive";
 		if ((Pico.m.hardware & 0xc0) == 0x80)
 			sys_name = "Genesis";
 	}

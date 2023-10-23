@@ -1,7 +1,7 @@
 This is yet another SEGA 8 bit and 16 bit console emulator for emulating most
 of the hardware SEGA has published up to and including the 32X.
 
-Emulated 16 bit systems: Megadrive/Genesis, Sega/Mega CD, 32X, Pico.  
+Emulated 16 bit systems: Mega Drive/Genesis, Sega/Mega CD, 32X, Pico.  
 Emulated 8 bit systems: SG-1000, SC-3000, Master System/Mark III, Game Gear.
 
 PicoDrive was originally written having ARM-based handheld devices

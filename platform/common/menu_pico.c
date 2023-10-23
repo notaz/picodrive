@@ -414,7 +414,7 @@ static const char *mgn_dev_name(int id, int *offs)
 const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
-static char h_play34[] = "Works only for Megadrive/CD/32X games having\n"
+static char h_play34[] = "Works only for Mega Drive/CD/32X games having\n"
 				"support for Team player or 4 way play";
 
 static menu_entry e_menu_keyconfig[] =
@@ -462,7 +462,7 @@ static int menu_loop_keyconfig(int id, int keys)
 
 static const char h_renderer[] = "16bit is more accurate, 8bit is faster";
 static const char h_fmsound[]  = "Disabling improves performance, but breaks sound";
-static const char h_dacnoise[] = "FM chips in the 1st Megadrive model have DAC noise,\n"
+static const char h_dacnoise[] = "FM chips in the 1st Mega Drive model have DAC noise,\n"
 				"newer models used different chips without this";
 static const char h_fmfilter[] = "Improves sound accuracy but is noticeably slower,\n"
 				"best´quality if native rate isn't working";
@@ -699,7 +699,7 @@ static const char *mgn_opt_alpha(int id, int *offs)
 
 static const char h_ensound[] = "Disabling turns off sound output, however all\n"
 				"enabled sound components are still emulated";
-static const char h_quality[] = "native: Megadrive FM hardware rate (~53000Hz),\n"
+static const char h_quality[] = "native: Mega Drive FM hardware rate (~53000Hz),\n"
 				"best quality, but may not work on some devices";
 static const char h_lowpass[] = "Low pass filter for sound closer to real hardware";
 static const char h_lpalpha[] = "Higher values have more impact";
@@ -949,7 +949,7 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("Interface options",        menu_loop_ui_options),
 	mee_handler   ("Display options",          menu_loop_gfx_options),
 	mee_handler   ("Sound options",            menu_loop_snd_options),
-	mee_handler   ("MD/Genesis options",       menu_loop_md_options),
+	mee_handler   ("MD/Genesis/Pico options",  menu_loop_md_options),
 	mee_handler   ("  Sega/Mega CD add-on",    menu_loop_cd_options),
 #ifndef NO_32X
 	mee_handler   ("  32X add-on",             menu_loop_32x_options),

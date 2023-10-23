@@ -208,7 +208,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "picodrive_sound_rate",
       "Audio Sample Rate (Hz)",
       "Sample Rate (Hz)",
-      "Higher values increase sound quality. Lower values may increase performance. Native is the Megadrive sound chip rate (~53000). Select this if you want the most accurate audio.",
+      "Higher values increase sound quality. Lower values may increase performance. Native is the Mega Drive sound chip rate (~53000). Select this if you want the most accurate audio.",
       NULL,
       "audio",
       {
