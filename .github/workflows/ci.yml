@@ -1,0 +1,268 @@
+name: Picodrive CI
+on: [push, pull_request]
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: create release
+      id: create_release
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/create-release@v1
+      with:
+        prerelease: ${{ contains(github.ref, '-') }}
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y libsdl1.2-dev libasound2-dev libpng-dev libz-dev
+    - name: configure
+      run: DUMP_CONFIG_LOG=1 ./configure
+    - name: make
+      run: make
+
+  build-libretro:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: make
+      run: LDFLAGS=-Wl,--no-undefined make -f Makefile.libretro
+
+
+  build-gp2x:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-gp2x
+    permissions:
+      packages: read
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=arm-none-eabi- ./configure --platform=gp2x
+        make PLATFORM_MP3=0
+        make -C platform/gp2x rel VER=$ver
+        mv PicoDrive_$ver.zip PicoDrive-gph_$ver.zip
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: GP2X
+        path: PicoDrive-gph_*.zip
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-gph_*.zip
+
+  build-pandora:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-pandora
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        ./configure --platform=pandora
+        make
+        mv PicoDrive PicoDrive-pandora
+        ${CROSS_COMPILE}strip PicoDrive-pandora
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Pandora
+        path: PicoDrive-pandora
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-pandora
+
+  build-psp:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/pspdev/pspdev
+    steps:
+    - name: build environment
+      run: |
+        apk add git gcc g++ zip
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=psp- ./configure --platform=psp
+        CROSS_COMPILE=psp- make
+        make -C platform/psp rel VER=$ver
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: PSP
+        path: PicoDrive_psp_*.zip
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive_psp_*.zip
+
+
+  build-dingux:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    container: ghcr.io/irixxxx/toolchain-dingux
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=mipsel-linux- ./configure --platform=dingux
+        CROSS_COMPILE=mipsel-linux- make
+        mv PicoDrive-dge.zip PicoDrive-dge-$ver.zip
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Dingux
+        path: PicoDrive-dge*.zip
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-dge*.zip
+
+  build-gcw0:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-opendingux
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=mipsel-linux- ./configure --platform=gcw0
+        CROSS_COMPILE=mipsel-linux- make
+        mv PicoDrive.opk PicoDrive-gcw0-$ver.opk
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: GCW0
+        path: PicoDrive-gcw0*.opk
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-gcw0*.opk
+
+  build-opendingux:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-opendingux
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=mipsel-linux- ./configure --platform=opendingux
+        CROSS_COMPILE=mipsel-linux- make
+        mv PicoDrive.opk PicoDrive-opendingux-$ver.opk
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Opendingux
+        path: PicoDrive-opendingux*.opk
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-opendingux*.opk
+
+  build-miyoo:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    container: miyoocfw/toolchain
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory /home/picodrive
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=arm-buildroot-linux-musleabi- ./configure --platform=miyoo
+        CROSS_COMPILE=arm-buildroot-linux-musleabi- make
+        mv PicoDrive.zip PicoDrive-miyoo-$ver.zip
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Miyoo
+        path: PicoDrive-miyoo*.zip
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-miyoo*.zip
+
+  build-retrofw:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-retrofw
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        CROSS_COMPILE=mipsel-RetroFW-linux-uclibc- ./configure --platform=retrofw
+        CROSS_COMPILE=mipsel-RetroFW-linux-uclibc- make
+        mv PicoDrive.opk PicoDrive-retrofw-$ver.opk
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: RetroFW
+        path: PicoDrive-retrofw*.opk
+    - name: publish
+      if: ${{ github.ref_type == 'tag' }}
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: PicoDrive-retrofw*.opk
+
