@@ -6,6 +6,12 @@ $(error need VER)
 endif
 endif
 
+../../tools/textfilter: ../../tools/textfilter.c
+	make -C ../../tools/ textfilter
+
+readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
+	../../tools/textfilter ../base_readme.txt $@ PSP
+
 # ?
 rel: ../../EBOOT.PBP readme.txt ../game_def.cfg
 	mkdir -p PicoDrive/skin/

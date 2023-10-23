@@ -1,4 +1,4 @@
-TARGETS = amalgamate textfilter
+TARGETS = amalgamate textfilter make_carthw_c
 HOSTCC ?= cc
 
 all:

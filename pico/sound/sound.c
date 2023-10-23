@@ -120,6 +120,12 @@ static void YM2612_setup_FIR(int inrate, int outrate, int stereo)
         0.85, 2, 2*inrate/50, stereo);
 }
 
+// wrapper for the YM2612UpdateONE macro
+static int YM2612UpdateONE(s32 *buffer, int length, int stereo, int is_buf_empty)
+{
+  return YM2612UpdateOne(buffer, length, stereo, is_buf_empty);
+}
+
 // to be called after changing sound rate or chips
 void PsndRerate(int preserve_state)
 {
@@ -146,7 +152,7 @@ void PsndRerate(int preserve_state)
     YM2612Init(ym2612_clock, PicoIn.sndRate,
         ((PicoIn.opt&POPT_DIS_FM_SSGEG) ? 0 : ST_SSG) |
         ((PicoIn.opt&POPT_EN_FM_DAC)    ? ST_DAC : 0));
-    PsndFMUpdate = YM2612UpdateOne;
+    PsndFMUpdate = YM2612UpdateONE;
   }
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state

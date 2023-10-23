@@ -1,15 +1,6 @@
 # you may or may not need to change this
-#devkit_path ?= $(HOME)/opt/devkitGP2X/
-#lgcc_path = $(devkit_path)lib/gcc/arm-linux/4.0.3/
-#CROSS = $(devkit_path)bin/arm-linux-
-#devkit_path ?= $(HOME)/opt/open2x
-#lgcc_path = $(devkit_path)/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/
-#CROSS ?= $(devkit_path)/gcc-4.1.1-glibc-2.3.6/bin/arm-open2x-linux-
-#devkit_path ?= $(HOME)/opt/arm-unknown-linux-gnu
-#lgcc_path = $(HOME)/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/
-#CROSS ?= $(devkit_path)/bin/arm-unknown-linux-gnu-
 lgcc_path = $(HOME)/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/
-CROSS ?= arm-linux-gnueabi-
+CROSS_COMPILE ?= arm-none-eabi-
 
 # settings
 #up = 1
@@ -19,11 +10,11 @@ CFLAGS += -I../../common/helix/pub -I../../.. -I. -D__GP2X__ -DARM
 CFLAGS += -mcpu=arm940t -mtune=arm940t -mabi=apcs-gnu -mfloat-abi=soft -mfpu=fpa
 LDFLAGS = -static -e code940 -Ttext 0x0 -L$(lgcc_path) -lgcc
 
-GCC = $(CROSS)gcc
-STRIP = $(CROSS)strip
-AS = $(CROSS)as
-LD = $(CROSS)ld
-OBJCOPY = $(CROSS)objcopy
+GCC = $(CROSS_COMPILE)gcc
+STRIP = $(CROSS_COMPILE)strip
+AS = $(CROSS_COMPILE)as
+LD = $(CROSS_COMPILE)ld
+OBJCOPY = $(CROSS_COMPILE)objcopy
 
 vpath %.c = ../../common
 
@@ -52,7 +43,7 @@ OBJS940 += 940init.o 940.o 940ym2612.o misc_arm.o mp3_sync.o
 OBJS940 += uClibc/memset.o uClibc/s_floor.o uClibc/e_pow.o uClibc/e_sqrt.o uClibc/s_fabs.o
 OBJS940 += uClibc/s_scalbn.o uClibc/s_copysign.o uClibc/k_sin.o uClibc/k_cos.o uClibc/s_sin.o
 OBJS940 += uClibc/e_rem_pio2.o uClibc/k_rem_pio2.o uClibc/e_log.o uClibc/wrappers.o
-LIBHELIX ?= ../../common/helix/$(notdir $(CROSS))helix_mp3.a
+LIBHELIX ?= ../../common/helix/$(notdir $(CROSS_COMPILE))helix_mp3.a
 
 $(BIN) : code940.elf
 	@echo ">>>" $@
@@ -75,7 +66,7 @@ mp3_sync.o: ../../common/mp3_sync.c
 	$(GCC) $(CFLAGS) -Os -DCODE940 -c $< -o $@
 
 $(LIBHELIX):
-	@$(MAKE) -C ../../common/helix/ CROSS=$(CROSS)
+	@$(MAKE) -C ../../common/helix/ CROSS_COMPILE=$(CROSS_COMPILE)
 
 
 up: $(BIN)

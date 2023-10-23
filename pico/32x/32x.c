@@ -282,7 +282,7 @@ static void p32x_end_blank(void)
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
   if (!(Pico32x.sh2_regs[0] & 0x80)) {
     // NB must precede VInt per hw manual, min 4 SH-2 cycles to pass Mars Check
-    Pico32x.hint_counter = -0x18;
+    Pico32x.hint_counter = (int)(-1.5*0x10);
     p32x_schedule_hint(NULL, Pico.t.m68c_aim);
   }
 

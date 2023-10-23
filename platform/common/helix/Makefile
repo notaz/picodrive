@@ -1,9 +1,9 @@
-CROSS ?= arm-linux-gnueabi-
+CROSS_COMPILE ?= arm-linux-gnueabi-
 
-CC = $(CROSS)gcc
-AS = $(CROSS)as
-AR = $(CROSS)ar
-TOOLCHAIN = $(notdir $(CROSS))
+CC = $(CROSS_COMPILE)gcc
+AS = $(CROSS_COMPILE)as
+AR = $(CROSS_COMPILE)ar
+TOOLCHAIN = $(notdir $(CROSS_COMPILE))
 LIBGCC ?= ${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/libgcc.a
 
 CFLAGS += -Ipub -O2 -Wall -fstrict-aliasing -ffast-math

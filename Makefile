@@ -231,7 +231,7 @@ OBJS += platform/gp2x/vid_mmsp2.o
 OBJS += platform/gp2x/vid_pollux.o 
 OBJS += platform/gp2x/warm.o 
 USE_FRONTEND = 1
-PLATFORM_MP3 = 1
+PLATFORM_MP3 ?= 1
 endif
 ifeq "$(PLATFORM)" "psp"
 CFLAGS += -DUSE_BGR565 -G8 # -DLPRINTF_STDIO -DFW15
@@ -373,6 +373,7 @@ clean:
 	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h
 	$(MAKE) -C cpu/cyclone clean
 	$(MAKE) -C cpu/musashi clean
+	$(MAKE) -C tools clean
 	$(RM) -r .od_data
 
 $(TARGET): $(OBJS)
@@ -439,7 +440,9 @@ cpu/fame/famec.o: CFLAGS += -Od
 endif
 endif
 
-pico/carthw_cfg.c: pico/carthw.cfg
+tools/make_carthw_c:
+	make -C tools make_carthw_c
+pico/carthw_cfg.c: pico/carthw.cfg tools/make_carthw_c
 	tools/make_carthw_c $< $@
 
 # preprocessed asm files most probably include the offsets file

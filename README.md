@@ -52,14 +52,14 @@ MP3 audio files with CD games. The helix source files are however not supplied
 due to licensing issues. If you have legally obtained the sources, put them in
 the platform/common/helix directory. 
 
-To compile the helix sources, set CROSS to your cross compiler prefix
+To compile the helix sources, set CROSS_COMPILE to your cross compiler prefix
 (e.g. arm-linux-gnueabi-) and LIBGCC to your cross compiler's libgcc.a
 (e.g. /usr/lib/gcc-cross/arm-linux-gnueabi/4.7/libgcc.a), and compile with
 
-> make -C platform/common/helix CROSS=$CROSS LIBGCC=$LIBGCC
+> make -C platform/common/helix CROSS_COMPILE=$CROSS_COMPILE LIBGCC=$LIBGCC
 
-This will result in a shared library named ${CROSS}helix_mp3.so. Copy this
-as libhelix.so to where the PicoDrive binary is on the target device.
+This will result in a shared library named ${CROSS_COMPILE}helix_mp3.so. Copy
+this as libhelix.so to where the PicoDrive binary is on the target device.
 
 
 Also, the support for helix must be enabled in PicoDrive by compiling with

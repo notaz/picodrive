@@ -12,10 +12,16 @@
 #include <dlfcn.h>
 
 #include <pico/pico_int.h>
-#include "helix/pub/mp3dec.h"
+/*#include "helix/pub/mp3dec.h"*/
 #include "mp3.h"
 
-static HMP3Decoder mp3dec;
+#ifndef _MP3DEC_H
+typedef void *HMP3Decoder;
+#define ERR_MP3_INDATA_UNDERFLOW -1
+#define ERR_MP3_MAINDATA_UNDERFLOW -2
+#endif
+
+static void *mp3dec;
 static unsigned char mp3_input_buffer[2 * 1024];
 
 #ifdef __GP2X__

@@ -7,9 +7,10 @@
 [submodule "pico/sound/emu2413"]
 	path = pico/sound/emu2413
 	url = https://github.com/digital-sound-antiques/emu2413.git
+	branch = main
 [submodule "pico/cd/libchdr"]
 	path = pico/cd/libchdr
-	url = https://github.com/rtissera/libchdr.git
+	url = https://github.com/irixxxx/libchdr.git
 [submodule "platform/common/dr_libs"]
 	path = platform/common/dr_libs
 	url = https://github.com/mackron/dr_libs.git
