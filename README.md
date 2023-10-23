@@ -1,5 +1,10 @@
-This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
-emulator, which was originally written having ARM-based handheld devices
+This is yet another SEGA 8 bit and 16 bit console emulator for emulating most
+of the hardware SEGA has published up to and including the 32X.
+
+Emulated 16 bit systems: Megadrive/Genesis, Sega/Mega CD, 32X, Pico.  
+Emulated 8 bit systems: SG-1000, SC-3000, Master System/Mark III, Game Gear.
+
+PicoDrive was originally written having ARM-based handheld devices
 in mind, but later had got various improvements for other architectures
 too, like SH2 recompilers for MIPS (mips32r2), ARM64 (armv8), RISC-V (RV64IM)
 and PowerPC (G4/2.03).
