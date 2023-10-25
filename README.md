@@ -19,21 +19,16 @@ Currently the main development happens in the
 ### compiling
 
 For platforms for which release builds are supplied the most easy way is to 
-use the release script in tools/release.sh.  The script requires toolchains
-to be installed locally, depending on the platform to build. See the release
-script for details. To make a platform release build use
+use the release script in tools/release.sh. See the release script for details.
+To make a platform build use
 
 > tools/release.sh [version] [platforms...]
 
-This will deliver a zip files for each platform in a the release-[version]
-directory.
-
-A list of platforms for which this is possible can be obtained with
-
-> configure --help
+This will deliver a file for each platform in a the release-[version] directory.
+A list of platforms is in the release script.
 
 If you want to build an executable for a unixoid platform not listed in the
-platform list, just use
+platform list, try using
 
 > configure --platform=generic
 
