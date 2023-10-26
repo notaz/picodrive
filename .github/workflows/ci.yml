@@ -26,7 +26,7 @@ jobs:
     - name: configure
       run: DUMP_CONFIG_LOG=1 ./configure
     - name: make
-      run: make
+      run: make -j2
 
   build-libretro:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
       with:
         submodules: true
     - name: make
-      run: LDFLAGS=-Wl,--no-undefined make -f Makefile.libretro
+      run: LDFLAGS=-Wl,--no-undefined make -j2 -f Makefile.libretro
 
 
   build-gp2x:
@@ -52,8 +52,8 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=arm-none-eabi- ./configure --platform=gp2x
-        make PLATFORM_MP3=0
+        ./configure --platform=gp2x
+        make -j2 PLATFORM_MP3=0
         make -C platform/gp2x rel VER=$ver
         mv PicoDrive_$ver.zip PicoDrive-gph_$ver.zip
     - name: artifacts
@@ -81,7 +81,7 @@ jobs:
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
         ./configure --platform=pandora
-        make
+        make -j2
         mv PicoDrive PicoDrive-pandora
         ${CROSS_COMPILE}strip PicoDrive-pandora
     - name: artifacts
@@ -109,10 +109,11 @@ jobs:
         submodules: true
     - name: build
       run: |
+        export CROSS_COMPILE=psp-
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=psp- ./configure --platform=psp
-        CROSS_COMPILE=psp- make
+        ./configure --platform=psp
+        make -j2
         make -C platform/psp rel VER=$ver
     - name: artifacts
       uses: actions/upload-artifact@v3
@@ -141,8 +142,8 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=mipsel-linux- ./configure --platform=dingux
-        CROSS_COMPILE=mipsel-linux- make
+        ./configure --platform=dingux
+        make -j2
         mv PicoDrive-dge.zip PicoDrive-dge-$ver.zip
     - name: artifacts
       uses: actions/upload-artifact@v3
@@ -168,8 +169,8 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=mipsel-linux- ./configure --platform=gcw0
-        CROSS_COMPILE=mipsel-linux- make
+        ./configure --platform=gcw0
+        make -j2
         mv PicoDrive.opk PicoDrive-gcw0-$ver.opk
     - name: artifacts
       uses: actions/upload-artifact@v3
@@ -195,8 +196,8 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=mipsel-linux- ./configure --platform=opendingux
-        CROSS_COMPILE=mipsel-linux- make
+        ./configure --platform=opendingux
+        make -j2
         mv PicoDrive.opk PicoDrive-opendingux-$ver.opk
     - name: artifacts
       uses: actions/upload-artifact@v3
@@ -222,10 +223,11 @@ jobs:
         submodules: true
     - name: build
       run: |
+        export CROSS_COMPILE=arm-buildroot-linux-musleabi-
         git config --global --add safe.directory /home/picodrive
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=arm-buildroot-linux-musleabi- ./configure --platform=miyoo
-        CROSS_COMPILE=arm-buildroot-linux-musleabi- make
+        ./configure --platform=miyoo
+        make -j2
         mv PicoDrive.zip PicoDrive-miyoo-$ver.zip
     - name: artifacts
       uses: actions/upload-artifact@v3
@@ -251,8 +253,8 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        CROSS_COMPILE=mipsel-RetroFW-linux-uclibc- ./configure --platform=retrofw
-        CROSS_COMPILE=mipsel-RetroFW-linux-uclibc- make
+        ./configure --platform=retrofw
+        make -j2
         mv PicoDrive.opk PicoDrive-retrofw-$ver.opk
     - name: artifacts
       uses: actions/upload-artifact@v3
