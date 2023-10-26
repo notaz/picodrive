@@ -221,7 +221,7 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
     *(s16 *)(cpu+0x4e) = SekCycleCntS68k - SekCycleAimS68k;
   } else {
     *(u32 *)(cpu+0x50) = Pico.t.m68c_cnt;
-    *(u32 *)(cpu+0x4e) = Pico.t.m68c_cnt - Pico.t.m68c_aim;
+    *(s16 *)(cpu+0x4e) = Pico.t.m68c_cnt - Pico.t.m68c_aim;
   }
 }
 
