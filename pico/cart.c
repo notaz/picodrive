@@ -1210,6 +1210,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
         PicoIn.quirks |= PQUIRK_MARSCHECK_HACK;
       else if (strcmp(p, "force_6btn") == 0)
         PicoIn.quirks |= PQUIRK_FORCE_6BTN;
+      else if (strcmp(p, "no_z80_bus_lock") == 0)
+        PicoIn.quirks |= PQUIRK_NO_Z80_BUS_LOCK;
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported prop: %s", line, p);
         goto bad_nomsg;

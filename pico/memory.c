@@ -675,7 +675,7 @@ static void PicoWrite16_sram(u32 a, u32 d)
 static u32 PicoRead8_z80(u32 a)
 {
   u32 d = 0xff;
-  if ((Pico.m.z80Run & 1) || Pico.m.z80_reset) {
+  if (((Pico.m.z80Run & 1) || Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     // open bus. Pulled down if MegaCD2 is attached.
     return 0;
@@ -699,7 +699,7 @@ static u32 PicoRead16_z80(u32 a)
 
 static void PicoWrite8_z80(u32 a, u32 d)
 {
-  if ((Pico.m.z80Run & 1) || Pico.m.z80_reset) {
+  if (((Pico.m.z80Run & 1) || Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     // verified on real hw
     elprintf(EL_ANOMALY, "68k z80 write with no bus or reset! [%06x] %02x @ %06x", a, d&0xff, SekPc);
     return;
