@@ -1,18 +1,6 @@
 name: Picodrive CI
 on: [push, pull_request]
 jobs:
-  prepare-release:
-    runs-on: ubuntu-latest
-    steps:
-    - name: create release
-      id: create_release
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/create-release@v1
-      with:
-        prerelease: ${{ contains(github.ref, '-') }}
-        tag_name: ${{ github.ref }}
-        release_name: ${{ github.ref }}
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -39,7 +27,6 @@ jobs:
 
 
   build-gp2x:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/irixxxx/toolchain-gp2x
     permissions:
@@ -61,15 +48,8 @@ jobs:
       with:
         name: GP2X
         path: PicoDrive-gph_*.zip
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-gph_*.zip
 
   build-pandora:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/irixxxx/toolchain-pandora
     steps:
@@ -89,15 +69,8 @@ jobs:
       with:
         name: Pandora
         path: PicoDrive-pandora
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-pandora
 
   build-psp:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/pspdev/pspdev
     steps:
@@ -120,16 +93,9 @@ jobs:
       with:
         name: PSP
         path: PicoDrive_psp_*.zip
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive_psp_*.zip
 
 
   build-dingux:
-    needs: prepare-release
     runs-on: ubuntu-latest
     permissions:
       packages: read
@@ -150,15 +116,8 @@ jobs:
       with:
         name: Dingux
         path: PicoDrive-dge*.zip
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-dge*.zip
 
   build-gcw0:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/irixxxx/toolchain-opendingux
     steps:
@@ -177,15 +136,8 @@ jobs:
       with:
         name: GCW0
         path: PicoDrive-gcw0*.opk
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-gcw0*.opk
 
   build-opendingux:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/irixxxx/toolchain-opendingux
     steps:
@@ -204,15 +156,8 @@ jobs:
       with:
         name: Opendingux
         path: PicoDrive-opendingux*.opk
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-opendingux*.opk
 
   build-miyoo:
-    needs: prepare-release
     runs-on: ubuntu-latest
     permissions:
       packages: read
@@ -234,15 +179,8 @@ jobs:
       with:
         name: Miyoo
         path: PicoDrive-miyoo*.zip
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-miyoo*.zip
 
   build-retrofw:
-    needs: prepare-release
     runs-on: ubuntu-latest
     container: ghcr.io/irixxxx/toolchain-retrofw
     steps:
@@ -261,10 +199,4 @@ jobs:
       with:
         name: RetroFW
         path: PicoDrive-retrofw*.opk
-    - name: publish
-      if: ${{ github.ref_type == 'tag' }}
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: PicoDrive-retrofw*.opk
 
