@@ -41,7 +41,7 @@ LOW_MEMORY := 0
 TARGET_NAME := picodrive
 LIBM := -lm
 GIT_REVISION ?= -$(shell git rev-parse --short HEAD || echo ???)
-
+CFLAGS += -DREVISION=\"$(GIT_REVISION)\"
 
 fpic :=
 
