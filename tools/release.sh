@@ -5,7 +5,7 @@
 # creates builds for the supported platforms in the release directory
 #
 # usage: release.sh <version> [platform...]
-#	platforms:	gph dingux retrofw gcw0 rg350 miyoo psp pandora
+#	platforms:	gph dingux retrofw gcw0 rg350 miyoo psp pandora odbeta-gcw0 odbeta-lepus
 #
 # expects toolchains to be installed in these docker containers:
 #	gph:		ghcr.io/irixxxx/toolchain-gp2x
@@ -14,6 +14,8 @@
 #	gcw0, rg350:	ghcr.io/irixxxx/toolchain-opendingux
 #	miyoo:		miyoocfw/toolchain
 #	psp:		ghcr.io/pspdev/pspdev
+#	odbeta-gcw0:	ghcr.io/irixxxx/toolchain-odbeta-gcw0
+#	odbeta-lepus:	ghcr.io/irixxxx/toolchain-odbeta-lepus
 
 trap "exit" ERR
 
@@ -108,4 +110,24 @@ echo "	git config --global --add safe.directory /home/picodrive &&\
 	\${CROSS_COMPILE}strip -o PicoDrive-pandora-$rel PicoDrive"\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-pandora sh &&
 mv PicoDrive-pandora-$rel release-$rel/
+}
+
+[ -z "${plat##* odbeta-gcw0 *}" ] && {
+# gcw0 (untested): JZ4770 (mips32r2 with fpu), swapped X/Y buttons
+docker pull ghcr.io/irixxxx/toolchain-odbeta-gcw0
+echo "	git config --global --add safe.directory /home/picodrive &&\
+	./configure --platform=gcw0 &&\
+	make clean && make -j2 all "\
+  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-odbeta-gcw0 sh &&
+mv PicoDrive.opk release-$rel/PicoDrive-odbeta-gcw0_$rel.opk
+}
+
+[ -z "${plat##* odbeta-lepus *}" ] && {
+# lepus (untested): JZ4760 (mips32r1 with fpu)
+docker pull ghcr.io/irixxxx/toolchain-odbeta-lepus
+echo "	git config --global --add safe.directory /home/picodrive &&\
+	./configure --platform=opendingux &&\
+	make clean && make -j2 all "\
+  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-odbeta-lepus sh &&
+mv PicoDrive.opk release-$rel/PicoDrive-odbeta-lepus_$rel.opk
 }

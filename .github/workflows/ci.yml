@@ -200,3 +200,42 @@ jobs:
         name: RetroFW
         path: PicoDrive-retrofw*.opk
 
+  build-odbeta-gcw0:
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-odbeta-gcw0
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        ./configure --platform=opendingux
+        make -j2
+        mv PicoDrive.opk PicoDrive-odbeta-gcw0-$ver.opk
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ODbeta gcw0
+        path: PicoDrive-odbeta-*.opk
+
+  build-odbeta-lepus:
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-odbeta-lepus
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        ./configure --platform=opendingux
+        make -j2
+        mv PicoDrive.opk PicoDrive-odbeta-lepus-$ver.opk
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ODbeta lepus
+        path: PicoDrive-odbeta-*.opk
