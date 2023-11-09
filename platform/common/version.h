@@ -1,1 +1,1 @@
-#define VERSION "2.00-alpha1" REVISION
+#define VERSION "pre-2.00-alpha1" REVISION
