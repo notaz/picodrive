@@ -12,7 +12,7 @@
 #	dingux:		ghcr.io/irixxxx/toolchain-dingux
 #	retrofw:	ghcr.io/irixxxx/toolchain-retrofw
 #	gcw0, rg350:	ghcr.io/irixxxx/toolchain-opendingux
-#	miyoo:		miyoocfw/toolchain
+#	miyoo:		ghcr.io/irixxxx/toolchain-miyoo
 #	psp:		ghcr.io/pspdev/pspdev
 #	odbeta-gcw0:	ghcr.io/irixxxx/toolchain-odbeta-gcw0
 #	odbeta-lepus:	ghcr.io/irixxxx/toolchain-odbeta-lepus
@@ -23,7 +23,7 @@ rel=$1
 mkdir -p release-$rel
 
 shift; plat=" $* "
-[ -z "$(echo $plat|tr -d ' ')" ] && plat=" gph dingux retrofw gcw0 rg350 miyoo psp "
+[ -z "$(echo $plat|tr -d ' ')" ] && plat=" gph dingux retrofw gcw0 rg350 miyoo psp pandora odbeta-gcw0 odbeta-lepus "
 
 
 [ -z "${plat##* gph *}" ] && {
@@ -80,12 +80,11 @@ mv PicoDrive.opk release-$rel/PicoDrive-opendingux_$rel.opk
 
 [ -z "${plat##* miyoo *}" ] && {
 # miyoo: BittBoy >=v1, PocketGo, Powkiddy [QV]90/Q20 (Allwinner F1C100s, ARM926)
-docker pull miyoocfw/toolchain
-echo "	export CROSS_COMPILE=arm-buildroot-linux-musleabi- &&\
-	git config --global --add safe.directory /home/picodrive &&\
+docker pull ghcr.io/irixxxx/toolchain-miyoo
+echo "	git config --global --add safe.directory /home/picodrive &&\
 	./configure --platform=miyoo &&\
 	make clean && make -j2 all "\
-  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm miyoocfw/toolchain sh &&
+  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-miyoo sh &&
 mv PicoDrive.zip release-$rel/PicoDrive-miyoo_$rel.zip
 }
 

@@ -161,15 +161,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: read
-    container: miyoocfw/toolchain
+    container: ghcr.io/irixxxx/toolchain-miyoo
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
     - name: build
       run: |
-        export CROSS_COMPILE=arm-buildroot-linux-musleabi-
-        git config --global --add safe.directory /home/picodrive
+        git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
         ./configure --platform=miyoo
         make -j2
