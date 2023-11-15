@@ -31,7 +31,6 @@ extern int pico_main(int argc, char *argv[]);
 #ifndef FW15
 
 PSP_MODULE_INFO("PicoDrive", 0, 1, 97);
-PSP_HEAP_SIZE_MAX();
 
 int main(int argc, char *argv[]) { return pico_main(argc, argv); }	/* just a wrapper */
 
