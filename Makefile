@@ -236,7 +236,7 @@ endif
 ifeq "$(PLATFORM)" "psp"
 CFLAGS += -DUSE_BGR565 -G8 # -DLPRINTF_STDIO -DFW15
 LDLIBS += -lpspgu -lpspge -lpsppower -lpspaudio -lpspdisplay -lpspaudiocodec
-LDLIBS += -lpsprtc -lpspctrl -lpspsdk -lc -lpspnet_inet -lpspuser -lpspkernel
+LDLIBS += -lpspctrl
 platform/common/main.o: CFLAGS += -Dmain=pico_main
 OBJS += platform/psp/plat.o
 OBJS += platform/psp/emu.o
