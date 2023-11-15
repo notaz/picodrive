@@ -115,7 +115,7 @@ mv PicoDrive-pandora-$rel release-$rel/
 # gcw0 (untested): JZ4770 (mips32r2 with fpu), swapped X/Y buttons
 docker pull ghcr.io/irixxxx/toolchain-odbeta-gcw0
 echo "	git config --global --add safe.directory /home/picodrive &&\
-	./configure --platform=gcw0 &&\
+	./configure --platform=gcw0 --platform=odbeta &&\
 	make clean && make -j2 all "\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-odbeta-gcw0 sh &&
 mv PicoDrive.opk release-$rel/PicoDrive-odbeta-gcw0_$rel.opk
@@ -125,7 +125,7 @@ mv PicoDrive.opk release-$rel/PicoDrive-odbeta-gcw0_$rel.opk
 # lepus (untested): JZ4760 (mips32r1 with fpu)
 docker pull ghcr.io/irixxxx/toolchain-odbeta-lepus
 echo "	git config --global --add safe.directory /home/picodrive &&\
-	./configure --platform=opendingux &&\
+	./configure --platform=opendingux --platform=odbeta &&\
 	make clean && make -j2 all "\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-odbeta-lepus sh &&
 mv PicoDrive.opk release-$rel/PicoDrive-odbeta-lepus_$rel.opk

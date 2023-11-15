@@ -458,3 +458,4 @@ pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/memory.h
 $(shell grep -rl pico_int.h pico) : pico/pico_int.h
 # pico/cart.o : pico/carthw_cfg.c
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
+platform/common/menu_pico.o: platform/libpicofe/menu.c

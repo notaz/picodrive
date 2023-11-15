@@ -210,7 +210,7 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        ./configure --platform=opendingux
+        ./configure --platform=gcw0 --platform=odbeta
         make -j2
         mv PicoDrive.opk PicoDrive-odbeta-gcw0-$ver.opk
     - name: artifacts
@@ -230,7 +230,7 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
-        ./configure --platform=opendingux
+        ./configure --platform=opendingux --platform=odbeta
         make -j2
         mv PicoDrive.opk PicoDrive-odbeta-lepus-$ver.opk
     - name: artifacts
