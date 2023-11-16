@@ -72,7 +72,7 @@ mv PicoDrive.opk release-$rel/PicoDrive-gcw0_$rel.opk
 # rg350, gkd350h etc: JZ4770 or newer
 docker pull ghcr.io/irixxxx/toolchain-opendingux
 echo "	git config --global --add safe.directory /home/picodrive &&\
-	./configure --platform=opendingux &&\
+	./configure --platform=rg350 &&\
 	make clean && make -j2 all "\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-opendingux sh &&
 mv PicoDrive.opk release-$rel/PicoDrive-opendingux_$rel.opk
@@ -85,7 +85,7 @@ echo "	git config --global --add safe.directory /home/picodrive &&\
 	./configure --platform=miyoo &&\
 	make clean && make -j2 all "\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/irixxxx/toolchain-miyoo sh &&
-mv PicoDrive.zip release-$rel/PicoDrive-miyoo_$rel.zip
+mv PicoDrive-miyoo.zip release-$rel/PicoDrive-miyoo_$rel.zip
 }
 
 [ -z "${plat##* psp *}" ] && {
@@ -122,7 +122,7 @@ mv PicoDrive.opk release-$rel/PicoDrive-odbeta-gcw0_$rel.opk
 }
 
 [ -z "${plat##* odbeta-lepus *}" ] && {
-# lepus (untested): JZ4760 (mips32r1 with fpu)
+# rg300 and other ingenic lepus based (untested): JZ4760 (mips32r1 with fpu)
 docker pull ghcr.io/irixxxx/toolchain-odbeta-lepus
 echo "	git config --global --add safe.directory /home/picodrive &&\
 	./configure --platform=opendingux --platform=odbeta &&\

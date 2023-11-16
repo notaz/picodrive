@@ -78,26 +78,25 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_RETURN] = "START",
 	[SDLK_ESCAPE] = "SELECT",
 
-#if defined(__OPENDINGUX__)
-	[SDLK_HOME] = "POWER",
-
+#if defined(__MIYOO__)
+	[SDLK_TAB] = "L1",
+	[SDLK_BACKSPACE] = "R1",
+	[SDLK_RALT] = "L2",
+	[SDLK_RSHIFT] = "R2",
+	[SDLK_RCTRL] = "RESET",
+#elif defined(__GCW0__) || defined(__DINGUX__) || defined(__RETROFW__)
+	[SDLK_TAB] = "L",
+	[SDLK_BACKSPACE] = "R",
+	[SDLK_POWER] = "POWER",
+	[SDLK_PAUSE] = "LOCK",
+#else
 	[SDLK_TAB] = "L1",
 	[SDLK_BACKSPACE] = "R1",
 	[SDLK_PAGEUP] = "L2",
 	[SDLK_PAGEDOWN] = "R2",
 	[SDLK_KP_DIVIDE] = "L3",
 	[SDLK_KP_PERIOD] = "R3",
-#elif defined(__MIYOO__)
-	[SDLK_TAB] = "L1",
-	[SDLK_BACKSPACE] = "R1",
-	[SDLK_RALT] = "L2",
-	[SDLK_RSHIFT] = "R2",
-	[SDLK_RCTRL] = "R",
-#else
-	[SDLK_TAB] = "L",
-	[SDLK_BACKSPACE] = "R",
-	[SDLK_POWER] = "POWER",
-	[SDLK_PAUSE] = "LOCK",
+	[SDLK_HOME] = "POWER",
 #endif
 };
 const char * const (*in_sdl_key_names)[SDLK_LAST] = &_in_sdl_key_names;

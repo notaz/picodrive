@@ -172,7 +172,7 @@ jobs:
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
         ./configure --platform=miyoo
         make -j2
-        mv PicoDrive.zip PicoDrive-miyoo-$ver.zip
+        mv PicoDrive-miyoo.zip PicoDrive-miyoo-$ver.zip
     - name: artifacts
       uses: actions/upload-artifact@v3
       with:
