@@ -127,6 +127,7 @@ set_platform()
   odbeta)
     # various devices with opendingux beta, arch flags from toolchain default
     MFLAGS=""
+    CFLAGS="$CFLAGS -D__ODBETA__"
     platform="opendingux"
     ;;
   pandora)

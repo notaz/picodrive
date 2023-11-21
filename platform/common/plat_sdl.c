@@ -331,9 +331,20 @@ static void plat_sdl_resize(int w, int h)
 {
 	// take over new settings
 	if (plat_sdl_screen->w != area.w || plat_sdl_screen->h != area.h) {
-		g_menuscreen_h = plat_sdl_screen->h;
-		g_menuscreen_w = plat_sdl_screen->w;
-		resize_buffers();
+#if defined(__ODBETA__)
+        if (currentConfig.vscaling != EOPT_SCALE_HW &&
+                plat_sdl_screen->w == 320 &&
+                plat_sdl_screen->h == 480) {
+		    g_menuscreen_h = 240;
+		    g_menuscreen_w = 320;
+
+        } else
+#endif
+        {
+		    g_menuscreen_h = plat_sdl_screen->h;
+		    g_menuscreen_w = plat_sdl_screen->w;
+        }
+        resize_buffers();
 		rendstatus_old = -1;
 	}
 }
