@@ -15,6 +15,7 @@
 #include <psputils.h>
 #include <pspgu.h>
 #include <pspaudio.h>
+#include <pspsysmem.h>
 
 #include "psp.h"
 #include "emu.h"
@@ -48,7 +49,9 @@ static struct Vertex __attribute__((aligned(4))) g_vertices[2];
 static u16 __attribute__((aligned(16))) localPal[0x100];
 static int need_pal_upload = 0;
 
-static u16 __attribute__((aligned(16))) osd_buf[512*8]; // buffer for osd text
+u16 __attribute__((aligned(16))) osd_buf[512*8]; // buffer for osd text
+int osd_buf_x[4], osd_buf_l[4]; // store for x and length for blitting
+int osd_buf_cnt, osd_cdleds;
 
 static int out_x, out_y;
 static int out_w, out_h;
@@ -105,6 +108,7 @@ static void change_renderer(int diff)
 static void apply_renderer(void)
 {
 	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
+	PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	switch (get_renderer()) {
 	case RT_16BIT:
@@ -118,32 +122,6 @@ static void apply_renderer(void)
 		PicoDrawSetOutFormat(PDF_NONE, 0);
 		break;
 	}
-}
-
-static void osd_text(int x, const char *text)
-{
-	struct Vertex* vx;
-	int len = strlen(text) * 8 / 2;
-	int *p, h;
-	void *tmp = g_screen_ptr;
-
-	g_screen_ptr = osd_buf;
-	for (h = 0; h < 8; h++) {
-		p = (int *) (osd_buf+x+512*h);
-		p = (int *) ((int)p & ~3); // align
-		memset32_uncached(p, 0, len);
-	}
-	emu_text_out16(x, 0, text);
-	g_screen_ptr = tmp;
-
-	vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
-	vx[0].u = x,         vx[0].v = 0;
-	vx[1].u = x + len*2, vx[1].v = 8;
-	vx[0].x = x,         vx[0].y = 264;
-	vx[1].x = x + len*2, vx[1].y = 272;
-	sceGuTexMode(GU_PSM_5650,0,0,0);
-	sceGuTexImage(0,512,8,512,osd_buf);
-	sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
 }
 
 
@@ -276,7 +254,79 @@ static void do_pal_update(void)
 	need_pal_upload = 1;
 }
 
-static void blitscreen_clut(void)
+static void osd_text(int x, const char *text)
+{
+	int len = strlen(text) * 8;
+	int *p, h;
+	void *tmp = g_screen_ptr;
+
+	g_screen_ptr = osd_buf;
+	for (h = 0; h < 8; h++) {
+		p = (int *) (osd_buf+x+512*h);
+		p = (int *) ((int)p & ~3); // align
+		memset32_uncached(p, 0, len/2);
+	}
+	emu_text_out16(x, 0, text);
+	g_screen_ptr = tmp;
+
+	osd_buf_x[osd_buf_cnt] = x;
+	osd_buf_l[osd_buf_cnt] = len;
+	osd_buf_cnt ++;
+}
+
+static void blit_osd(void)
+{
+	struct Vertex* vx;
+	int x, len;
+
+	while (osd_buf_cnt > 0) {
+		osd_buf_cnt --;
+		x = osd_buf_x[osd_buf_cnt];
+		len = osd_buf_l[osd_buf_cnt];
+		vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+		vx[0].u = x,       vx[0].v = 0;
+		vx[1].u = x + len, vx[1].v = 8;
+		vx[0].x = x,       vx[0].y = 264;
+		vx[1].x = x + len, vx[1].y = 272;
+		sceGuTexMode(GU_PSM_5650,0,0,0);
+		sceGuTexImage(0,512,8,512,osd_buf);
+		sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
+	}
+}
+
+static void cd_leds(void)
+{
+	unsigned int reg, col_g, col_r, *p;
+
+	reg = Pico_mcd->s68k_regs[0];
+
+	p = (unsigned int *)((short *)osd_buf + 512*2+498);
+	col_g = (reg & 2) ? 0x06000600 : 0;
+	col_r = (reg & 1) ? 0x00180018 : 0;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+
+	osd_cdleds = 1;
+}
+
+static void blit_cdleds(void)
+{
+	struct Vertex* vx;
+
+	if (!osd_cdleds) return;
+
+	vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+	vx[0].u = 497,          vx[0].v = 1;
+	vx[1].u = 497+14,       vx[1].v = 6;
+	vx[0].x = 4,            vx[0].y = 1;
+	vx[1].x = 4+14,         vx[1].y = 6;
+	sceGuTexMode(GU_PSM_5650,0,0,0);
+	sceGuTexImage(0,512,8,512,osd_buf);
+	sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
+}
+
+void blitscreen_clut(void)
 {
 	sceGuTexMode(is_16bit_mode() ? GU_PSM_5650:GU_PSM_T8,0,0,0);
 	sceGuTexImage(0,512,512,512,g_screen_ptr);
@@ -314,32 +364,11 @@ static void blitscreen_clut(void)
 	else
 #endif
 		sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,g_vertices);
+
+	blit_osd();
+	blit_cdleds();
 }
 
-
-static void cd_leds(void)
-{
-	struct Vertex* vx;
-	unsigned int reg, col_g, col_r, *p;
-
-	reg = Pico_mcd->s68k_regs[0];
-
-	p = (unsigned int *)((short *)osd_buf + 512*2+498);
-	col_g = (reg & 2) ? 0x06000600 : 0;
-	col_r = (reg & 1) ? 0x00180018 : 0;
-	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
-	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
-	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
-
-	vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
-	vx[0].u = 497,          vx[0].v = 1;
-	vx[1].u = 497+14,       vx[1].v = 6;
-	vx[0].x = 4,            vx[0].y = 1;
-	vx[1].x = 4+14,         vx[1].y = 6;
-	sceGuTexMode(GU_PSM_5650,0,0,0);
-	sceGuTexImage(0,512,8,512,osd_buf);
-	sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
-}
 
 static void draw_pico_ptr(void)
 {
@@ -358,23 +387,6 @@ static void draw_pico_ptr(void)
 	p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
 }
 
-
-// clears whole screen or just the notice area (in all buffers)
-static void clearArea(int full)
-{
-	void *fb = psp_video_get_active_fb();
-
-	if (full) {
-		u32  val  = (is_16bit_mode() ? 0x00000000 : 0xe0e0e0e0);
-		long sz = 512*272*2;
-		memset32_uncached(psp_screen, 0, 512*272*2/4); // frame buffer
-		memset32_uncached(fb, 0, 512*272*2/4); // frame buff on display
-		memset32(VRAM_CACHED_STUFF, val, 2*sz/4); // 2 draw buffers
-	} else {
-		memset32_uncached((int *)((char *)psp_screen + 512*264*2), 0, 512*8*2/4);
-		memset32_uncached((int *)((char *)fb         + 512*264*2), 0, 512*8*2/4);
-	}
-}
 
 static void vidResetMode(void)
 {
@@ -614,25 +626,19 @@ void pemu_validate_config(void)
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
-	int offs = (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
 
 	if (PicoIn.AHW & PAHW_PICO)
 		draw_pico_ptr();
 
-	sceGuSync(0,0); // sync with prev
-	sceGuStart(GU_DIRECT, guCmdList);
-	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512); // point to back buffer
-
-	blitscreen_clut();
-
+	osd_buf_cnt = 0;
 	if (notice)      osd_text(4, notice);
 	if (emu_opt & 2) osd_text(OSD_FPS_X, fps);
 
+	osd_cdleds = 0;
 	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
 		cd_leds();
 
 	sceKernelDcacheWritebackAll();
-	sceGuFinish();
 }
 
 /* FIXME: move plat_* to plat? */
@@ -676,7 +682,7 @@ void plat_status_msg_busy_next(const char *msg)
 /* clear status message area */
 void plat_status_msg_clear(void)
 {
-	clearArea(0);
+	// not needed since the screen buf is cleared through the GU
 }
 
 /* change the audio volume setting */
@@ -690,7 +696,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
-	if (col_count == 248) // mind aspect ration when blanking 1st column
+	if (col_count == 248) // mind aspect ratio when blanking 1st column
 		col_count = 256;
 
 	switch (currentConfig.vscaling) {
@@ -723,8 +729,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	}
 
 	vidResetMode();
-	if (col_count < 320)	// clear borders from h40 remnants
-		clearArea(1);
 }
 
 /* render one frame in RGB */
@@ -741,7 +745,6 @@ void pemu_forced_frame(int no_scale, int do_emu)
 void plat_video_toggle_renderer(int change, int is_menu_call)
 {
 	change_renderer(change);
-	clearArea(1);
 
 	if (is_menu_call)
 		return;
@@ -770,7 +773,6 @@ void plat_video_loop_prepare(void)
 {
 	apply_renderer();
 	vidResetMode();
-	clearArea(1);
 }
 
 /* prepare for entering the emulator loop */

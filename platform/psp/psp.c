@@ -155,6 +155,8 @@ void psp_init(void)
 	sceGuDrawBuffer(GU_PSM_5650, (void *)VRAMOFFS_FB0, 512);
 	sceGuDispBuffer(480, 272, (void *)VRAMOFFS_FB1, 512); // don't care
 	sceGuDepthBuffer((void *)VRAMOFFS_DEPTH, 512);
+	sceGuClearColor(0);
+	sceGuClearDepth(0);
 	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 	sceGuOffset(2048 - (480 / 2), 2048 - (272 / 2));
 	sceGuViewport(2048, 2048, 480, 272);
@@ -195,9 +197,9 @@ void psp_video_flip(int wait_vsync, int other)
 {
 	unsigned long fb = (unsigned long)psp_screen & ~0x40000000;
 	if (other) fb ^= 0x44000;
-	//if (wait_vsync) sceDisplayWaitVblankStart();
+	if (wait_vsync) sceDisplayWaitVblankStart();
 	sceDisplaySetFrameBuf((void *)fb, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
-		wait_vsync ? PSP_DISPLAY_SETBUF_NEXTFRAME : PSP_DISPLAY_SETBUF_IMMEDIATE);
+		PSP_DISPLAY_SETBUF_IMMEDIATE);
 	current_screen ^= 1;
 	psp_screen = current_screen ? VRAM_FB0 : VRAM_FB1;
 }
