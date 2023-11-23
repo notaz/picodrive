@@ -494,6 +494,9 @@ void pemu_sound_start(void)
 
 	samples_made = samples_done = 0;
 
+	if (!(currentConfig.EmuOpt & EOPT_EN_SOUND))
+		return;
+
 	if (PicoIn.AHW & PAHW_MCD) {
 		// mp3...
 		if (!mp3_init_done) {
