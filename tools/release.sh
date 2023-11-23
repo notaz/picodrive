@@ -13,7 +13,7 @@
 #	retrofw:	ghcr.io/irixxxx/toolchain-retrofw
 #	gcw0, rg350:	ghcr.io/irixxxx/toolchain-opendingux
 #	miyoo:		ghcr.io/irixxxx/toolchain-miyoo
-#	psp:		ghcr.io/pspdev/pspdev
+#	psp:		docker.io/pspdev/pspdev
 #	odbeta-gcw0:	ghcr.io/irixxxx/toolchain-odbeta-gcw0
 #	odbeta-lepus:	ghcr.io/irixxxx/toolchain-odbeta-lepus
 
@@ -90,13 +90,13 @@ mv PicoDrive-miyoo.zip release-$rel/PicoDrive-miyoo_$rel.zip
 
 [ -z "${plat##* psp *}" ] && {
 # psp (experimental), pspdev SDK toolchain
-docker pull --platform=linux/amd64 ghcr.io/pspdev/pspdev
+docker pull --platform=linux/amd64 pspdev/pspdev
 echo "	apk add git gcc g++ zip && export CROSS_COMPILE=psp- &&\
 	git config --global --add safe.directory /home/picodrive &&\
 	./configure --platform=psp &&\
 	make clean && make -j2 all &&\
 	make -C platform/psp rel VER=$rel "\
-  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ghcr.io/pspdev/pspdev sh &&
+  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm pspdev/pspdev sh &&
 mv PicoDrive_psp_$rel.zip release-$rel/PicoDrive-psp_$rel.zip
 }
 

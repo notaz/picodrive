@@ -72,7 +72,7 @@ jobs:
 
   build-psp:
     runs-on: ubuntu-latest
-    container: ghcr.io/pspdev/pspdev
+    container: pspdev/pspdev
     steps:
     - name: build environment
       run: |
