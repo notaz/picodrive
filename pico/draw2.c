@@ -168,7 +168,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 	end = end<<16>>16;
 
 	// Find name table line:
-	if (pvid->reg[12]&1)
+	if (!(est->rendstatus & PDRAW_32_COLS))
 	{
 		nametab=(pvid->reg[3]&0x3c)<<9; // 40-cell mode
 		nametab_step = 1<<6;
@@ -268,7 +268,7 @@ static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 	else          nametab=(pvid->reg[4]&0x07)<<12; // B
 
 	scrpos = est->Draw2FB;
-	if (est->rendstatus & PDRAW_BORDER_32)
+	if ((~est->rendstatus & (PDRAW_BORDER_32|PDRAW_32_COLS)) == 0)
 		scrpos += 32;
 	scrpos+=8*est->Draw2Width*(planestart-scrstart);
 
@@ -280,7 +280,7 @@ static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 		// Get vertical scroll value:
 		vscroll=PicoMem.vsram[plane];//&0x1ff;
 #if VSRAM
-		if (!(pvid->reg[12]&1) && (pvid->reg[11]&4)) // H32 + 2-cell mode
+		if ((est->rendstatus & PDRAW_32_COLS) && (pvid->reg[11]&4)) // H32 + 2-cell mode
 			vscroll=PicoMem.vsram[plane+0x20];//&0x1ff;
 #endif
 #if INTERLACE
@@ -371,7 +371,7 @@ static void DrawTilesFromCacheF(u32 *hc, struct PicoEState *est)
 	unsigned char *scrpos = est->Draw2FB, *pd = 0;
 	int scrstart = est->Draw2Start;
 
-	if (est->rendstatus & PDRAW_BORDER_32)
+	if ((~est->rendstatus & (PDRAW_BORDER_32|PDRAW_32_COLS)) == 0)
 		scrpos += 32;
 
 	while((code=*hc++)) {
@@ -446,7 +446,7 @@ static void DrawSpriteFull(u32 *sprite, struct PicoEState *est)
 	while(sy <= 0) { sy+=8; tile+=tdeltay; height--; }
 
 	scrpos = est->Draw2FB;
-	if (est->rendstatus&PDRAW_BORDER_32)
+	if ((~est->rendstatus & (PDRAW_BORDER_32|PDRAW_32_COLS)) == 0)
 		scrpos += 32;
 	scrpos+=sy*est->Draw2Width;
 
@@ -489,13 +489,13 @@ static void DrawAllSpritesFull(int prio, int maxwidth, struct PicoEState *est)
 	int i,u,link=0;
 	u32 *sprites[80]; // Sprites
 	int y_min=START_ROW*8, y_max=END_ROW*8; // for a simple sprite masking
-	int max_sprites = pvid->reg[12]&1 ? 80 : 64;
+	int max_sprites = !(est->rendstatus & PDRAW_32_COLS) ? 80 : 64;
 
 	if (est->rendstatus & PDRAW_30_ROWS)
 		y_min += 8, y_max += 8;
 
 	table=pvid->reg[5]&0x7f;
-	if (pvid->reg[12]&1) table&=0x7e; // Lowest bit 0 in 40-cell mode
+	if (!(est->rendstatus & PDRAW_32_COLS)) table&=0x7e; // Lowest bit 0 in 40-cell mode
 	table<<=8; // Get sprite table address/2
 
 	for (i = u = 0; u < max_sprites && link < max_sprites; u++)
