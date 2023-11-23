@@ -221,6 +221,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
       {
         case 0xf0:
           // FM reg port
+          Pico.m.hardware |= PMS_HW_FMUSED;
           YM2413_regWrite(d);
           break;
         case 0xf1:
