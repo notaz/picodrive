@@ -350,7 +350,7 @@ endif
 
 ifneq ($(findstring gcc,$(CC)),)
 ifneq ($(findstring SunOS,$(shell uname -a)),SunOS)
-ifeq ($(findstring Darwin,$(shell uname -a)),Darwin)
+ifneq ($(findstring clang,$(shell $(CC) -v 2>&1)),)
 LDFLAGS += -Wl,-map,$(TARGET).map
 else
 LDFLAGS += -Wl,-Map=$(TARGET).map
