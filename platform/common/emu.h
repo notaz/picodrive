@@ -41,12 +41,12 @@ enum {
 	EOPT_SCALE_SW = 1,
 	EOPT_SCALE_HW,
 	// PSP horiz:
-	EOPT_SCALE_43 = 1,	// DAR 4:3 (12:9)
-	EOPT_SCALE_WIDE,	// DAR 14:9
-	EOPT_SCALE_FULL,	// DAR 16:9
+	EOPT_SCALE_43 = 1,	// 4:3 screen
+	EOPT_SCALE_STRETCH,	// stretched to between _43 and _WIDE
+	EOPT_SCALE_WIDE,	// stretched to match display width
 	// PSP vert:
-	EOPT_VSCALE_43 = 1,	// DAR 4:3
-	EOPT_VSCALE_FULL,	// zoomed to full height
+	EOPT_VSCALE_FULL = 1,	// TV height scaled to screen height
+	EOPT_VSCALE_NOBORDER,	// VDP area scaled to screen height
 };
 
 enum {

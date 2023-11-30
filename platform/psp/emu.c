@@ -608,7 +608,7 @@ void pemu_prep_defconfig(void)
 	defaultConfig.CPUclock = 333;
 	defaultConfig.filter = EOPT_FILTER_BILINEAR; // bilinear filtering
 	defaultConfig.scaling = EOPT_SCALE_43;
-	defaultConfig.vscaling = EOPT_VSCALE_43;
+	defaultConfig.vscaling = EOPT_VSCALE_FULL;
 	defaultConfig.renderer = RT_8BIT_ACC;
 	defaultConfig.renderer32x = RT_8BIT_ACC;
 	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
@@ -696,6 +696,9 @@ void plat_update_volume(int has_changed, int is_up)
 /* prepare for MD screen mode change */
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
+	int h43 = (col_count  >= 192 ? 320 : col_count); // ugh, mind GG...
+	int v43 = (line_count >= 192 ? Pico.m.pal ? 240 : 224 : line_count);
+
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
@@ -703,31 +706,30 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		col_count = 256;
 
 	switch (currentConfig.vscaling) {
-	case EOPT_VSCALE_43:
-		// ugh, mind GG...
-		if (line_count >= 160)
-			line_count = (Pico.m.pal ? 240 : 224);
+	case EOPT_VSCALE_FULL:
+		line_count = v43;
 		vscale = (float)270/line_count;
 		break;
-	case EOPT_VSCALE_FULL:
+	case EOPT_VSCALE_NOBORDER:
 		vscale = (float)270/line_count;
 		break;
 	default:
 		vscale = 1;
 		break;
 	}
+
 	switch (currentConfig.scaling) {
 	case EOPT_SCALE_43:
-		hscale = (float)360/col_count;
+		hscale = (vscale*h43)/col_count;
+		break;
+	case EOPT_SCALE_STRETCH:
+		hscale = (vscale*h43/2 + 480/2)/col_count;
 		break;
 	case EOPT_SCALE_WIDE:
-		hscale = (float)420/col_count;
-		break;
-	case EOPT_SCALE_FULL:
 		hscale = (float)480/col_count;
 		break;
 	default:
-		hscale = 1;
+		hscale = vscale;
 		break;
 	}
 
