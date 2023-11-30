@@ -334,7 +334,7 @@ static int PicoFrameHints(void)
   // get samples from sound chips
   PsndGetSamples(y);
 
-  timers_cycle(Pico.t.z80c_aim);
+  timers_cycle(cycles_68k_to_z80(Pico.t.m68c_aim - Pico.t.m68c_frame_start));
 
   pv->hint_cnt = hint;
 
