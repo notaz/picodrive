@@ -331,7 +331,7 @@ static void plat_sdl_resize(int w, int h)
 {
 	// take over new settings
 	if (plat_sdl_screen->w != area.w || plat_sdl_screen->h != area.h) {
-#if defined(__ODBETA__)
+#if defined(__OPENDINGUX__)
         if (currentConfig.vscaling != EOPT_SCALE_HW &&
                 plat_sdl_screen->w == 320 &&
                 plat_sdl_screen->h == 480) {
@@ -397,11 +397,6 @@ void plat_init(void)
 	in_sdl_platform_data.key_names = *in_sdl_key_names,
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
-
-#if defined(__RG99__)
-	// do not use the default resolution
-	plat_sdl_change_video_mode(320, 240, 1);
-#endif
 
 	bgr_to_uyvy_init();
 }

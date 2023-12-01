@@ -110,13 +110,6 @@ set_platform()
     MFLAGS="-march=mips32r2"
     platform="opendingux"
     ;;
-  rg99)
-    # RG99 using opendingux, with Ingenic MIPS JZ4725B
-    sound_drivers="sdl"
-    CFLAGS="$CFLAGS -D__OPENDINGUX__"
-    MFLAGS="-march=mips32"
-    platform="opendingux"
-    ;;
   miyoo)
     # Miyoo BittBoy, PocketGO 1, PowKiddy V90/Q90 with Allwinner F1C100s
     sound_drivers="sdl"
@@ -127,7 +120,7 @@ set_platform()
   odbeta)
     # various devices with opendingux beta, arch flags from toolchain default
     MFLAGS=""
-    CFLAGS="$CFLAGS -D__ODBETA__"
+    CFLAGS="$CFLAGS -D__OPENDINGUX__"
     platform="opendingux"
     ;;
   pandora)
