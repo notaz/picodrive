@@ -37,10 +37,10 @@
 
 static struct vout_fbdev *main_fb, *layer_fb;
 // g_layer_* - in use, g_layer_c* - configured custom
-int g_layer_cx, g_layer_cy, g_layer_cw, g_layer_ch;
+int g_layer_cx = 80, g_layer_cy, g_layer_cw = 640, g_layer_ch = 480;
 static int g_layer_x, g_layer_y;
 static int g_layer_w = 320, g_layer_h = 240;
-static int g_osd_fps_x, g_osd_y, doing_bg_frame;
+static int g_osd_start_x, g_osd_fps_x, g_osd_y, doing_bg_frame;
 
 static unsigned char __attribute__((aligned(4))) fb_copy[320 * 240 * 2];
 static void *temp_frame;
@@ -48,7 +48,6 @@ const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
 
 static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
-	[0 ... KEY_MAX] = NULL,
 	[KEY_UP]	= "Up",
 	[KEY_LEFT]	= "Left",
 	[KEY_RIGHT]	= "Right",
@@ -165,7 +164,7 @@ static void draw_cd_leds(void)
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (notice && notice[0])
-		emu_osd_text16(2, g_osd_y, notice);
+		emu_osd_text16(2 + g_osd_start_x, g_osd_y, notice);
 	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))
 		emu_osd_text16(g_osd_fps_x, g_osd_y, fps);
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
@@ -340,7 +339,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 
 	fb_w = col_count;
 	fb_left = start_col;
-	fb_right = 320 - (fb_w+fb_left);;
+	fb_right = 320 - (fb_w + fb_left);
 
 	switch (currentConfig.scaling) {
 	case SCALE_1x1:
@@ -380,7 +379,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		fb_h = line_count;
 		break;
 	}
-	g_osd_fps_x = col_count < 320 ? 232 : 264;
+	g_osd_start_x = start_col;
+	g_osd_fps_x = start_col + col_count - 5*8 - 2;
 	g_osd_y = fb_top + fb_h - 8;
 
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
@@ -411,6 +411,7 @@ void pemu_loop_prep(void)
 
 void pemu_loop_end(void)
 {
+	memset(fb_copy, 0, sizeof(fb_copy));
 	/* do one more frame for menu bg */
 	pemu_forced_frame(0, 1);
 

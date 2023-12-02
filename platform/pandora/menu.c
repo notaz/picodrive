@@ -24,11 +24,12 @@ static int menu_loop_cscaler(int id, int keys)
 
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT
 				   |PBTN_R|PBTN_MOK|PBTN_MBACK, NULL, 40);
-		if (inp & PBTN_UP)    g_layer_cy--;
-		if (inp & PBTN_DOWN)  g_layer_cy++;
-		if (inp & PBTN_LEFT)  g_layer_cx--;
-		if (inp & PBTN_RIGHT) g_layer_cx++;
-		if (!(inp & PBTN_R)) {
+		if (inp & PBTN_R) {
+			if (inp & PBTN_UP)    g_layer_cy--;
+			if (inp & PBTN_DOWN)  g_layer_cy++;
+			if (inp & PBTN_LEFT)  g_layer_cx--;
+			if (inp & PBTN_RIGHT) g_layer_cx++;
+		} else {
 			if (inp & PBTN_UP)    g_layer_ch += 2;
 			if (inp & PBTN_DOWN)  g_layer_ch -= 2;
 			if (inp & PBTN_LEFT)  g_layer_cw += 2;
