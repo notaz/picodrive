@@ -1249,10 +1249,8 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_LOAD_ROM:
 		rom_fname_reload = NULL;
-		ret_name = menu_loop_romsel(rom_fname_loaded,
-			sizeof(rom_fname_loaded), rom_exts, NULL);
-//		ret_name = menu_loop_romsel_d(rom_fname_loaded,
-//			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
+		ret_name = menu_loop_romsel_d(rom_fname_loaded,
+			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
 		if (ret_name != NULL) {
 			lprintf("selected file: %s\n", ret_name);
 			rom_fname_reload = ret_name;
@@ -1383,10 +1381,8 @@ static int mh_tray_load_cd(int id, int keys)
 	const char *ret_name;
 
 	rom_fname_reload = NULL;
-	ret_name = menu_loop_romsel(rom_fname_loaded,
-			sizeof(rom_fname_loaded), rom_exts, NULL);
-//	ret_name = menu_loop_romsel_d(rom_fname_loaded,
-//			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
+	ret_name = menu_loop_romsel_d(rom_fname_loaded,
+			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
 	if (ret_name == NULL)
 		return 0;
 
