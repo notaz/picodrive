@@ -60,7 +60,7 @@ struct SN76496
 };
 
 static struct SN76496 ono_sn; // one and only SN76496
-int *sn76496_regs;
+int *sn76496_regs = ono_sn.Register;
 
 //static
 void SN76496Write(int data)
@@ -264,7 +264,6 @@ int SN76496_init(int clock,int sample_rate)
 	int i;
 
 	//R->Channel = stream_create(0,1, sample_rate,R,SN76496Update);
-	sn76496_regs = R->Register;
 
 	R->SampleRate = sample_rate;
 	SN76496_set_clock(R,clock);
