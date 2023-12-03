@@ -1943,7 +1943,7 @@ PICO_INTERNAL void PicoFrameStart(void)
 
   if (est->rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
-    // mode_change() might reset rendstatus_old by calling SetColorFormat
+    // mode_change() might reset rendstatus_old by calling SetOutFormat
     int rendstatus = est->rendstatus;
     emu_video_mode_change(loffs, lines, coffs, columns);
     rendstatus_old = rendstatus;
