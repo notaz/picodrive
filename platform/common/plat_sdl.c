@@ -399,6 +399,7 @@ void plat_init(void)
 	in_probe();
 
 	bgr_to_uyvy_init();
+	linux_menu_init();
 }
 
 void plat_finish(void)

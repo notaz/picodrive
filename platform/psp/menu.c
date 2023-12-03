@@ -14,8 +14,10 @@ static const char *men_filter_opts[] = { "nearest", "bilinear", NULL };
 #define MENU_OPTIONS_ADV
 
 static menu_entry e_menu_sms_options[];
+static menu_entry e_menu_keyconfig[];
 
 void psp_menu_init(void)
 {
 	me_enable(e_menu_sms_options, MA_SMSOPT_GHOSTING, 0);
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }

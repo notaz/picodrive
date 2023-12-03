@@ -1,14 +1,14 @@
 # release packaging makefile
 
 VER := $(shell head -n 1 ../common/version.h | \
-	sed 's/.*"\(.*\)\.\(.*\)".*/\1\2/g')
+	sed 's/[^0-9]*\([0-9]*\)\.\([0-9]*\).*/\1\2/g')
 BUILD := $(shell git describe HEAD | grep -- - | \
 	sed -e 's/.*\-\(.*\)\-.*/\1/')
 ifneq "$(BUILD)" ""
 VER := $(VER)_$(BUILD)
 endif
 
-PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
+PND_MAKE ?= pnd_make
 
 all: rel
 
@@ -24,7 +24,7 @@ all: rel
 rel: ../../PicoDrive PicoDrive.sh picorestore \
 	PicoDrive.png PicoDrive_p.png \
 	../../pico/carthw.cfg skin \
-	../../README /tmp/PicoDrive.pxml
+	../../README.md /tmp/PicoDrive.pxml
 	rm -rf out
 	mkdir out
 	cp -r $^ out/

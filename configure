@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux miyoo rpi1 rpi2 psp rg99 odbeta"
+platform_list="generic pandora gph dingux retrofw gcw0 opendingux odbeta miyoo rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -102,7 +102,7 @@ set_platform()
     MFLAGS="-march=mips32"
     platform="opendingux"
     ;;
-  opendingux | gcw0 | rg350)
+  opendingux | gcw0)
     # more modern devices using opendingux, with Ingenic MIPS JZ4770 or newer
     sound_drivers="sdl"
     # mostly based on opendingux for gcw0
@@ -119,8 +119,8 @@ set_platform()
     ;;
   odbeta)
     # various devices with opendingux beta, arch flags from toolchain default
-    MFLAGS=""
     CFLAGS="$CFLAGS -D__OPENDINGUX__"
+    MFLAGS="" # toolchains are arch specific
     platform="opendingux"
     ;;
   pandora)
@@ -128,7 +128,7 @@ set_platform()
     have_libavcodec="yes"
     MFLAGS="-mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp"
     ;;
-  gp2x | wiz | caanoo)
+  gph)
     sound_drivers="oss"
     # compile for OABI if toolchain provides it (faster code on caanoo)
     have_arm_oabi="yes"

@@ -13,7 +13,10 @@ static const char h_stype[] = "Scaler algorithm for software scaling";
 
 #define MENU_OPTIONS_ADV
 
+static menu_entry e_menu_keyconfig[];
+
 void linux_menu_init(void)
 {
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }
 

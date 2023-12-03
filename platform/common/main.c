@@ -84,6 +84,9 @@ int main(int argc, char *argv[])
 	//in_probe();
 
 	plat_target_init();
+	if (argc > 1)
+		parse_cmd_line(argc, argv);
+
 	plat_init();
 	menu_init();
 
