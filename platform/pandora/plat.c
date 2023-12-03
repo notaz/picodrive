@@ -387,8 +387,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 4, 0);
 	vout_fbdev_clear(layer_fb);
 	plat_video_flip();
-
-	PicoDrawSetOutFormat(PDF_RGB555, 0);
 }
 
 void plat_video_loop_prepare(void)
@@ -397,6 +395,7 @@ void plat_video_loop_prepare(void)
 	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
+	PicoDrawSetOutFormat(PDF_RGB555, 0);
 	// emu_video_mode_change will call pnd_setup_layer()
 }
 
