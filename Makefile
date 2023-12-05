@@ -67,7 +67,7 @@ ifneq ($(call chkCCflag, -fipa-ra),) # gcc >= 5
 CFLAGS += $(call chkCCflag, -flto -fipa-pta -fipa-ra)
 else
 # these improve execution speed on 32bit arm/mips with gcc pre-5 toolchains
-CFLAGS += -fno-caller-saves -fno-guess-branch-probability -fno-regmove
+CFLAGS += $(call chkCCflag, -fno-caller-saves -fno-guess-branch-probability -fno-regmove)
 # very old gcc toolchains may not have these options
 CFLAGS += $(call chkCCflag, -fno-tree-loop-if-convert -fipa-pta -fno-ipa-cp)
 endif
@@ -172,7 +172,7 @@ endif
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o platform/common/input_sdlkbd.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
-OBJS += platform/libpicofe/plat_dummy.o platform/libpicofe/linux/plat.o
+OBJS += platform/libpicofe/linux/plat.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
@@ -189,7 +189,7 @@ else
 OBJS += platform/common/plat_sdl.o platform/common/inputmap_kbd.o
 endif
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
-OBJS += platform/libpicofe/plat_dummy.o platform/libpicofe/linux/plat.o
+OBJS += platform/libpicofe/linux/plat.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"

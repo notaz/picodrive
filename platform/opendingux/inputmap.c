@@ -1,10 +1,14 @@
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <SDL_keysym.h>
 
 #include "../libpicofe/input.h"
 #include "../libpicofe/in_sdl.h"
+#include "../libpicofe/plat.h"
 #include "../common/input_pico.h"
 #include "../common/plat_sdl.h"
+#include "../common/emu.h"
 
 const struct in_default_bind in_sdl_defbinds[] = {
 	{ SDLK_UP,	IN_BINDTYPE_PLAYER12, GBTN_UP },
@@ -24,26 +28,22 @@ const struct in_default_bind in_sdl_defbinds[] = {
 	{ 0, 0, 0 }
 };
 
-const struct menu_keymap in_sdl_key_map[] = {
+struct menu_keymap _in_sdl_key_map[] = {
 	{ SDLK_UP,	PBTN_UP },
 	{ SDLK_DOWN,	PBTN_DOWN },
 	{ SDLK_LEFT,	PBTN_LEFT },
 	{ SDLK_RIGHT,	PBTN_RIGHT },
-#if defined(__MIYOO__)
-	{ SDLK_LALT,	PBTN_MOK },
-	{ SDLK_LCTRL,	PBTN_MBACK },
-#else
 	{ SDLK_LCTRL,	PBTN_MOK },
 	{ SDLK_LALT,	PBTN_MBACK },
-#endif
 	{ SDLK_SPACE,	PBTN_MA2 },
 	{ SDLK_LSHIFT,	PBTN_MA3 },
 	{ SDLK_TAB,	PBTN_L },
 	{ SDLK_BACKSPACE,	PBTN_R },
 };
-const int in_sdl_key_map_sz = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]);
+const int in_sdl_key_map_sz = sizeof(_in_sdl_key_map) / sizeof(_in_sdl_key_map[0]);
+const struct menu_keymap *in_sdl_key_map = _in_sdl_key_map;
 
-const struct menu_keymap in_sdl_joy_map[] = {
+const struct menu_keymap _in_sdl_joy_map[] = {
 	{ SDLK_UP,	PBTN_UP },
 	{ SDLK_DOWN,	PBTN_DOWN },
 	{ SDLK_LEFT,	PBTN_LEFT },
@@ -54,49 +54,81 @@ const struct menu_keymap in_sdl_joy_map[] = {
 	{ SDLK_WORLD_2,	PBTN_MA2 },
 	{ SDLK_WORLD_3,	PBTN_MA3 },
 };
-const int in_sdl_joy_map_sz = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]);
+const int in_sdl_joy_map_sz = sizeof(_in_sdl_joy_map) / sizeof(_in_sdl_joy_map[0]);
+const struct menu_keymap *in_sdl_joy_map = _in_sdl_joy_map;
 
-const char * const _in_sdl_key_names[SDLK_LAST] = {
+const char * _in_sdl_key_names[SDLK_LAST] = {
+	/* common */
 	[SDLK_UP] = "UP",
 	[SDLK_DOWN] = "DOWN",
 	[SDLK_LEFT] = "LEFT",
 	[SDLK_RIGHT] = "RIGHT",
-#if defined(__MIYOO__)
-	[SDLK_LALT] = "A",
-	[SDLK_LCTRL] = "B",
-#else
 	[SDLK_LCTRL] = "A",
 	[SDLK_LALT] = "B",
-#endif
-#if defined(__GCW0__) || defined(__MIYOO__)
-	[SDLK_LSHIFT] = "X",
-	[SDLK_SPACE] = "Y",
-#else
 	[SDLK_LSHIFT] = "Y",
 	[SDLK_SPACE] = "X",
-#endif
 	[SDLK_RETURN] = "START",
 	[SDLK_ESCAPE] = "SELECT",
+	[SDLK_TAB] = "L1",
+	[SDLK_BACKSPACE] = "R1",
 
-#if defined(__MIYOO__)
-	[SDLK_TAB] = "L1",
-	[SDLK_BACKSPACE] = "R1",
-	[SDLK_RALT] = "L2",
-	[SDLK_RSHIFT] = "R2",
-	[SDLK_RCTRL] = "RESET",
-#elif defined(__GCW0__) || defined(__DINGUX__) || defined(__RETROFW__)
-	[SDLK_TAB] = "L",
-	[SDLK_BACKSPACE] = "R",
-	[SDLK_POWER] = "POWER",
-	[SDLK_PAUSE] = "LOCK",
-#else
-	[SDLK_TAB] = "L1",
-	[SDLK_BACKSPACE] = "R1",
+	/* opendingux rg, gkd etc */
 	[SDLK_PAGEUP] = "L2",
 	[SDLK_PAGEDOWN] = "R2",
 	[SDLK_KP_DIVIDE] = "L3",
 	[SDLK_KP_PERIOD] = "R3",
 	[SDLK_HOME] = "POWER",
-#endif
+	/* gcw0 */
+	[SDLK_POWER] = "POWER",
+	[SDLK_PAUSE] = "LOCK",
+	/* miyoo */
+	[SDLK_RALT] = "L2",
+	[SDLK_RSHIFT] = "R2",
+	[SDLK_RCTRL] = "RESET",
 };
-const char * const (*in_sdl_key_names)[SDLK_LAST] = &_in_sdl_key_names;
+const char * const *in_sdl_key_names = _in_sdl_key_names;
+
+
+static void nameset(int x1, const char *name)
+{
+	_in_sdl_key_names[x1] = name;
+}
+
+static void nameswap(int x1, int x2)
+{
+	const char **p = &_in_sdl_key_names[x1];
+	const char **q = &_in_sdl_key_names[x2];
+	const char *t = *p; *p = *q; *q = t;
+}
+
+static void keyswap(int k1, int k2)
+{
+	int x1, x2, t;
+
+	for (x1 = in_sdl_key_map_sz-1; x1 >= 0; x1--)
+		if (_in_sdl_key_map[x1].key == k1) break;
+	for (x2 = in_sdl_key_map_sz-1; x2 >= 0; x2--)
+		if (_in_sdl_key_map[x2].key == k2) break;
+	if (x1 >= 0 && x2 >= 0) {
+		struct menu_keymap *p = &_in_sdl_key_map[x1];
+		struct menu_keymap *q = &_in_sdl_key_map[x2];
+		t = p->pbtn; p->pbtn = q->pbtn; q->pbtn = t;
+	}
+}
+
+void plat_target_setup_input(void)
+{
+	if (strcmp(plat_device, "miyoo") == 0) {
+		/* swapped A/B and X/Y keys */
+		keyswap(SDLK_LALT, SDLK_LCTRL);
+		nameswap(SDLK_LALT, SDLK_LCTRL);
+		nameswap(SDLK_SPACE, SDLK_LSHIFT);
+	} else if (strcmp(plat_device, "gcw0") == 0) {
+		/* swapped X/Y keys, single L/R keys */
+		nameswap(SDLK_SPACE, SDLK_LSHIFT);
+		nameset(SDLK_TAB, "L"); nameset(SDLK_BACKSPACE, "R");
+	} else if (strcmp(plat_device, "retrofw") == 0 || strcmp(plat_device, "dingux") == 0) {
+		/* single L/R keys */
+		nameset(SDLK_TAB, "L"); nameset(SDLK_BACKSPACE, "R");
+	}
+}

@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gph dingux retrofw gcw0 opendingux odbeta miyoo rpi1 rpi2 psp"
+platform_list="generic pandora gph dingux retrofw opendingux[-gcw0] odbeta[-gcw0] miyoo rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -73,7 +73,7 @@ fail()
 set_platform()
 {
   platform=$1
-  CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
+  CFLAGS="$CFLAGS -D__`echo ${platform%-*} | tr '[a-z]' '[A-Z]'`__"
   case "$platform" in
   rpi1)
     MFLAGS="-mcpu=arm1176jzf-s -mfpu=vfp"
@@ -102,11 +102,12 @@ set_platform()
     MFLAGS="-march=mips32"
     platform="opendingux"
     ;;
-  opendingux | gcw0)
+  opendingux | opendingux-gcw0)
     # more modern devices using opendingux, with Ingenic MIPS JZ4770 or newer
     sound_drivers="sdl"
     # mostly based on opendingux for gcw0
     CFLAGS="$CFLAGS -D__OPENDINGUX__"
+    [ "${platform#*gcw0}" = "" ] && CFLAGS="$CFLAGS -D__GCW0__"
     MFLAGS="-march=mips32r2"
     platform="opendingux"
     ;;
@@ -117,9 +118,11 @@ set_platform()
     MFLAGS="-mcpu=arm926ej-s -marm"
     platform="opendingux"
     ;;
-  odbeta)
+  odbeta | odbeta-gcw0)
     # various devices with opendingux beta, arch flags from toolchain default
+    sound_drivers="sdl"
     CFLAGS="$CFLAGS -D__OPENDINGUX__"
+    [ "${platform#*gcw0}" = "" ] && CFLAGS="$CFLAGS -D__GCW0__"
     MFLAGS="" # toolchains are arch specific
     platform="opendingux"
     ;;

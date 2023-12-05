@@ -28,7 +28,7 @@ void parse_cmd_line(int argc, char *argv[])
 {
 	int x, unrecognized = 0;
 
-	for (x = 1; x < argc; x++)
+	for (x = 1; x < argc && !unrecognized; x++)
 	{
 		if (argv[x][0] == '-')
 		{
@@ -47,15 +47,13 @@ void parse_cmd_line(int argc, char *argv[])
 				if (x+2 < argc) { pdb_net_connect(argv[x+1], argv[x+2]); x += 2; }
 			}
 			else {
-				unrecognized = 1;
-				break;
+				unrecognized = plat_parse_arg(argc, argv, &x);
 			}
 		} else {
 			FILE *f = fopen(argv[x], "rb");
 			if (f) {
 				fclose(f);
 				rom_fname_reload = argv[x];
-				engineState = PGS_ReloadRom;
 			}
 			else
 				unrecognized = 1;
@@ -95,11 +93,8 @@ int main(int argc, char *argv[])
 
 	emu_init();
 
-	engineState = PGS_Menu;
+	engineState = rom_fname_reload ? PGS_ReloadRom : PGS_Menu;
 	plat_video_menu_enter(0);
-
-	if (argc > 1)
-		parse_cmd_line(argc, argv);
 
 	if (engineState == PGS_ReloadRom)
 	{

@@ -184,6 +184,11 @@ void *plat_mem_get_for_drc(size_t size)
 	return NULL;
 }
 
+int plat_parse_arg(int argc, char *argv[], int *x)
+{
+	return 1;
+}
+
 void plat_early_init(void)
 {
 	// just use gettimeofday until plat_init()

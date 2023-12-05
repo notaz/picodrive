@@ -122,6 +122,12 @@ void plat_video_menu_leave(void)
 	plat_video_set_buffer(g_screen_ptr);
 }
 
+/* check arg at index x */
+int plat_parse_arg(int argc, char *argv[], int *x)
+{
+	return 1;
+}
+
 /* Preliminary initialization needed at program start */
 void plat_early_init(void)
 {

@@ -180,6 +180,7 @@ void pemu_finalize_frame(const char *fps, const char *notice_msg);
 
 void pemu_sound_start(void);
 
+int plat_parse_arg(int argc, char *argv[], int *x);
 void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);

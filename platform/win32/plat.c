@@ -20,6 +20,11 @@ static unsigned short screen_buff[320 * 240];
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
 
+int plat_parse_arg(int argc, char *argv[], int *x)
+{
+	return 1;
+}
+
 void plat_init(void)
 {
 	g_screen_ptr = (void *)screen_buff;
