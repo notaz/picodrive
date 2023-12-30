@@ -235,6 +235,12 @@ OBJS += platform/psp/asm_utils.o
 OBJS += platform/psp/mp3.o
 USE_FRONTEND = 1
 endif
+ifeq "$(PLATFORM)" "ps2"
+CFLAGS += -DUSE_BGR555 # -DLOG_TO_FILE
+LDLIBS += -lpatches -lgskit -ldmakit -lps2_drivers
+OBJS += platform/ps2/plat.o
+USE_FRONTEND = 1
+endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
 ifneq ($(STATIC_LINKING), 1)
