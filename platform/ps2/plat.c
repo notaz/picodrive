@@ -1,5 +1,21 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/time.h>
+#include <stdlib.h>
+#include <errno.h>
+
+#include <kernel.h>
+#include <iopcontrol.h>
+#include <sbv_patches.h>
+#include <sifrpc.h>
+#include <loadfile.h>
+#include <ps2_filesystem_driver.h>
+#include <ps2_joystick_driver.h>
+#include <ps2_audio_driver.h>
 
 #include "../libpicofe/plat.h"
 
@@ -8,90 +24,222 @@ const char *renderer_names32x[] = { "Software", "Hardware", "Hardware (fast)" };
 
 struct plat_target plat_target = {};
 
-int plat_parse_arg(int argc, char *argv[], int *x) { return 1; }
+static void reset_IOP() {
+    SifInitRpc(0);
+#if !defined(DEBUG) || defined(BUILD_FOR_PCSX2)
+    /* Comment this line if you don't wanna debug the output */
+    while (!SifIopReset(NULL, 0)) {};
+#endif
 
-void plat_early_init(void) {}
+    while (!SifIopSync()) {};
+    SifInitRpc(0);
+    sbv_patch_enable_lmb();
+    sbv_patch_disable_prefix_check();
+}
 
-int  plat_target_init(void) { return 0; }
+static void init_drivers() {
+    init_ps2_filesystem_driver();
+}
 
-void plat_init(void) {}
+static void deinit_drivers() {
+    deinit_ps2_filesystem_driver();
+}
 
-void plat_video_menu_enter(int is_rom_loaded) {}
-
-void plat_video_menu_leave(void) {}
-
-void plat_finish(void) {}
-
-void plat_target_finish(void) {}
-
-void plat_video_menu_begin(void) {}
-
-void plat_video_menu_end(void) {}
-
-int  plat_get_root_dir(char *dst, int len) { return 0; }
+void plat_init(void) 
+{
+    init_joystick_driver(false);
+    init_audio_driver();
+}
 
 
-unsigned int plat_get_ticks_ms(void) { return 0; }
+void plat_finish(void) {
+    deinit_audio_driver();
+    deinit_joystick_driver(false);
+}
 
-unsigned int plat_get_ticks_us(void) { return 0; }
+int  plat_target_init(void)
+{ 
+    return 0; 
+}
 
-void plat_sleep_ms(int ms) {}
+/* System level deinitialization */
+void plat_target_finish(void)
+{
+    deinit_drivers();
+}
 
-void plat_video_toggle_renderer(int change, int menu_call) {}
+/* display a completed frame buffer and prepare a new render buffer */
+void plat_video_flip(void)
+{
 
-void plat_update_volume(int has_changed, int is_up) {}
+}
 
-int  plat_is_dir(const char *path) { return 0; }
+/* wait for start of vertical blanking */
+void plat_video_wait_vsync(void)
+{
+}
 
-void plat_status_msg_busy_first(const char *msg) {}
+/* switch from emulation display to menu display */
+void plat_video_menu_enter(int is_rom_loaded)
+{
 
-void pemu_prep_defconfig(void) {}
+}
 
-void pemu_validate_config(void) {}
+/* start rendering a menu screen */
+void plat_video_menu_begin(void)
+{
 
-void plat_status_msg_clear(void) {}
+}
 
-void plat_status_msg_busy_next(const char *msg) {}
+/* display a completed menu screen */
+void plat_video_menu_end(void)
+{
 
-void plat_video_loop_prepare(void) {}
+}
 
-int  plat_get_data_dir(char *dst, int len) { return 0; }
+/* terminate menu display */
+void plat_video_menu_leave(void)
+{
 
-void plat_video_flip(void) {}
+}
 
-void plat_video_wait_vsync(void) {}
+int plat_parse_arg(int argc, char *argv[], int *x)
+{ 
+    return 1; 
+}
 
-void plat_wait_till_us(unsigned int us) {}
+/* Preliminary initialization needed at program start */
+void plat_early_init(void) {
+    reset_IOP();
+    init_drivers();
+#if defined(LOG_TO_FILE)
+	log_init();
+#endif
+}
 
-int  plat_get_skin_dir(char *dst, int len) { return 0; }
+/* base directory for configuration and save files */
+int plat_get_root_dir(char *dst, int len)
+{
+ 	getcwd(dst, len);
+    // We need to append / at the end
+    strcat(dst, "/");
+    return strlen(dst);
+}
 
-void plat_debug_cat(char *str) {}
+/* base directory for emulator resources */
+int plat_get_skin_dir(char *dst, int len)
+{
+	if (len > 5)
+		strcpy(dst, "skin/");
+	else if (len > 0)
+		*dst = 0;
+	return strlen(dst);
+}
 
-int  plat_wait_event(int *fds_hnds, int count, int timeout_ms) { return 0; }
+/* top directory for rom images */
+int plat_get_data_dir(char *dst, int len)
+{
+    getcwd(dst, len);
+    return strlen(dst);
+}
 
-void pemu_loop_prep(void) {}
+/* check if path is a directory */
+int plat_is_dir(const char *path)
+{
+	DIR *dir;
+	if ((dir = opendir(path))) {
+		closedir(dir);
+		return 1;
+	}
+	return 0;
+}
 
-void pemu_sound_start(void) {}
+/* current time in ms */
+unsigned int plat_get_ticks_ms(void)
+{
+	struct timeval tv;
+	unsigned int ret;
 
-void pemu_loop_end(void) {}
+	gettimeofday(&tv, NULL);
 
-void *plat_mem_get_for_drc(size_t size) { return NULL; }
+	ret = (unsigned)tv.tv_sec * 1000;
+	/* approximate /= 1000 */
+	ret += ((unsigned)tv.tv_usec * 4195) >> 22;
 
-void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed) { return NULL; }
+	return ret;
+}
 
-void *plat_mremap(void *ptr, size_t oldsize, size_t newsize) { return NULL; }
+/* current time in us */
+unsigned int plat_get_ticks_us(void)
+{
+	struct timeval tv;
+	unsigned int ret;
 
-void  plat_munmap(void *ptr, size_t size) {}
+	gettimeofday(&tv, NULL);
 
-int   plat_mem_set_exec(void *ptr, size_t size) { return 0; }
+	ret = (unsigned)tv.tv_sec * 1000000;
+	ret += (unsigned)tv.tv_usec;
 
-void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count) {}
+	return ret;
+}
 
-void pemu_forced_frame(int no_scale, int do_emu) {}
+/* sleep for some time in ms */
+void plat_sleep_ms(int ms)
+{
+	usleep(ms * 1000);
+}
 
-void pemu_finalize_frame(const char *fps, const char *notice_msg) {}
+/* sleep for some time in us */
+void plat_wait_till_us(unsigned int us_to)
+{
+	usleep(us_to - plat_get_ticks_us());
+}
 
-int _flush_cache (char *addr, const int size, const int op) { return 0; }
+/* wait until some event occurs, or timeout */
+int plat_wait_event(int *fds_hnds, int count, int timeout_ms)
+{
+	return 0;	// unused
+}
+
+/* memory mapping functions */
+void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
+{
+	return malloc(size);
+}
+
+void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
+{
+	return realloc(ptr, newsize);
+}
+
+void plat_munmap(void *ptr, size_t size)
+{
+	free(ptr);
+}
+
+void *plat_mem_get_for_drc(size_t size)
+{
+	return NULL;
+}
+
+int plat_mem_set_exec(void *ptr, size_t size)
+{
+	return 0;
+}
+
+int _flush_cache (char *addr, const int size, const int op)
+{ 
+    FlushCache(WRITEBACK_DCACHE); /* WRITEBACK_DCACHE */
+    FlushCache(INVALIDATE_ICACHE); /* INVALIDATE_ICACHE */
+    return 0;
+}
+
+int posix_memalign(void **p, size_t align, size_t size)
+{
+	if (p)
+		*p = memalign(align, size);
+	return (p ? *p ? 0 : ENOMEM : EINVAL);
+}
 
 /* lprintf */
 void lprintf(const char *fmt, ...)
@@ -106,3 +254,33 @@ void lprintf(const char *fmt, ...)
 #endif
 	va_end(vl);
 }
+
+void plat_video_toggle_renderer(int change, int menu_call) {}
+
+void plat_update_volume(int has_changed, int is_up) {}
+
+void plat_status_msg_busy_first(const char *msg) {}
+
+void pemu_prep_defconfig(void) {}
+
+void pemu_validate_config(void) {}
+
+void plat_status_msg_clear(void) {}
+
+void plat_status_msg_busy_next(const char *msg) {}
+
+void plat_video_loop_prepare(void) {}
+
+void plat_debug_cat(char *str) {}
+
+void pemu_loop_prep(void) {}
+
+void pemu_sound_start(void) {}
+
+void pemu_loop_end(void) {}
+
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count) {}
+
+void pemu_forced_frame(int no_scale, int do_emu) {}
+
+void pemu_finalize_frame(const char *fps, const char *notice_msg) {}
