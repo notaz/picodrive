@@ -1243,7 +1243,7 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 	strcpy(path_with_reserve + pos, name);
 	if (plat_is_dir(path_with_reserve))
 		return;
-	if (mkdir(path_with_reserve, 0777) < 0)
+	if (mkdir(path_with_reserve, 0755) < 0)
 		lprintf("failed to create: %s\n", path_with_reserve);
 }
 
