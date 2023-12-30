@@ -19,7 +19,7 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
-#ifdef PANDORA
+#if defined(PANDORA) || defined(__PS2__)
 #define MENU_X2 1
 #else
 #define MENU_X2 0
