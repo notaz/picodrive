@@ -19,9 +19,6 @@
 
 #include "../libpicofe/plat.h"
 
-const char *renderer_names[] = { "Software", "Hardware" };
-const char *renderer_names32x[] = { "Software", "Hardware", "Hardware (fast)" };
-
 struct plat_target plat_target = {};
 
 static void reset_IOP() {
@@ -59,7 +56,7 @@ void plat_target_finish(void)
 /* display a completed frame buffer and prepare a new render buffer */
 void plat_video_flip(void)
 {
-
+    blitscreen_clut();
 }
 
 /* wait for start of vertical blanking */
@@ -243,32 +240,4 @@ void lprintf(const char *fmt, ...)
 	va_end(vl);
 }
 
-void plat_video_toggle_renderer(int change, int menu_call) {}
-
-void plat_update_volume(int has_changed, int is_up) {}
-
-void plat_status_msg_busy_first(const char *msg) {}
-
-void pemu_prep_defconfig(void) {}
-
-void pemu_validate_config(void) {}
-
-void plat_status_msg_clear(void) {}
-
-void plat_status_msg_busy_next(const char *msg) {}
-
-void plat_video_loop_prepare(void) {}
-
 void plat_debug_cat(char *str) {}
-
-void pemu_loop_prep(void) {}
-
-void pemu_sound_start(void) {}
-
-void pemu_loop_end(void) {}
-
-void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count) {}
-
-void pemu_forced_frame(int no_scale, int do_emu) {}
-
-void pemu_finalize_frame(const char *fps, const char *notice_msg) {}
