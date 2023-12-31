@@ -157,8 +157,8 @@ set_platform()
     MFLAGS=""
     ARCH=mips64r5900el
     ASFLAGS="$ASFLAGS -G0 -call_shared"
-    CFLAGS="$CFLAGS -D_EE -G0 -I${PS2SDK}/ee/include -I${PS2SDK}/common/include -I${PS2SDK}/ports/include"
-    LDFLAGS="$LDFLAGS -Wl,-zmax-page-size=128 -T${PS2SDK}/ee/startup/linkfile -L${PS2SDK}/ee/lib -L${PS2SDK}/ports/lib"
+    CFLAGS="$CFLAGS -D_EE -G0 -I${PS2SDK}/ee/include -I${PS2SDK}/common/include -I${PS2DEV}/gsKit/include -I${PS2SDK}/ports/include"
+    LDFLAGS="$LDFLAGS -Wl,-zmax-page-size=128 -T${PS2SDK}/ee/startup/linkfile -L${PS2SDK}/ee/lib -L${PS2DEV}/gsKit/lib -L${PS2SDK}/ports/lib"
     ;;
   *)
     fail "unsupported platform: $platform"
