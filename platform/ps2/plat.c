@@ -45,18 +45,6 @@ static void deinit_drivers() {
     deinit_ps2_filesystem_driver();
 }
 
-void plat_init(void) 
-{
-    init_joystick_driver(false);
-    init_audio_driver();
-}
-
-
-void plat_finish(void) {
-    deinit_audio_driver();
-    deinit_joystick_driver(false);
-}
-
 int  plat_target_init(void)
 { 
     return 0; 

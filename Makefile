@@ -239,6 +239,8 @@ ifeq "$(PLATFORM)" "ps2"
 CFLAGS += -DUSE_BGR555 # -DLOG_TO_FILE
 LDLIBS += -lpatches -lgskit -ldmakit -lps2_drivers
 OBJS += platform/ps2/plat.o
+OBJS += platform/ps2/emu.o
+OBJS += platform/ps2/in_ps2.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
