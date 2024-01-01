@@ -55,11 +55,8 @@ enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 typedef struct ps2_video {
 	GSGLOBAL *gsGlobal;
 
-	GSTEXTURE *scrbitmap;
-	GSTEXTURE *tex_spr0;
-	GSTEXTURE *tex_spr1;
-	GSTEXTURE *tex_spr2;
-	GSTEXTURE *tex_fix;
+	GSTEXTURE *g_menuscreen;
+    uint8_t *g_menubg_ptr;
 	uint32_t offset;
 	uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 	uint8_t pixel_format;
@@ -69,6 +66,29 @@ ps2_video_t *ps2_video = NULL;
 
 #define is_16bit_mode() \
 	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+
+static void set_g_menuscreen_values(ps2_video_t *ps2_video)
+{
+    GSTEXTURE *g_menuscreen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+    size_t g_menuscreenSize = gsKit_texture_size_ee(ps2_video->gsGlobal->Width, ps2_video->gsGlobal->Height, GS_PSM_CT16);
+    g_menuscreen->Width = ps2_video->gsGlobal->Width;
+    g_menuscreen->Height = ps2_video->gsGlobal->Height;
+    g_menuscreen->PSM = GS_PSM_CT16;
+    g_menuscreen->Mem = (uint32_t *)malloc(g_menuscreenSize);
+
+    ps2_video->g_menuscreen = g_menuscreen;
+    ps2_video->g_menubg_ptr = (uint8_t *)malloc(g_menuscreenSize);;
+
+    g_menuscreen_w = g_menuscreen->Width;
+    g_menuscreen_h  = g_menuscreen->Height; 
+    g_menuscreen_pp = g_menuscreen->Width;
+    g_menuscreen_ptr = g_menuscreen->Mem;
+
+    g_menubg_src_w = g_menuscreen->Width;
+    g_menubg_src_h  = g_menuscreen->Height;
+    g_menubg_src_pp = g_menuscreen->Width;
+    g_menubg_ptr = ps2_video->g_menubg_ptr;
+}
 
 static void video_init(void)
 {
@@ -104,11 +124,18 @@ static void video_init(void)
     gsKit_mode_switch(gsGlobal, GS_ONESHOT);
     gsKit_clear(gsGlobal, GS_BLACK);
     ps2_video->gsGlobal = gsGlobal;
+
+    set_g_menuscreen_values(ps2_video);
 }
 
 static void video_deinit(void)
 {
     if (!ps2_video) return;
+
+    free(ps2_video->g_menuscreen->Mem);
+    free(ps2_video->g_menuscreen);
+
+    free(ps2_video->g_menubg_ptr);
 
     gsKit_clear(ps2_video->gsGlobal, GS_BLACK);
     gsKit_vram_clear(ps2_video->gsGlobal);
