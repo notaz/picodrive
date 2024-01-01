@@ -53,41 +53,6 @@ void plat_target_finish(void)
     deinit_drivers();
 }
 
-/* display a completed frame buffer and prepare a new render buffer */
-void plat_video_flip(void)
-{
-    blitscreen_clut();
-}
-
-/* wait for start of vertical blanking */
-void plat_video_wait_vsync(void)
-{
-}
-
-/* switch from emulation display to menu display */
-void plat_video_menu_enter(int is_rom_loaded)
-{
-
-}
-
-/* start rendering a menu screen */
-void plat_video_menu_begin(void)
-{
-
-}
-
-/* display a completed menu screen */
-void plat_video_menu_end(void)
-{
-
-}
-
-/* terminate menu display */
-void plat_video_menu_leave(void)
-{
-
-}
-
 int plat_parse_arg(int argc, char *argv[], int *x)
 { 
     return 1; 

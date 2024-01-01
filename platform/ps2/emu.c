@@ -13,6 +13,7 @@
 #include "in_ps2.h"
 #include "../libpicofe/input.h"
 #include "../libpicofe/plat.h"
+#include "../libpicofe/menu.h"
 #include "../common/input_pico.h"
 #include "../common/emu.h"
 
@@ -56,6 +57,8 @@ typedef struct ps2_video {
 	GSGLOBAL *gsGlobal;
 
 	GSTEXTURE *g_menuscreen;
+    uint32_t g_menuscreen_vertices_count;
+    GSPRIMUVPOINT *g_menuscreen_vertices;
     uint8_t *g_menubg_ptr;
 	uint32_t offset;
 	uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
@@ -88,6 +91,20 @@ static void set_g_menuscreen_values(ps2_video_t *ps2_video)
     g_menubg_src_h  = g_menuscreen->Height;
     g_menubg_src_pp = g_menuscreen->Width;
     g_menubg_ptr = ps2_video->g_menubg_ptr;
+
+    uint32_t g_menuscreen_vertices_count = 2;
+    GSPRIMUVPOINT *g_menuscreen_vertices = (GSPRIMUVPOINT *)calloc(g_menuscreen_vertices_count, sizeof(GSPRIMUVPOINT));
+    
+    g_menuscreen_vertices[0].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, 0, 0, 0);
+	g_menuscreen_vertices[0].uv = vertex_to_UV(g_menuscreen, 0, 0);
+	g_menuscreen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+
+    g_menuscreen_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, g_menuscreen->Width, g_menuscreen->Height, 0);
+    g_menuscreen_vertices[1].uv = vertex_to_UV(g_menuscreen, g_menuscreen->Width, g_menuscreen->Height);
+    g_menuscreen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+
+    ps2_video->g_menuscreen_vertices_count = g_menuscreen_vertices_count;
+    ps2_video->g_menuscreen_vertices = g_menuscreen_vertices;
 }
 
 static void video_init(void)
@@ -230,6 +247,60 @@ static void draw_pico_ptr(void)
 }
 
 static void vidResetMode(void) {}
+
+static void flipScreen(void *data, bool vsync)
+{
+	ps2_video_t *ps2 = (ps2_video_t*)data;
+
+	gsKit_queue_exec(ps2->gsGlobal);
+	gsKit_finish();
+
+	if (vsync) gsKit_sync_flip(ps2->gsGlobal);
+
+	gsKit_TexManager_nextFrame(ps2->gsGlobal);
+    gsKit_clear(ps2->gsGlobal, GS_BLACK);
+}
+
+
+/* display a completed frame buffer and prepare a new render buffer */
+void plat_video_flip(void)
+{
+    blitscreen_clut();
+}
+
+/* wait for start of vertical blanking */
+void plat_video_wait_vsync(void)
+{
+}
+
+/* switch from emulation display to menu display */
+void plat_video_menu_enter(int is_rom_loaded)
+{
+}
+
+/* start rendering a menu screen */
+void plat_video_menu_begin(void)
+{
+    gsKit_TexManager_invalidate(ps2_video->gsGlobal, ps2_video->g_menuscreen);
+}
+
+/* display a completed menu screen */
+void plat_video_menu_end(void)
+{
+    gsKit_TexManager_bind(ps2_video->gsGlobal, ps2_video->g_menuscreen);
+    gskit_prim_list_sprite_texture_uv_3d(
+        ps2_video->gsGlobal, 
+        ps2_video->g_menuscreen, 
+        ps2_video->g_menuscreen_vertices_count, 
+        ps2_video->g_menuscreen_vertices
+    );
+    flipScreen(ps2_video, 1);
+}
+
+/* terminate menu display */
+void plat_video_menu_leave(void)
+{
+}
 
 void pemu_sound_start(void) {}
 void pemu_sound_stop(void) {}
