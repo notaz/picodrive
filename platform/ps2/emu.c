@@ -28,8 +28,6 @@
 
 static int osd_buf_cnt, osd_cdleds;
 
-static int out_x, out_y;
-static int out_w, out_h;
 static float hscale, vscale;
 
 static struct in_default_bind in_ps2_defbinds[] =
@@ -546,13 +544,11 @@ void plat_status_msg_busy_next(const char *msg)
 /* clear status message area */
 void plat_status_msg_clear(void)
 {
-	// not needed since the screen buf is cleared through the GU
+	// not needed since the screen buf is cleared through the gskit_clear
 }
 
 /* change the audio volume setting */
-void plat_update_volume(int has_changed, int is_up)
-{
-}
+void plat_update_volume(int has_changed, int is_up) {}
 
 /* prepare for MD screen mode change */
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
@@ -560,11 +556,11 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	int h43 = (col_count  >= 192 ? 320 : col_count); // ugh, mind GG...
 	int v43 = (line_count >= 192 ? Pico.m.pal ? 240 : 224 : line_count);
 
-	out_y = start_line; out_x = start_col;
-	out_h = line_count; out_w = col_count;
-
 	if (col_count == 248) // mind aspect ratio when blanking 1st column
 		col_count = 256;
+    
+    g_screen_vertices[0].uv = vertex_to_UV(g_screen, start_col, start_line);
+    g_screen_vertices[1].uv = vertex_to_UV(g_screen, col_count, line_count);
 
 	switch (currentConfig.vscaling) {
 	case EOPT_VSCALE_FULL:
