@@ -53,35 +53,24 @@ const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
+static GSGLOBAL *gsGlobal;
+
+static GSTEXTURE *g_menuscreen;
+static GSPRIMUVPOINT *g_menuscreen_vertices;
+
+static GSTEXTURE *g_screen;
+static GSPRIMUVPOINT *g_screen_vertices;
+
+static GSTEXTURE *osd;
+static uint32_t osd_vertices_count;
+static GSPRIMUVPOINT *osd_vertices;
+
+static GSTEXTURE *cdleds;
+static GSPRIMUVPOINT *cdleds_vertices;
+
 static int vsync_sema_id;
-
-typedef struct ps2_video {
-	GSGLOBAL *gsGlobal;
-
-	GSTEXTURE *g_menuscreen;
-    uint32_t g_menuscreen_vertices_count;
-    GSPRIMUVPOINT *g_menuscreen_vertices;
-
-    GSTEXTURE *g_screen;
-    uint32_t g_screen_vertices_count;
-    GSPRIMUVPOINT *g_screen_vertices;
-
-    GSTEXTURE *osd;
-    uint32_t osd_vertices_count;
-    GSPRIMUVPOINT *osd_vertices;
-
-    GSTEXTURE *cdleds;
-    uint32_t cdleds_vertices_count;
-    GSPRIMUVPOINT *cdleds_vertices;
-
-	uint32_t offset;
-    int32_t vsync_callback_id;
-    uint8_t *g_menubg_ptr;
-	uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
-	uint8_t pixel_format;
-} ps2_video_t;
-
-ps2_video_t *ps2_video = NULL;
+static int32_t vsync_callback_id;
+static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 
 #define is_16bit_mode() \
 	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
@@ -94,17 +83,22 @@ static int vsync_handler(void)
    return 0;
 }
 
-static void set_g_menuscreen_values(ps2_video_t *ps2_video)
+static void set_g_menuscreen_values()
 {
-    GSTEXTURE *g_menuscreen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-    size_t g_menuscreenSize = gsKit_texture_size_ee(ps2_video->gsGlobal->Width, ps2_video->gsGlobal->Height, GS_PSM_CT16);
-    g_menuscreen->Width = ps2_video->gsGlobal->Width;
-    g_menuscreen->Height = ps2_video->gsGlobal->Height;
+    if (g_menuscreen != NULL) {
+        free(g_menuscreen->Mem);
+        free(g_menuscreen);
+        free(g_menubg_ptr);
+        free(g_menuscreen_vertices);
+    }
+    g_menuscreen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+    size_t g_menuscreenSize = gsKit_texture_size_ee(gsGlobal->Width, gsGlobal->Height, GS_PSM_CT16);
+    g_menuscreen->Width = gsGlobal->Width;
+    g_menuscreen->Height = gsGlobal->Height;
     g_menuscreen->PSM = GS_PSM_CT16;
-    g_menuscreen->Mem = (uint32_t *)malloc(g_menuscreenSize);
+    g_menuscreen->Mem = malloc(g_menuscreenSize);
 
-    ps2_video->g_menuscreen = g_menuscreen;
-    ps2_video->g_menubg_ptr = (uint8_t *)malloc(g_menuscreenSize);;
+    g_menubg_ptr = (uint8_t *)malloc(g_menuscreenSize);
 
     g_menuscreen_w = g_menuscreen->Width;
     g_menuscreen_h  = g_menuscreen->Height; 
@@ -114,25 +108,25 @@ static void set_g_menuscreen_values(ps2_video_t *ps2_video)
     g_menubg_src_w = g_menuscreen->Width;
     g_menubg_src_h  = g_menuscreen->Height;
     g_menubg_src_pp = g_menuscreen->Width;
-    g_menubg_ptr = ps2_video->g_menubg_ptr;
 
-    uint32_t g_menuscreen_vertices_count = 2;
-    GSPRIMUVPOINT *g_menuscreen_vertices = (GSPRIMUVPOINT *)calloc(g_menuscreen_vertices_count, sizeof(GSPRIMUVPOINT));
+    g_menuscreen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
     
-    g_menuscreen_vertices[0].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, 0, 0, 0);
+    g_menuscreen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 2);
 	g_menuscreen_vertices[0].uv = vertex_to_UV(g_menuscreen, 0, 0);
 	g_menuscreen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    g_menuscreen_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, g_menuscreen->Width, g_menuscreen->Height, 0);
+    g_menuscreen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, g_menuscreen->Width, g_menuscreen->Height, 2);
     g_menuscreen_vertices[1].uv = vertex_to_UV(g_menuscreen, g_menuscreen->Width, g_menuscreen->Height);
     g_menuscreen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
-
-    ps2_video->g_menuscreen_vertices_count = g_menuscreen_vertices_count;
-    ps2_video->g_menuscreen_vertices = g_menuscreen_vertices;
 }
 
-void set_g_screen_values(ps2_video_t *ps2_video) {
-    GSTEXTURE *g_screen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+void set_g_screen_values() {
+    if (g_screen != NULL) {
+        free(g_screen->Mem);
+        free(g_screen);
+        free(g_screen_vertices);
+    }
+    g_screen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
     size_t g_screenSize = gsKit_texture_size_ee(328, 256, GS_PSM_CT16);
     g_screen->Width = 328;
     g_screen->Height = 256;
@@ -144,21 +138,15 @@ void set_g_screen_values(ps2_video_t *ps2_video) {
     g_screen_ppitch = 328;
     g_screen_ptr = g_screen->Mem;
 
-    ps2_video->g_screen = g_screen;
-
-    uint32_t g_screen_vertices_count = 2;
-    GSPRIMUVPOINT *g_screen_vertices = (GSPRIMUVPOINT *)calloc(g_screen_vertices_count, sizeof(GSPRIMUVPOINT));
+    g_screen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
     
-    g_screen_vertices[0].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, 0, 0, 2);
+    g_screen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 0);
     g_screen_vertices[0].uv = vertex_to_UV(g_screen, 0, 0);
     g_screen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    g_screen_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, ps2_video->gsGlobal->Width, ps2_video->gsGlobal->Height, 2);
+    g_screen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, gsGlobal->Width, gsGlobal->Height, 0);
     g_screen_vertices[1].uv = vertex_to_UV(g_screen, g_screen->Width, g_screen->Height);
     g_screen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
-
-    ps2_video->g_screen_vertices_count = g_screen_vertices_count;
-    ps2_video->g_screen_vertices = g_screen_vertices;
 
     if (is_16bit_mode())
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
@@ -166,54 +154,53 @@ void set_g_screen_values(ps2_video_t *ps2_video) {
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch);
 }
 
-void set_cdleds_values(ps2_video_t *ps2_video) {
-    GSTEXTURE *cdleds = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+void set_cdleds_values() {
+    if (cdleds != NULL) {
+        free(cdleds->Mem);
+        free(cdleds);
+        free(cdleds_vertices);
+    }
+    cdleds = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
     size_t cdledsSize = gsKit_texture_size_ee(14, 5, GS_PSM_CT16);
     cdleds->Width = 14;
     cdleds->Height = 5;
     cdleds->PSM = GS_PSM_CT16;
     cdleds->Mem = (uint32_t *)malloc(cdledsSize);
 
-    ps2_video->cdleds = cdleds;
-
-    uint32_t cdleds_vertices_count = 2;
-    GSPRIMUVPOINT *cdleds_vertices = (GSPRIMUVPOINT *)calloc(cdleds_vertices_count, sizeof(GSPRIMUVPOINT));
+    cdleds_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
     
-    cdleds_vertices[0].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, 4, 1, 2);
+    cdleds_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 4, 1, 1);
     cdleds_vertices[0].uv = vertex_to_UV(cdleds, 0, 0);
     cdleds_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    cdleds_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, cdleds->Width, cdleds->Height, 0);
+    cdleds_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, cdleds->Width, cdleds->Height, 1);
     cdleds_vertices[1].uv = vertex_to_UV(cdleds, cdleds->Width, cdleds->Height);
     cdleds_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
-
-    ps2_video->cdleds_vertices_count = cdleds_vertices_count;
-    ps2_video->cdleds_vertices = cdleds_vertices;
 }
 
-void set_osd_values(ps2_video_t *ps2_video) {
-    GSTEXTURE *osd = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+void set_osd_values() {
+    if (osd != NULL) {
+        free(osd->Mem);
+        free(osd);
+        free(osd_vertices);
+    }
+    osd = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
     size_t osdSize = gsKit_texture_size_ee(512, 8, GS_PSM_CT16);
     osd->Width = 512;
     osd->Height = 8;
     osd->PSM = GS_PSM_CT16;
     osd->Mem = (uint32_t *)malloc(osdSize);
 
-    ps2_video->osd = osd;
-
-    uint32_t osd_vertices_count = 2;
-    GSPRIMUVPOINT *osd_vertices = (GSPRIMUVPOINT *)calloc(osd_vertices_count, sizeof(GSPRIMUVPOINT));
+    osd_vertices_count = 2;
+    osd_vertices = (GSPRIMUVPOINT *)calloc(osd_vertices_count, sizeof(GSPRIMUVPOINT));
     
-    osd_vertices[0].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, 0, 0, 0);
+    osd_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 1);
     osd_vertices[0].uv = vertex_to_UV(osd, 0, 0);
     osd_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    osd_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, osd->Width, osd->Height, 0);
+    osd_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, osd->Width, osd->Height, 1);
     osd_vertices[1].uv = vertex_to_UV(osd, osd->Width, osd->Height);
     osd_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
-
-    ps2_video->osd_vertices_count = osd_vertices_count;
-    ps2_video->osd_vertices = osd_vertices;
 }
 
 static void video_init(void)
@@ -223,14 +210,10 @@ static void video_init(void)
     sema.init_count = 0;
     sema.max_count  = 1;
     sema.option     = 0;
-    ps2_video = (ps2_video_t*)calloc(1, sizeof(ps2_video_t));
 
     vsync_sema_id   = CreateSema(&sema);
 
-    GSGLOBAL *gsGlobal;
-
     gsGlobal = gsKit_init_global();
-
     gsGlobal->Mode = GS_MODE_NTSC;
     gsGlobal->Height = 448;
 
@@ -241,49 +224,37 @@ static void video_init(void)
     gsGlobal->PrimAlphaEnable = GS_SETTING_OFF;
     gsGlobal->Dithering = GS_SETTING_OFF;
 
-    // gsKit_set_primalpha(gsGlobal, GS_SETREG_ALPHA(0, 1, 0, 1, 0), 0);
 
     dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);
     dmaKit_chan_init(DMA_CHANNEL_GIF);
 
     gsKit_set_clamp(gsGlobal, GS_CMODE_REPEAT);
-    // gsKit_set_test(gsGlobal, GS_ZTEST_OFF);
-    // gsKit_set_test(gsGlobal, GS_ATEST_OFF);
 
     gsKit_vram_clear(gsGlobal);
-
     gsKit_init_screen(gsGlobal);
-
     gsKit_TexManager_init(gsGlobal);
-
     gsKit_mode_switch(gsGlobal, GS_ONESHOT);
     gsKit_clear(gsGlobal, GS_BLACK);
-    ps2_video->gsGlobal = gsGlobal;
-    ps2_video->vsync = 0;
-    ps2_video->vsync_callback_id = gsKit_add_vsync_handler(vsync_handler);
+    vsync = 0;
+    vsync_callback_id = gsKit_add_vsync_handler(vsync_handler);
 
-    set_g_menuscreen_values(ps2_video);
+    set_g_menuscreen_values();
 }
 
 static void video_deinit(void)
 {
-    if (!ps2_video) return;
+    free(g_menuscreen->Mem);
+    free(g_menuscreen);
+    free(g_menuscreen_vertices);
+    free(g_menubg_ptr);
 
-    free(ps2_video->g_menuscreen->Mem);
-    free(ps2_video->g_menuscreen);
-    free(ps2_video->g_menuscreen_vertices);
-
-    free(ps2_video->g_menubg_ptr);
-
-    gsKit_clear(ps2_video->gsGlobal, GS_BLACK);
-    gsKit_vram_clear(ps2_video->gsGlobal);
-    gsKit_deinit_global(ps2_video->gsGlobal);
-    gsKit_remove_vsync_handler(ps2_video->vsync_callback_id);
+    gsKit_clear(gsGlobal, GS_BLACK);
+    gsKit_vram_clear(gsGlobal);
+    gsKit_deinit_global(gsGlobal);
+    gsKit_remove_vsync_handler(vsync_callback_id);
 
     if (vsync_sema_id >= 0)
         DeleteSema(vsync_sema_id);
-
-    free(ps2_video);
 }
 
 static int get_renderer(void)
@@ -351,14 +322,14 @@ static void osd_text(int x, const char *text)
 
 static void blit_screen(void)
 {
-    gsKit_TexManager_invalidate(ps2_video->gsGlobal, ps2_video->g_screen);
+    gsKit_TexManager_invalidate(gsGlobal, g_screen);
 
-    gsKit_TexManager_bind(ps2_video->gsGlobal, ps2_video->g_screen);
+    gsKit_TexManager_bind(gsGlobal, g_screen);
     gskit_prim_list_sprite_texture_uv_3d(
-        ps2_video->gsGlobal, 
-        ps2_video->g_screen, 
-        ps2_video->g_screen_vertices_count, 
-        ps2_video->g_screen_vertices
+        gsGlobal, 
+        g_screen,
+        2,
+        g_screen_vertices
     );
 }
 
@@ -370,11 +341,11 @@ static void blit_osd(void)
 static void cd_leds(void)
 {
     unsigned int reg, col_g, col_r, *p;
-    gsKit_TexManager_invalidate(ps2_video->gsGlobal, ps2_video->cdleds);
+    gsKit_TexManager_invalidate(gsGlobal, cdleds);
 
 	reg = Pico_mcd->s68k_regs[0];
 
-	p = (unsigned int *)ps2_video->cdleds->Mem;
+	p = (unsigned int *)cdleds->Mem;
 	col_g = (reg & 2) ? 0x06000600 : 0;
 	col_r = (reg & 1) ? 0x00180018 : 0;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
@@ -388,12 +359,12 @@ static void blit_cdleds(void)
 {
     if (!osd_cdleds) return;
 
-    gsKit_TexManager_bind(ps2_video->gsGlobal, ps2_video->cdleds);
+    gsKit_TexManager_bind(gsGlobal, cdleds);
     gskit_prim_list_sprite_texture_uv_3d(
-        ps2_video->gsGlobal, 
-        ps2_video->cdleds, 
-        ps2_video->cdleds_vertices_count,
-        ps2_video->cdleds_vertices
+        gsGlobal, 
+        cdleds, 
+        2,
+        cdleds_vertices
     );
 }
 
@@ -442,19 +413,14 @@ static void gsKit_flip(GSGLOBAL *gsGlobal)
    gsKit_setactive(gsGlobal);
 }
 
-static void flipScreen(void *data, bool vsync)
+static void flipScreen()
 {
-	ps2_video_t *ps2 = (ps2_video_t*)data;
-
-	gsKit_queue_exec(ps2->gsGlobal);
+	gsKit_queue_exec(gsGlobal);
 	gsKit_finish();
+    gsKit_flip(gsGlobal);
 
-	if (ps2->vsync)
-        gsKit_sync(ps2->gsGlobal);
-    gsKit_flip(ps2->gsGlobal);
-
-	gsKit_TexManager_nextFrame(ps2->gsGlobal);
-    gsKit_clear(ps2->gsGlobal, GS_BLACK);
+	gsKit_TexManager_nextFrame(gsGlobal);
+    gsKit_clear(gsGlobal, GS_BLACK);
 }
 
 
@@ -464,13 +430,13 @@ void plat_video_flip(void)
     blit_screen();
     blit_osd();
 	blit_cdleds();
-
-    flipScreen(ps2_video, ps2_video->vsync);
+    flipScreen();
 }
 
 /* wait for start of vertical blanking */
 void plat_video_wait_vsync(void)
 {
+    gsKit_sync(gsGlobal);
 }
 
 /* switch from emulation display to menu display */
@@ -481,20 +447,20 @@ void plat_video_menu_enter(int is_rom_loaded)
 /* start rendering a menu screen */
 void plat_video_menu_begin(void)
 {
-    gsKit_TexManager_invalidate(ps2_video->gsGlobal, ps2_video->g_menuscreen);
+    gsKit_TexManager_invalidate(gsGlobal, g_menuscreen);
 }
 
 /* display a completed menu screen */
 void plat_video_menu_end(void)
 {
-    gsKit_TexManager_bind(ps2_video->gsGlobal, ps2_video->g_menuscreen);
+    gsKit_TexManager_bind(gsGlobal, g_menuscreen);
     gskit_prim_list_sprite_texture_uv_3d(
-        ps2_video->gsGlobal, 
-        ps2_video->g_menuscreen, 
-        ps2_video->g_menuscreen_vertices_count, 
-        ps2_video->g_menuscreen_vertices
+        gsGlobal, 
+        g_menuscreen, 
+        2, 
+        g_menuscreen_vertices
     );
-    flipScreen(ps2_video, 1);
+    flipScreen(1);
 }
 
 /* terminate menu display */
@@ -553,7 +519,7 @@ void plat_init(void)
     in_ps2_init(in_ps2_defbinds);
     in_probe();
     init_audio_driver();
-    // plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
+    plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
 }
 
 void plat_finish(void) {
@@ -669,8 +635,8 @@ void plat_video_loop_prepare(void)
 /* prepare for entering the emulator loop */
 void pemu_loop_prep(void)
 {
-    set_g_screen_values(ps2_video);
-    set_cdleds_values(ps2_video);
+    set_g_screen_values();
+    set_cdleds_values();
 }
 
 /* terminate the emulator loop */
