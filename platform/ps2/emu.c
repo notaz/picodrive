@@ -53,6 +53,8 @@ const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
+static int vsync_sema_id;
+
 typedef struct ps2_video {
 	GSGLOBAL *gsGlobal;
 
@@ -72,8 +74,9 @@ typedef struct ps2_video {
     uint32_t cdleds_vertices_count;
     GSPRIMUVPOINT *cdleds_vertices;
 
-    uint8_t *g_menubg_ptr;
 	uint32_t offset;
+    int32_t vsync_callback_id;
+    uint8_t *g_menubg_ptr;
 	uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 	uint8_t pixel_format;
 } ps2_video_t;
@@ -82,6 +85,14 @@ ps2_video_t *ps2_video = NULL;
 
 #define is_16bit_mode() \
 	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+
+static int vsync_handler(void)
+{
+   iSignalSema(vsync_sema_id);
+
+   ExitHandler();
+   return 0;
+}
 
 static void set_g_menuscreen_values(ps2_video_t *ps2_video)
 {
@@ -142,7 +153,7 @@ void set_g_screen_values(ps2_video_t *ps2_video) {
     g_screen_vertices[0].uv = vertex_to_UV(g_screen, 0, 0);
     g_screen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    g_screen_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, g_screen->Width, g_screen->Height, 2);
+    g_screen_vertices[1].xyz2 = vertex_to_XYZ2(ps2_video->gsGlobal, ps2_video->gsGlobal->Width, ps2_video->gsGlobal->Height, 2);
     g_screen_vertices[1].uv = vertex_to_UV(g_screen, g_screen->Width, g_screen->Height);
     g_screen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
@@ -207,7 +218,14 @@ void set_osd_values(ps2_video_t *ps2_video) {
 
 static void video_init(void)
 {
+    ee_sema_t sema;
+
+    sema.init_count = 0;
+    sema.max_count  = 1;
+    sema.option     = 0;
     ps2_video = (ps2_video_t*)calloc(1, sizeof(ps2_video_t));
+
+    vsync_sema_id   = CreateSema(&sema);
 
     GSGLOBAL *gsGlobal;
 
@@ -220,15 +238,17 @@ static void video_init(void)
     gsGlobal->PSMZ = GS_PSMZ_16S;
     gsGlobal->ZBuffering = GS_SETTING_OFF;
     gsGlobal->DoubleBuffering = GS_SETTING_ON;
-    gsGlobal->PrimAlphaEnable = GS_SETTING_ON;
+    gsGlobal->PrimAlphaEnable = GS_SETTING_OFF;
     gsGlobal->Dithering = GS_SETTING_OFF;
 
-    gsKit_set_primalpha(gsGlobal, GS_SETREG_ALPHA(0, 1, 0, 1, 0), 0);
+    // gsKit_set_primalpha(gsGlobal, GS_SETREG_ALPHA(0, 1, 0, 1, 0), 0);
 
     dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);
     dmaKit_chan_init(DMA_CHANNEL_GIF);
 
     gsKit_set_clamp(gsGlobal, GS_CMODE_REPEAT);
+    // gsKit_set_test(gsGlobal, GS_ZTEST_OFF);
+    // gsKit_set_test(gsGlobal, GS_ATEST_OFF);
 
     gsKit_vram_clear(gsGlobal);
 
@@ -240,6 +260,7 @@ static void video_init(void)
     gsKit_clear(gsGlobal, GS_BLACK);
     ps2_video->gsGlobal = gsGlobal;
     ps2_video->vsync = 0;
+    ps2_video->vsync_callback_id = gsKit_add_vsync_handler(vsync_handler);
 
     set_g_menuscreen_values(ps2_video);
 }
@@ -257,6 +278,11 @@ static void video_deinit(void)
     gsKit_clear(ps2_video->gsGlobal, GS_BLACK);
     gsKit_vram_clear(ps2_video->gsGlobal);
     gsKit_deinit_global(ps2_video->gsGlobal);
+    gsKit_remove_vsync_handler(ps2_video->vsync_callback_id);
+
+    if (vsync_sema_id >= 0)
+        DeleteSema(vsync_sema_id);
+
     free(ps2_video);
 }
 
@@ -390,6 +416,32 @@ static void draw_pico_ptr(void)
 
 static void vidResetMode(void) {}
 
+/* Copy of gsKit_sync_flip, but without the 'flip' */
+static void gsKit_sync(GSGLOBAL *gsGlobal)
+{
+   if (!gsGlobal->FirstFrame)
+      WaitSema(vsync_sema_id);
+
+   while (PollSema(vsync_sema_id) >= 0);
+}
+
+/* Copy of gsKit_sync_flip, but without the 'sync' */
+static void gsKit_flip(GSGLOBAL *gsGlobal)
+{
+   if (!gsGlobal->FirstFrame)
+   {
+      if (gsGlobal->DoubleBuffering == GS_SETTING_ON)
+      {
+         GS_SET_DISPFB2(gsGlobal->ScreenBuffer[gsGlobal->ActiveBuffer & 1] / 8192,
+                        gsGlobal->Width / 64, gsGlobal->PSM, 0, 0);
+
+         gsGlobal->ActiveBuffer ^= 1;
+      }
+   }
+
+   gsKit_setactive(gsGlobal);
+}
+
 static void flipScreen(void *data, bool vsync)
 {
 	ps2_video_t *ps2 = (ps2_video_t*)data;
@@ -397,7 +449,9 @@ static void flipScreen(void *data, bool vsync)
 	gsKit_queue_exec(ps2->gsGlobal);
 	gsKit_finish();
 
-	if (vsync) gsKit_sync_flip(ps2->gsGlobal);
+	if (ps2->vsync)
+        gsKit_sync(ps2->gsGlobal);
+    gsKit_flip(ps2->gsGlobal);
 
 	gsKit_TexManager_nextFrame(ps2->gsGlobal);
     gsKit_clear(ps2->gsGlobal, GS_BLACK);
@@ -411,8 +465,7 @@ void plat_video_flip(void)
     blit_osd();
 	blit_cdleds();
 
-    // flipScreen(ps2_video, ps2_video->vsync);
-    flipScreen(ps2_video, 1);
+    flipScreen(ps2_video, ps2_video->vsync);
 }
 
 /* wait for start of vertical blanking */
