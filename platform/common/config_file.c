@@ -118,7 +118,7 @@ int config_write(const char *fname)
 	for (me = me_list_get_first(); me != NULL; me = me_list_get_next())
 	{
 		int dummy;
-		if (!me->need_to_save || !me->enabled)
+		if (!me->need_to_save)
 			continue;
 		if (me->name == NULL || me->name[0] == 0)
 			continue;
@@ -129,8 +129,10 @@ int config_write(const char *fname)
 		else if (me->beh == MB_OPT_RANGE || me->beh == MB_OPT_CUSTRANGE) {
 			fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
 		}
-		else if (me->beh == MB_OPT_ENUM && me->data != NULL) {
+		else if (me->beh == MB_OPT_ENUM) {
 			const char **names = (const char **)me->data;
+			if (names == NULL)
+				continue;
 			for (t = 0; names[t] != NULL; t++) {
 				if (*(int *)me->var == t) {
 					strncpy(line, names[t], sizeof(line)-1);
@@ -145,7 +147,8 @@ int config_write(const char *fname)
 			goto write_line;
 		}
 		else
-			lprintf("config: unhandled write: %i\n", me->id);
+			lprintf("config: unhandled write: '%s' id %d behavior %d\n",
+				me->name, me->id, me->beh);
 		continue;
 
 write_line:
