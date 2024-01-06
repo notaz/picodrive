@@ -9,6 +9,7 @@
 #include <dmaKit.h>
 #include <gsToolkit.h>
 #include <gsInline.h>
+#include <audsrv.h>
 
 #include "in_ps2.h"
 #include "../libpicofe/input.h"
@@ -69,6 +70,204 @@ static GSPRIMUVPOINT *cdleds_vertices;
 static int vsync_sema_id;
 static int32_t vsync_callback_id;
 static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
+
+/* sound stuff */
+#define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
+#define SOUND_BLOCK_SIZE_PAL  (1764*2)
+#define SOUND_BLOCK_COUNT    8
+
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 54000/50*2];
+static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
+static int samples_made = 0, samples_done = 0, samples_block = 0;
+static int sound_thread_exit = 0;
+static int32_t sound_sem = -1;
+static uint8_t stack[0x10000] __attribute__((aligned(16)));
+extern void *_gp;
+
+static int mp3_init(void) { return 0; }
+
+static void writeSound(int len)
+{
+	int ret;
+
+    // printf("writeSound, len: %i\n", len);
+
+	PicoIn.sndOut += len / 2;
+	/*if (PicoIn.sndOut > sndBuffer_endptr) {
+		memcpy((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) * 2);
+		PicoIn.sndOut = &sndBuffer[PicoIn.sndOut - endptr];
+		lprintf("mov\n");
+	}
+	else*/
+	if (PicoIn.sndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PicoIn.sndOut - sndBuffer_endptr);
+	if (PicoIn.sndOut >= sndBuffer_endptr)
+		PicoIn.sndOut = sndBuffer;
+
+	// signal the snd thread
+	samples_made += len / 2;
+	if (samples_made - samples_done > samples_block*2) {
+		lprintf("signal, %i/%i\n", samples_done, samples_made);
+		ret = SignalSema(sound_sem);
+		//if (ret < 0) lprintf("snd signal ret %08x\n", ret);
+	}
+}
+
+static int sound_thread(void *argp)
+{
+	int ret = 0;
+
+	while (!sound_thread_exit)
+	{
+		if (samples_made - samples_done < samples_block) {
+			// wait for data (use at least 2 blocks)
+			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
+			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit) {
+                printf("sthr: WaitSema\n");
+				ret = WaitSema(sound_sem);
+            }
+			if (ret < 0) lprintf("sthr: WaitSema: %i\n", ret);
+			continue;
+		}
+
+		// lprintf("sthr: got data: %i\n", samples_made - samples_done);
+        int buflen = samples_block * 2;
+        ret = (audsrv_play_audio((char *)snd_playptr, buflen) != buflen) ? -1 : 0;
+        printf("audsrv_play_audio ret: %i, buflen: %i\n", ret, buflen);
+		// ret = sceAudioSRCOutputBlocking(PSP_AUDIO_VOLUME_MAX, snd_playptr);
+
+		samples_done += samples_block;
+		snd_playptr  += samples_block;
+		if (snd_playptr >= sndBuffer_endptr)
+			snd_playptr = sndBuffer;
+		// 1.5 kernel returns 0, newer ones return # of samples queued
+		if (ret < 0)
+			lprintf("sthr: audsrv_play_audio: %08x; pos %i/%i\n", ret, samples_done, samples_made);
+
+		// shouln't happen, but just in case
+		if (samples_made - samples_done >= samples_block*3) {
+			//lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
+			samples_done += samples_block; // skip
+			snd_playptr  += samples_block;
+		}
+
+	}
+
+	lprintf("sthr: exit\n");
+	ExitDeleteThread();
+	return 0;
+}
+
+static void sound_init(void)
+{
+	int thid;
+	int ret;
+	ee_sema_t sema;
+    ee_thread_t thread;
+
+    sema.max_count  = 1;
+    sema.init_count = 0;
+    sema.option     = (u32) "sndsem";
+    if ((sound_sem = CreateSema(&sema)) < 0)
+        return;
+
+    thread.func             = &sound_thread;
+    thread.stack            = stack;
+    thread.stack_size       = sizeof(stack);
+    thread.gp_reg           = &_gp;
+    thread.option           = (u32) "sndthread";
+    thread.initial_priority = 0x12;
+    thid = CreateThread(&thread);
+
+    if (thid >= 0) {
+		ret = StartThread(thid, NULL);
+		if (ret < 0) lprintf("sound_init: StartThread returned %08x\n", ret);
+	}else {
+        DeleteSema(sound_sem);
+		lprintf("CreateThread failed: %i\n", thid);
+    }
+}
+
+void pemu_sound_start(void) {
+    static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	static int mp3_init_done;
+	int ret, stereo;
+    struct audsrv_fmt_t format;
+
+	samples_made = samples_done = 0;
+
+	if (!(currentConfig.EmuOpt & EOPT_EN_SOUND))
+		return;
+
+	if (PicoIn.AHW & PAHW_MCD) {
+		// mp3...
+		if (!mp3_init_done) {
+			ret = mp3_init();
+			mp3_init_done = 1;
+			if (ret) emu_status_msg("mp3 init failed (%i)", ret);
+		}
+	}
+
+	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
+		PicoIn.sndRate = YM2612_NATIVE_RATE();
+	ret = POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO;
+	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&ret) != (PicoOpt_old&ret) || Pico.m.pal != pal_old) {
+		PsndRerate(Pico.m.frame_count ? 1 : 0);
+	}
+	stereo=(PicoIn.opt&8)>>3;
+
+	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
+    printf("samples_block: %i\n", samples_block);
+	if (PicoIn.sndRate <= 22050) samples_block /= 2;
+	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
+
+	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
+			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
+
+	format.bits = 16;
+    format.freq = PicoIn.sndRate;
+    format.channels = 2;
+	ret = audsrv_set_format(&format);
+    audsrv_set_volume(MAX_VOLUME);
+	if (ret < 0) {
+		lprintf("audsrv_set_format() failed: %i\n", ret);
+		emu_status_msg("sound init failed (%i), snd disabled", ret);
+		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
+	} else {
+		PicoIn.writeSound = writeSound;
+		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
+		snd_playptr = sndBuffer_endptr - samples_block;
+		samples_made = samples_block; // send 1 empty block first..
+		PicoIn.sndOut = sndBuffer;
+		PsndRate_old = PicoIn.sndRate;
+		PicoOpt_old  = PicoIn.opt;
+		pal_old = Pico.m.pal;
+	}
+}
+
+void pemu_sound_stop(void)
+{
+	int i;
+	if (samples_done == 0)
+	{
+		// if no data is written between sceAudioSRCChReserve and sceAudioSRCChRelease calls,
+		// we get a deadlock on next sceAudioSRCChReserve call
+		// so this is yet another workaround:
+		memset32((int *)(void *)sndBuffer, 0, samples_block*4/4);
+		samples_made = samples_block * 3;
+		SignalSema(sound_sem);
+	}
+	plat_sleep_ms(100);
+	samples_made = samples_done = 0;
+	audsrv_stop_audio();
+}
+
+static void sound_deinit(void)
+{
+	sound_thread_exit = 1;
+	SignalSema(sound_sem);
+	DeleteSema(sound_sem);
+	sound_sem = -1;
+}
 
 #define is_16bit_mode() \
 	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
@@ -466,9 +665,6 @@ void plat_video_menu_leave(void)
 {
 }
 
-void pemu_sound_start(void) {}
-void pemu_sound_stop(void) {}
-
 /* set default configuration values */
 void pemu_prep_defconfig(void)
 {
@@ -517,10 +713,12 @@ void plat_init(void)
     in_ps2_init(in_ps2_defbinds);
     in_probe();
     init_audio_driver();
+    sound_init();
     plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
 }
 
 void plat_finish(void) {
+    sound_deinit();
     deinit_audio_driver();
     deinit_joystick_driver(false);
     video_deinit();
