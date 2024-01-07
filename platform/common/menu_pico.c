@@ -366,6 +366,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Next page   ", PEV_PICO_PNEXT },
 	{ "Pico Prev page   ", PEV_PICO_PPREV },
 	{ "Pico Switch input", PEV_PICO_SWINP },
+	{ "Pico Display pen ", PEV_PICO_PEN },
 	{ NULL,                0 }
 };
 
@@ -473,6 +474,7 @@ static menu_entry e_menu_md_options[] =
 	mee_onoff_h   ("FM audio",        MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM, h_fmsound),
 	mee_onoff_h   ("FM filter",       MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
 	mee_onoff_h   ("FM DAC noise",    MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
+	mee_onoff     ("Show Pico pen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN),
 	mee_end,
 };
 
@@ -928,14 +930,6 @@ static const char *mgn_opt_region(int id, int *offs)
 	}
 }
 
-static const char *mgn_saveloadcfg(int id, int *offs)
-{
-	strcpy(static_buff, "   ");
-	if (config_slot != 0)
-		sprintf(static_buff, "[%i]", config_slot);
-	return static_buff;
-}
-
 static const char h_hotkeysvld[] = "Slot used for save/load by emulator hotkey";
 
 static menu_entry e_menu_options[] =
@@ -1289,6 +1283,34 @@ static int main_menu_handler(int id, int keys)
 	return 0;
 }
 
+static const char *mgn_picopage(int id, int *offs)
+{
+	strcpy(static_buff, "   ");
+	sprintf(static_buff, "%i", PicoPicohw.page);
+	return static_buff;
+}
+
+static int mh_picopage(int id, int keys)
+{
+	int ret;
+
+	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
+		PicoPicohw.page += (keys & PBTN_LEFT) ? -1 : 1;
+		if (PicoPicohw.page < 0) PicoPicohw.page = 6;
+		else if (PicoPicohw.page > 6) PicoPicohw.page = 0;
+		return 0;
+	}
+	return 1;
+}
+
+static const char *mgn_saveloadcfg(int id, int *offs)
+{
+	strcpy(static_buff, "   ");
+	if (config_slot != 0)
+		sprintf(static_buff, "[%i]", config_slot);
+	return static_buff;
+}
+
 static int mh_saveloadcfg(int id, int keys)
 {
 	int ret;
@@ -1330,10 +1352,11 @@ static menu_entry e_menu_main[] =
 	mee_label     (""),
 	mee_label     (""),
 	mee_handler_id("Resume game",        MA_MAIN_RESUME_GAME, main_menu_handler),
-	mee_handler_id("Save State",         MA_MAIN_SAVE_STATE,  main_menu_handler),
-	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
+	mee_handler_id("Save state",         MA_MAIN_SAVE_STATE,  main_menu_handler),
+	mee_handler_id("Load state",         MA_MAIN_LOAD_STATE,  main_menu_handler),
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Change CD",          MA_MAIN_CHANGE_CD,   main_menu_handler),
+	mee_cust_s_h  ("Storyware page",     MA_MAIN_PICO_PAGE, 0,mh_picopage, mgn_picopage, NULL),
 	mee_handler_id("Patches / GameGenie",MA_MAIN_PATCHES,     main_menu_handler),
 	mee_handler_id("Load new game",      MA_MAIN_LOAD_ROM,    main_menu_handler),
 	mee_handler   ("Change options",                          menu_loop_options),
@@ -1354,6 +1377,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_CHANGE_CD,   PicoIn.AHW & PAHW_MCD);
+	me_enable(e_menu_main, MA_MAIN_PICO_PAGE,   PicoIn.AHW & PAHW_PICO);
 	me_enable(e_menu_main, MA_MAIN_PATCHES,     PicoPatches != NULL);
 	me_enable(e_menu_main, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_enable(e_menu_main, MA_OPT_LOADCFG,      PicoGameLoaded && config_slot != config_slot_current);

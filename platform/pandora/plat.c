@@ -76,6 +76,7 @@ static struct in_default_bind in_evdev_defbinds[] =
 	{ KEY_5,	IN_BINDTYPE_EMU, PEVB_PICO_PPREV },
 	{ KEY_6,	IN_BINDTYPE_EMU, PEVB_PICO_PNEXT },
 	{ KEY_7,	IN_BINDTYPE_EMU, PEVB_PICO_SWINP },
+	{ KEY_8,	IN_BINDTYPE_EMU, PEVB_PICO_PEN },
 	{ 0, 0, 0 }
 };
 
@@ -126,29 +127,33 @@ static void draw_cd_leds(void)
 	int old_reg;
 	old_reg = Pico_mcd->s68k_regs[0];
 
-	if (0) {
-		// 8-bit modes
-		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
-		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+ 4) = col_g;
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+12) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+12) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+12) = col_r;
-	} else {
-		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)g_screen_ptr + g_screen_width*2+4);
-		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
-		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
-	}
+	// 16-bit modes
+	unsigned int *p = (unsigned int *)((short *)g_screen_ptr + g_screen_width*2+4);
+	unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
+	unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+}
+
+static void draw_pico_ptr(void)
+{
+	int x = pico_pen_x, y = pico_pen_y, pitch = g_screen_ppitch;
+	unsigned short *p = (unsigned short *)g_screen_ptr;
+
+	x = (x * saved_col_count * ((1ULL<<32) / 320)) >> 32;
+	y = (y * saved_line_count * ((1ULL<<32) / 224)) >> 32;
+	p += (saved_start_col+x) + (saved_start_line+y) * pitch;
+
+				p[-pitch] ^= 0xffff;
+	p[-1] ^= 0xffff;	p[0]      ^= 0xffff;	p[1] ^= 0xffff;
+				p[pitch]  ^= 0xffff;
 }
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
+	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
+		if (pico_inp_mode) draw_pico_ptr();
 	if (notice && notice[0])
 		emu_osd_text16(2 + g_osd_start_x, g_osd_y, notice);
 	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))

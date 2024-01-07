@@ -36,9 +36,6 @@
 
 int engineStateSuspend;
 
-#define PICO_PEN_ADJUST_X 4
-#define PICO_PEN_ADJUST_Y 2
-
 struct Vertex
 {
 	short u,v;
@@ -372,19 +369,26 @@ void blitscreen_clut(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned char *p = (unsigned char *)g_screen_ptr + 8;
+	int x = pico_pen_x, y = pico_pen_y, offs;
 
-	// only if pen enabled and for 8bit mode
-	if (pico_inp_mode == 0 || is_16bit_mode()) return;
+	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
 
-	p += 512 * (pico_pen_y + PICO_PEN_ADJUST_Y);
-	p += pico_pen_x + PICO_PEN_ADJUST_X;
-	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-		p += 32;
+	offs = 512 * (out_y+y) + (out_x+x);
 
-	p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
-	p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
-	p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
+	if (is_16bit_mode()) {
+		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+
+		p[  -1] = 0x0000; p[   0] = 0x001f; p[   1] = 0x0000;
+		p[ 511] = 0x001f; p[ 512] = 0x001f; p[ 513] = 0x001f;
+		p[1023] = 0x0000; p[1024] = 0x001f; p[1025] = 0x0000;
+	} else {
+		unsigned char *p = (unsigned char *)g_screen_ptr + offs + 8;
+
+		p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
+		p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
+		p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
+	}
 }
 
 
@@ -630,15 +634,17 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoIn.AHW & PAHW_PICO)
-		draw_pico_ptr();
+	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
+		if (pico_inp_mode) draw_pico_ptr();
 
 	osd_buf_cnt = 0;
-	if (notice)      osd_text(4, notice);
-	if (emu_opt & 2) osd_text(OSD_FPS_X, fps);
+	if (notice)
+		osd_text(4, notice);
+	if (emu_opt & EOPT_SHOW_FPS)
+		osd_text(OSD_FPS_X, fps);
 
 	osd_cdleds = 0;
-	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
+	if ((emu_opt & EOPT_EN_CD_LEDS) && (PicoIn.AHW & PAHW_MCD))
 		cd_leds();
 
 	sceKernelDcacheWritebackAll();

@@ -1043,8 +1043,6 @@ void emu_reset_game(void)
 
 void run_events_pico(unsigned int events)
 {
-	int lim_x;
-
 	if (events & PEV_PICO_SWINP) {
 		pico_inp_mode++;
 		if (pico_inp_mode > 2)
@@ -1069,6 +1067,10 @@ void run_events_pico(unsigned int events)
 			PicoPicohw.page = 6;
 		emu_status_msg("Page %i", PicoPicohw.page);
 	}
+	if (events & PEV_PICO_PEN) {
+		currentConfig.EmuOpt ^= EOPT_PICO_PEN;
+		emu_status_msg("%s Pen", currentConfig.EmuOpt & EOPT_PICO_PEN ? "Show" : "Hide");
+	}
 
 	if (pico_inp_mode == 0)
 		return;
@@ -1080,20 +1082,16 @@ void run_events_pico(unsigned int events)
 	if (PicoIn.pad[0] & 8) pico_pen_x++;
 	PicoIn.pad[0] &= ~0x0f; // release UDLR
 
-	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
-	if (pico_pen_y < 8)
-		pico_pen_y = 8;
+	if (pico_pen_y < PICO_PEN_ADJUST_Y)
+		pico_pen_y = PICO_PEN_ADJUST_Y;
 	if (pico_pen_y > 224 - PICO_PEN_ADJUST_Y)
 		pico_pen_y = 224 - PICO_PEN_ADJUST_Y;
-	if (pico_pen_x < 0)
-		pico_pen_x = 0;
-	if (pico_pen_x > lim_x - PICO_PEN_ADJUST_X)
-		pico_pen_x = lim_x - PICO_PEN_ADJUST_X;
+	if (pico_pen_x < PICO_PEN_ADJUST_X)
+		pico_pen_x = PICO_PEN_ADJUST_X;
+	if (pico_pen_x > 320 - PICO_PEN_ADJUST_X)
+		pico_pen_x = 320 - PICO_PEN_ADJUST_X;
 
-	PicoPicohw.pen_pos[0] = pico_pen_x;
-	if (!(Pico.video.reg[12] & 1))
-		PicoPicohw.pen_pos[0] += pico_pen_x / 4;
-	PicoPicohw.pen_pos[0] += 0x3c;
+	PicoPicohw.pen_pos[0] = 0x03c + pico_pen_x;
 	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
 

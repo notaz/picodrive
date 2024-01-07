@@ -46,6 +46,10 @@ const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
+static int is_1stblanked;
+static int firstline, linecount;
+static int firstcol, colcount;
+
 static int (*emu_scan_begin)(unsigned int num) = NULL;
 static int (*emu_scan_end)(unsigned int num) = NULL;
 
@@ -190,29 +194,30 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned short *p = (unsigned short *)g_screen_ptr;
-	int x, y, pitch = 320;
+	int x, y, pitch = 320, offs;
 
-	// only if pen enabled and for 16bit modes
-	if (pico_inp_mode == 0 || !is_16bit_mode())
-		return;
-
-	x = pico_pen_x + PICO_PEN_ADJUST_X;
-	y = pico_pen_y + PICO_PEN_ADJUST_Y;
-	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-		x += 32;
+	x = ((pico_pen_x * colcount * ((1ULL<<32) / 320)) >> 32) + firstcol;
+	y = ((pico_pen_y * linecount * ((1ULL<<32) / 224)) >> 32) + firstline;
 
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		pitch = 240;
-		p += (319 - x) * pitch + y;
+		offs = (319 - x) * pitch + y;
 	} else
-		p += x + y * pitch;
+		offs = x + y * pitch;
 
-	p[0]       ^= 0xffff;
-	p[pitch-1] ^= 0xffff;
-	p[pitch]   ^= 0xffff;
-	p[pitch+1] ^= 0xffff;
-	p[pitch*2] ^= 0xffff;
+	if (is_16bit_mode()) {
+		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+
+					p[0]       ^= 0xffff;
+		p[pitch-1] ^= 0xffff;	p[pitch]   ^= 0xffff;	p[pitch+1] ^= 0xffff;
+					p[pitch*2] ^= 0xffff;
+	} else {
+		unsigned char *p = (unsigned char *)g_screen_ptr + offs;
+
+		p[-1]        = 0xe0;	p[0]       = 0xf0;	p[1]         = 0xe0;
+		p[pitch-1]   = 0xf0;	p[pitch]   = 0xf0;	p[pitch+1]   = 0xf0;
+		p[2*pitch-1] = 0xe0;	p[2*pitch] = 0xf0;	p[2*pitch+1] = 0xe0;
+	}
 }
 
 static void clear_1st_column(int firstcol, int firstline, int linecount)
@@ -389,10 +394,6 @@ static int make_local_pal_sms(int fast_mode)
 	return (Pico.est.SonicPalCount+1)*0x40;
 }
 
-static int is_1stblanked;
-static int firstline, linecount;
-static int firstcol, colcount;
-
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
@@ -430,8 +431,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		osd_text(osd_fps_x, osd_y, fps);
 	if ((PicoIn.AHW & PAHW_MCD) && (emu_opt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
-	if (PicoIn.AHW & PAHW_PICO)
-		draw_pico_ptr();
+	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
+		if (pico_inp_mode) draw_pico_ptr();
 }
 
 void plat_video_flip(void)

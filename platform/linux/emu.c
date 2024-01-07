@@ -85,6 +85,21 @@ static void draw_cd_leds(void)
 #undef p
 }
 
+static void draw_pico_ptr(void)
+{
+	int pitch = g_screen_ppitch;
+	u16 *p = g_screen_ptr;
+	int x = pico_pen_x, y = pico_pen_y;
+
+	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
+	p += (screen_y+y)*pitch + (screen_x+x);
+
+				p[-pitch] ^= 0xffff;
+	p[-1] ^= 0xffff;	p[0]      ^= 0xffff;	p[1] ^= 0xffff;
+				p[pitch]  ^= 0xffff;
+}
+
 /* render/screen buffer handling:
  * In 16 bit mode, render output is directly placed in the screen buffer.
  * SW scaling is handled in renderer (x) and in vscaling callbacks here (y).
@@ -191,6 +206,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			}
 	}
 
+	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
+		if (pico_inp_mode) draw_pico_ptr();
 	if (notice)
 		emu_osd_text16(4, g_screen_height - 8, notice);
 	if (currentConfig.EmuOpt & EOPT_SHOW_FPS)

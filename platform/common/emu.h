@@ -34,6 +34,7 @@ extern int g_screen_ppitch; // pitch in pixels
 #define EOPT_NO_FRMLIMIT  (1<<18)
 #define EOPT_WIZ_TEAR_FIX (1<<19)
 #define EOPT_EXT_FRMLIMIT (1<<20) // no internal frame limiter (limited by snd, etc)
+#define EOPT_PICO_PEN     (1<<21)
 
 enum {
 	EOPT_SCALE_NONE = 0,
@@ -106,7 +107,7 @@ extern unsigned char *movie_data;
 extern int reset_timing;
 extern int flip_after_sync;
 
-#define PICO_PEN_ADJUST_X 4
+#define PICO_PEN_ADJUST_X 2
 #define PICO_PEN_ADJUST_Y 2
 extern int pico_pen_x, pico_pen_y;
 extern int pico_inp_mode;
