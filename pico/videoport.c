@@ -522,6 +522,7 @@ static void DmaSlow(int len, u32 source)
   u32 a = Pico.video.addr | (Pico.video.addr_u << 16), e;
   u16 *r, *base = NULL;
   u32 mask = 0x1ffff;
+  int lc = SekCyclesDone()-Pico.t.m68c_line_start;
 
   elprintf(EL_VDPDMA, "DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%u] @ %06x",
     Pico.video.type, source, a, len, inc, (Pico.video.status&SR_VB)||!(Pico.video.reg[1]&0x40),
@@ -603,6 +604,15 @@ static void DmaSlow(int len, u32 source)
     case 3: // cram
       Pico.m.dirtyPal = 1;
       r = PicoMem.cram;
+      if (inc == 0 && (Pico.video.reg[7] & 0x3f) == ((a/2) & 0x3f)) { // bg color DMA
+        PicoVideoSync(1);
+        int sl = VdpFIFO.fifo_hcounts[lc/clkdiv];
+        if (sl > VdpFIFO.fifo_hcounts[0]-5) // hint delay is 5 slots
+          sl = (s8)sl;
+        // TODO this is needed to cover timing inaccuracies
+        if (sl <= 12)  sl = -2;
+        PicoDrawBgcDMA(base, source, mask, len, sl);
+      }
       for (; len; len--)
       {
         r[(a / 2) & 0x3f] = base[source++ & mask] & 0xeee;

@@ -1599,7 +1599,59 @@ void BackFill(int bgc, int sh, struct PicoEState *est)
 
 // --------------------------------------------
 
-void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
+static u16 *BgcDMAbase;
+static u32 BgcDMAsrc, BgcDMAmask;
+static int BgcDMAlen, BgcDMAoffs;
+
+#ifndef _ASM_DRAW_C
+static
+#endif
+// handle DMA to background color
+int BgcDMA(u16 *pd, int len, struct PicoEState *est)
+{
+  int xl = (len == 320 ? 38 : 33); // DMA slots during HSYNC
+  int upscale = (est->rendstatus & PDRAW_SOFTSCALE) && len < 320;
+
+  if (BgcDMAlen > 0) {
+    // BG color DMA under way. TODO for now handles the line as all background.
+    int i, l = len;
+    u16 *q = upscale ? DefOutBuff : pd;
+    u16 t;
+
+    if ((est->rendstatus & PDRAW_BORDER_32) && !upscale)
+      q += (320-len) / 2;
+
+    BgcDMAlen -= (l>>1)+xl;
+    if (BgcDMAlen < 0)
+      // partial line
+      l += 2*BgcDMAlen;
+
+    for (i = 0; i < l; i += 2) {
+      // TODO use ps to overwrite only real bg pixels
+      t = BgcDMAbase[BgcDMAsrc++ & BgcDMAmask];
+      q[i] = q[i+1] = PXCONV(t);
+    }
+    BgcDMAsrc += xl; // HSYNC DMA
+
+    t = est->HighPal[Pico.video.reg[7] & 0x3f];
+    while (i < len) q[i++] = t; // fill partial line with BG
+
+    if (upscale) {
+      switch (PicoIn.filter) {
+      case 3: h_upscale_bl4_4_5(pd, 320, q, 256, len, f_nop); break;
+      case 2: h_upscale_bl2_4_5(pd, 320, q, 256, len, f_nop); break;
+      case 1: h_upscale_snn_4_5(pd, 320, q, 256, len, f_nop); break;
+      default: h_upscale_nn_4_5(pd, 320, q, 256, len, f_nop); break;
+      }
+    }
+    return 1;
+  }
+  return 0;
+}
+
+// --------------------------------------------
+
+static void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
 {
   unsigned int *spal, *dpal;
   unsigned int cnt = (sh ? 1 : est->SonicPalCount+1);
@@ -1694,6 +1746,9 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
     len = 160;
   else if ((PicoIn.AHW & PAHW_SMS) && (est->Pico->video.reg[0] & 0x20))
     len -= 8, ps += 8;
+
+  if (BgcDMA(pd, len, est))
+    return;
 
   if ((est->rendstatus & PDRAW_SOFTSCALE) && len < 320) {
     if (len >= 240 && len <= 256) {
@@ -2108,6 +2163,35 @@ void PicoDrawRefreshSprites(void)
       sy = est->DrawScanline - ((est->DrawScanline - sy) & 0x1f);
       sp[0] = (sp[0] & 0xffff0000) | (u16)sy;
     }
+  }
+}
+
+void PicoDrawBgcDMA(u16 *base, u32 source, u32 mask, int dlen, int sl)
+{
+  struct PicoEState *est = &Pico.est;
+  int len = (est->Pico->video.reg[12]&1) ? 320 : 256;
+  int xl = (est->Pico->video.reg[12]&1) ? 38 : 33; // DMA slots during HSYNC
+
+  BgcDMAbase = base;
+  BgcDMAsrc = source;
+  BgcDMAmask = mask;
+  BgcDMAlen = dlen;
+  BgcDMAoffs = 0;
+
+  // handle slot offset in 1st line
+  if (sl-12 > 0) // active display output only starts at slot 12
+    BgcDMAoffs = 2*(sl-12);
+  else if (sl < 0) { // DMA starts before active display
+    BgcDMAsrc += 2*-sl;
+    BgcDMAlen -= 2*-sl;
+  }
+
+  // skip 1st line if it had been drawn already
+  if (Pico.est.DrawScanline > Pico.m.scanline) {
+    len -= BgcDMAoffs;
+    BgcDMAsrc += (len>>1)+xl;
+    BgcDMAlen -= (len>>1)+xl;
+    BgcDMAoffs = 0;
   }
 }
 

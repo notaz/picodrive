@@ -704,6 +704,7 @@ int CM_compareRun(int cyc, int is_sub);
 void PicoDrawInit(void);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawRefreshSprites(void);
+void PicoDrawBgcDMA(u16 *base, u32 source, u32 mask, int len, int sl);
 void PicoDrawSync(int to, int blank_last_line, int limit_sprites);
 void BackFill(int reg7, int sh, struct PicoEState *est);
 void FinalizeLine555(int sh, int line, struct PicoEState *est);
