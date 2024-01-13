@@ -577,10 +577,13 @@ static int menu_loop_32x_options(int id, int keys)
 static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG-1000", "SC-3000", NULL };
 static const char *gg_ghosting_opts[] = { "OFF", "weak", "normal", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", "Korea XOR", "Sega 32K RAM", NULL };
+static const char *sms_tmspalette[] = { "SMS", "SG-1000" };
 
 static const char h_smsfm[] = "FM sound is only supported by few games,\n"
 				"some games may crash with FM enabled";
 static const char h_ghost[] = "Simulate the inertia of the GG LCD display";
+static const char h_smspal[] = "Selects the color palette used for SMS games\n"
+				"using the original TMS9918 graphics modes";
 
 static menu_entry e_menu_sms_options[] =
 {
@@ -588,6 +591,7 @@ static menu_entry e_menu_sms_options[] =
 	mee_enum      ("Cartridge mapping", MA_SMSOPT_MAPPER, PicoIn.mapper, sms_mappers),
 	mee_enum_h    ("Game Gear LCD ghosting", MA_SMSOPT_GHOSTING, currentConfig.ghosting, gg_ghosting_opts, h_ghost),
 	mee_onoff_h   ("FM Sound Unit",     MA_OPT2_ENABLE_YM2413, PicoIn.opt, POPT_EN_YM2413, h_smsfm),
+	mee_enum_h    ("SMS palette in TMS mode", MA_SMSOPT_TMSPALETTE, PicoIn.tmsPalette, sms_tmspalette, h_smspal),
 	mee_end,
 };
 

@@ -1815,6 +1815,15 @@ static void update_variables(bool first_run)
    }
 
    var.value = NULL;
+   var.key = "picodrive_smstms";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "SG-1000") == 0)
+         PicoIn.tmsPalette = 1;
+      else
+         PicoIn.tmsPalette = 0;
+   }
+
+   var.value = NULL;
    var.key = "picodrive_smsmapper";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "Auto") == 0)

@@ -116,6 +116,7 @@ typedef struct PicoInterface
 	unsigned short autoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
 	unsigned int hwSelect;         // hardware preselected via option menu
 	unsigned int mapper;           // mapper selection for SMS, 0 = auto
+	unsigned int tmsPalette;       // palette used by SMS in TMS graphic modes
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %

@@ -346,7 +346,8 @@ struct PicoMisc
 #define PMS_HW_LCD	0x2   // GG LCD
 #define PMS_HW_JAP	0x4   // japanese system
 #define PMS_HW_FM	0x8   // FM sound
-#define PMS_HW_FMUSED	0x10  // FM sound accessed
+#define PMS_HW_TMS	0x10  // assume TMS9918
+#define PMS_HW_FMUSED	0x80  // FM sound accessed
 
 #define PMS_MAP_AUTO	0
 #define PMS_MAP_SEGA	1

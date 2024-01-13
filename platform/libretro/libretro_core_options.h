@@ -146,6 +146,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "Auto"
    },
    {
+      "picodrive_smstms",
+      "Master System Palette in TMS modes",
+      NULL,
+      "Choose which colour palette should be used when an SMS game runs in one of the SG-1000 graphics modes.",
+      NULL,
+      "system",
+      {
+         { "SMS",           NULL },
+         { "SG-1000",       NULL },
+         { NULL, NULL },
+       },
+      "SMS"
+   },
+   {
       "picodrive_ramcart",
       "Sega CD RAM Cart",
       NULL,

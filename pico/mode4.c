@@ -741,6 +741,10 @@ void PicoFrameStartSMS(void)
     Pico.m.dirtyPal = 1;
   }
 
+  Pico.m.hardware &= ~PMS_HW_TMS;
+  if (PicoIn.tmsPalette || (PicoIn.AHW & (PAHW_SG|PAHW_SC)))
+    Pico.m.hardware |= PMS_HW_TMS;
+
   // Copy LCD enable flag for easier handling
   Pico.m.hardware &= ~PMS_HW_LCD;
   if ((PicoIn.opt & POPT_EN_GG_LCD) && (PicoIn.AHW & PAHW_GG)) {
@@ -886,7 +890,7 @@ void PicoDoHighPal555SMS(void)
    * hence GG/SMS/TMS can all be handled the same here */
   for (j = cnt; j > 0; j--) {
     if (!(Pico.video.reg[0] & 0x4)) // fixed palette in TMS modes
-      spal = (u32 *)tmspal + (PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 16/2:0);
+      spal = (u32 *)tmspal + (Pico.m.hardware & PMS_HW_TMS ? 16/2:0);
     for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
       t = *spal;
 #if defined(USE_BGR555)
