@@ -208,10 +208,9 @@ void SN76496Update(short *buffer, int length, int stereo)
 
 		if (out > MAX_OUTPUT * STEP) out = MAX_OUTPUT * STEP;
 
-		if ((out /= STEP)) // will be optimized to shift; max 0x4800 = 18432
-			*buffer += out;
-		if(stereo) buffer+=2; // only left for stereo, to be mixed to right later
-		else buffer++;
+		out /= STEP; // will be optimized to shift; max 0x4800 = 18432
+		*buffer++ += out;
+		if (stereo) *buffer++ += out;
 
 		length--;
 	}
