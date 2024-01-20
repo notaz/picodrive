@@ -312,7 +312,7 @@ struct PicoVideo
   unsigned char debug_p;      // ... parsed: PVD_*
   unsigned char addr_u;       // bit16 of .addr
   unsigned char hint_cnt;
-  unsigned char pad2;
+  unsigned char hint_irq;     // irq# of HINT (4 on MD, 5 on Pico)
   unsigned short hv_latch;    // latched hvcounter value
   signed int fifo_cnt;        // pending xfers for blocking FIFO queue entries
   signed int fifo_bgcnt;      // pending xfers for background FIFO queue entries

@@ -185,6 +185,7 @@ int PicoReset(void)
 
   PicoDetectRegion();
   Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
+  Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
 
   PsndReset(); // pal must be known here
 

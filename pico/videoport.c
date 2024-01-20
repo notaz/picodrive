@@ -979,7 +979,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         }
         SATaddr = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
         SATmask = ~0x1ff;
-        if (Pico.video.reg[12]&1)
+        if (pvid->reg[12]&1)
           SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
         //elprintf(EL_STATUS, "spritep moved to %04x", SATaddr);
         return;
@@ -993,8 +993,9 @@ update_irq:
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
           pints = pvid->pending_ints & lines;
                if (pints & 0x20) irq = 6;
-          else if (pints & 0x10) irq = 4;
-          SekInterrupt(irq); // update line
+          else if (pints & 0x10) irq = pvid->hint_irq;
+          if (SekIrqLevel < irq)
+            SekInterrupt(irq); // update line
 
           // this is broken because cost of current insn isn't known here
           if (irq) SekEndRun(21); // make it delayed

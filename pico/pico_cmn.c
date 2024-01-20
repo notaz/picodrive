@@ -105,8 +105,8 @@ static void do_hint(struct PicoVideo *pv)
   pv->pending_ints |= 0x10;
   if (pv->reg[0] & 0x10) {
     elprintf(EL_INTS, "hint: @ %06x [%u]", SekPc, SekCyclesDone());
-    if (SekIrqLevel < 4)
-      SekInterrupt(4);
+    if (SekIrqLevel < pv->hint_irq)
+      SekInterrupt(pv->hint_irq);
   }
 }
 
