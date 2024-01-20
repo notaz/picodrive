@@ -95,9 +95,9 @@ PICO_INTERNAL void PicoInitPico(void)
   // map version register
   PicoDetectRegion();
   switch (Pico.m.hardware >> 6) {
-    case 0: PicoPicohw.r1 = 0x00; break;
+    case 0: PicoPicohw.r1 = 0x40; break;
     case 1: PicoPicohw.r1 = 0x00; break;
-    case 2: PicoPicohw.r1 = 0x40; break;
+    case 2: PicoPicohw.r1 = 0x60; break;
     case 3: PicoPicohw.r1 = 0x20; break;
   }
 }
