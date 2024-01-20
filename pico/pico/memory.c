@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2008
+ * (C) irixxxx, 2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -24,49 +25,43 @@ void dump(u16 w)
 }
 */
 
+static u32 PicoRead16_pico(u32 a)
+{
+  u32 d = 0;
+
+  switch (a & 0x1e)
+  {
+    case 0x00: d = PicoPicohw.r1; break;
+    case 0x02: d  =  PicoIn.pad[0]&0x1f; // d-pad
+               d |= (PicoIn.pad[0]&0x20) << 2; // pen push -> C
+               d  = ~d;
+               break;
+    case 0x04: d = (PicoPicohw.pen_pos[0] >> 8);  break; // what is MS bit for? Games read it..
+    case 0x06: d =  PicoPicohw.pen_pos[0] & 0xff; break;
+    case 0x08: d = (PicoPicohw.pen_pos[1] >> 8);  break;
+    case 0x0a: d =  PicoPicohw.pen_pos[1] & 0xff; break;
+    case 0x0c: d = (1 << (PicoPicohw.page & 7)) - 1; break;
+    case 0x10: d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes); break;
+    case 0x12: d = (PicoPicohw.fifo_bytes | !PicoPicoPCMBusyN()) ? 0 : 0x8000;
+               d |= PicoPicohw.r12 & 0x7fff;
+               break;
+    default:   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc); break;
+  }
+  return d;
+}
+
 static u32 PicoRead8_pico(u32 a)
 {
   u32 d = 0;
 
   if ((a & 0xffffe0) == 0x800000) // Pico I/O
   {
-    switch (a & 0x1f)
-    {
-      case 0x01: d = PicoPicohw.r1; break;
-      case 0x03:
-        d  =  PicoIn.pad[0]&0x1f; // d-pad
-        d |= (PicoIn.pad[0]&0x20) << 2; // pen push -> C
-        d  = ~d;
-        break;
-
-      case 0x05: d = (PicoPicohw.pen_pos[0] >> 8);  break; // what is MS bit for? Games read it..
-      case 0x07: d =  PicoPicohw.pen_pos[0] & 0xff; break;
-      case 0x09: d = (PicoPicohw.pen_pos[1] >> 8);  break;
-      case 0x0b: d =  PicoPicohw.pen_pos[1] & 0xff; break;
-      case 0x0d: d = (1 << (PicoPicohw.page & 7)) - 1; break;
-      case 0x12: d = PicoPicohw.fifo_bytes == 0 ? 0x80 : 0; break; // guess
-      default:
-        goto unhandled;
-    }
-    return d;
+    d = PicoRead16_pico(a);
+    if (!(a & 1)) d >>= 8;
+    return d & 0xff;
   }
 
-unhandled:
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
-  return d;
-}
-
-static u32 PicoRead16_pico(u32 a)
-{
-  u32 d = 0;
-
-  if      (a == 0x800010)
-    d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes);
-  else if (a == 0x800012)
-    d = PicoPicohw.fifo_bytes == 0 ? 0x8000 : 0; // guess
-  else
-    elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
-
   return d;
 }
 
@@ -97,10 +92,20 @@ static void PicoWrite16_pico(u32 a, u32 d)
     }
   }
   else if (a == 0x800012) {
-    int r12_old = PicoPicohw.r12;
     PicoPicohw.r12 = d;
-    if (r12_old != d)
-      PicoReratePico();
+
+    PicoPicoPCMGain(8 - (d & 0x0007)); // volume
+    PicoPicoPCMFilter((d & 0x00c0) >> 6); // low pass filter
+    PicoPicoPCMIrqEn(d & 0x4000); // PCM IRQ enable
+
+    if (d & 0x8000) { // PCM reset if 1 is written (dalmatians)?
+      PsndDoPCM(cycles_68k_to_z80(SekCyclesDone() - Pico.t.m68c_frame_start));
+      PicoPicoPCMResetN(0);
+      PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
+      PicoPicohw.fifo_bytes = 0;
+      PicoPicoPCMResetN(1);
+    }
+    // other bits used in software: 0x3f00.
   }
   else
     elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);

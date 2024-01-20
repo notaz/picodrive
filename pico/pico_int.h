@@ -842,11 +842,17 @@ unsigned int pcd_pcm_read(unsigned int a);
 // pico/pico.c
 PICO_INTERNAL void PicoInitPico(void);
 PICO_INTERNAL void PicoReratePico(void);
+PICO_INTERNAL int PicoPicoIrqAck(int level);
 
 // pico/xpcm.c
 PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo);
-PICO_INTERNAL void PicoPicoPCMReset(void);
-PICO_INTERNAL void PicoPicoPCMRerate(int xpcm_rate);
+PICO_INTERNAL void PicoPicoPCMResetN(int pin);
+PICO_INTERNAL void PicoPicoPCMStartN(int pin);
+PICO_INTERNAL int PicoPicoPCMBusyN(void);
+PICO_INTERNAL void PicoPicoPCMGain(int gain);
+PICO_INTERNAL void PicoPicoPCMFilter(int index);
+PICO_INTERNAL void PicoPicoPCMIrqEn(int enable);
+PICO_INTERNAL void PicoPicoPCMRerate(void);
 
 // sek.c
 PICO_INTERNAL void SekInit(void);

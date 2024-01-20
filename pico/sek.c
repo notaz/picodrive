@@ -41,7 +41,7 @@ static int do_ack(int level)
   else if (pv->pending_ints & pv->reg[0] & 0x10)
     pv->pending_ints &= ~0x10;
 
-  return 0;
+  return (PicoIn.AHW & PAHW_PICO ? PicoPicoIrqAck(level) : 0);
 }
 
 /* callbacks */
