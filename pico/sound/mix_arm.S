@@ -282,29 +282,29 @@ m16_32_rsm_end:
 
 @ mix 32bit audio (with 16bits really used, upper bits indicate overflow) with normal 16 bit audio with left channel only
 @ warning: this function assumes dest is word aligned
-.global mix_32_to_16l_stereo @ short *dest, int *src, int count
+.global mix_32_to_16_stereo @ short *dest, int *src, int count
 
-mix_32_to_16l_stereo:
+mix_32_to_16_stereo:
     stmfd   sp!, {r4-r8,r10-r11,lr}
 
     mov     r2, r2, lsl #1
     subs    r2, r2, #4
-    bmi     m32_16l_st_end
+    bmi     m32_16_st_end
 
     ldr     r12, =filter
     ldr     r8, [r12], #4
     ldmia   r12, {r3,r10-r11,lr}
     str     r8, [sp, #-4]!
 
-m32_16l_st_loop:
+m32_16_st_loop:
     ldmia   r0,  {r8,r12}
     ldmia   r1!, {r4-r7}
+    add     r5, r5, r8, asr #16
+    add     r7, r7, r12,asr #16
     mov     r8, r8, lsl #16
     mov     r12,r12,lsl #16
     add     r4, r4, r8, asr #16
-    add     r5, r5, r8, asr #16
     add     r6, r6, r12,asr #16
-    add     r7, r7, r12,asr #16
     ldr     r12,[sp]
     LPfilt  r4, r3
     LPfilt  r5, lr
@@ -323,16 +323,17 @@ m32_16l_st_loop:
     orr     r4, r5, r4, lsr #16
     orr     r5, r7, r6, lsr #16
     stmia   r0!, {r4,r5}
-    bpl     m32_16l_st_loop
+    bpl     m32_16_st_loop
 
-m32_16l_st_end:
+m32_16_st_end:
     @ check for remaining bytes to convert
     tst     r2, #2
-    beq     m32_16l_st_no_unal2
-    ldrsh   r6, [r0]
+    beq     m32_16_st_no_unal2
+    ldr     r6, [r0]
     ldmia   r1!,{r4,r5}
-    add     r4, r4, r6
-    add     r5, r5, r6
+    add     r5, r5, r6, asr #16
+    mov     r6, r6, lsl #16
+    add     r4, r4, r6, asr #16
     ldr     r12,[sp]
     LPfilt  r4, r3
     LPfilt  r5, lr
@@ -344,7 +345,7 @@ m32_16l_st_end:
     orr     r4, r5, r4, lsr #16
     str     r4, [r0], #4
 
-m32_16l_st_no_unal2:
+m32_16_st_no_unal2:
     ldr     r12, =filter
     add     r12,r12, #4
     stmia   r12, {r3,r10-r11,lr}
@@ -386,10 +387,10 @@ m32_16_mo_loop:
     ldmia   r0,  {r8,r12}
     ldmia   r1!, {r4-r7}
     add     r5, r5, r8, asr #16
-    mov     r8, r8, lsl #16
-    add     r4, r4, r8, asr #16
     add     r7, r7, r12,asr #16
+    mov     r8, r8, lsl #16
     mov     r12,r12,lsl #16
+    add     r4, r4, r8, asr #16
     add     r6, r6, r12,asr #16
     ldr     r12,[sp]
     LPfilt  r4, r11
@@ -458,20 +459,20 @@ m32_16_mo_no_unal:
 .data
 .align 4
 
-.global mix_32_to_16l_level
-mix_32_to_16l_level:
+.global mix_32_to_16_level
+mix_32_to_16_level:
     .word   0
 
 .text
 .align 4
 
-@ same as mix_32_to_16l_stereo, but with additional shift
-.global mix_32_to_16l_stereo_lvl @ short *dest, int *src, int count
+@ same as mix_32_to_16_stereo, but with additional shift
+.global mix_32_to_16_stereo_lvl @ short *dest, int *src, int count
 
-mix_32_to_16l_stereo_lvl:
+mix_32_to_16_stereo_lvl:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r9, =mix_32_to_16l_level
+    ldr     r9, =mix_32_to_16_level
     mov     lr, #1
     ldr     r9, [r9]
     ldr     r12, =filter
@@ -481,17 +482,17 @@ mix_32_to_16l_stereo_lvl:
 
     mov     r2, r2, lsl #1
     subs    r2, r2, #4
-    bmi     m32_16l_st_l_end
+    bmi     m32_16_st_l_end
 
-m32_16l_st_l_loop:
+m32_16_st_l_loop:
     ldmia   r0,  {r8,r12}
     ldmia   r1!, {r4-r7}
+    add     r5, r5, r8, asr #16
+    add     r7, r7, r12,asr #16
     mov     r8, r8, lsl #16
     mov     r12,r12,lsl #16
     add     r4, r4, r8, asr #16
-    add     r5, r5, r8, asr #16
     add     r6, r6, r12,asr #16
-    add     r7, r7, r12,asr #16
     mov     r4, r4, asr r9
     mov     r5, r5, asr r9
     mov     r6, r6, asr r9
@@ -514,16 +515,17 @@ m32_16l_st_l_loop:
     orr     r4, r5, r4, lsr #16
     orr     r5, r7, r6, lsr #16
     stmia   r0!, {r4,r5}
-    bpl     m32_16l_st_l_loop
+    bpl     m32_16_st_l_loop
 
-m32_16l_st_l_end:
+m32_16_st_l_end:
     @ check for remaining bytes to convert
     tst     r2, #2
-    beq     m32_16l_st_l_no_unal2
-    ldrsh   r6, [r0]
+    beq     m32_16_st_l_no_unal2
+    ldr     r6, [r0]
     ldmia   r1!,{r4,r5}
-    add     r4, r4, r6
-    add     r5, r5, r6
+    add     r5, r5, r6, asr #16
+    mov     r6, r6, lsl #16
+    add     r4, r4, r6, asr #16
     mov     r4, r4, asr r9
     mov     r5, r5, asr r9
     ldr     r12,[sp]
@@ -537,7 +539,7 @@ m32_16l_st_l_end:
     orr     r4, r5, r4, lsr #16
     str     r4, [r0], #4
 
-m32_16l_st_l_no_unal2:
+m32_16_st_l_no_unal2:
     ldr     r12, =filter
     add     r12,r12, #4
     stmia   r12, {r3,r10-r11,lr}

@@ -753,10 +753,10 @@ void plat_update_volume(int has_changed, int is_up)
 
 	/* set the right mixer func */
 	if (vol >= 5)
-		PsndMix_32_to_16l = mix_32_to_16l_stereo;
+		PsndMix_32_to_16 = mix_32_to_16_stereo;
 	else {
-		mix_32_to_16l_level = 5 - vol;
-		PsndMix_32_to_16l = mix_32_to_16l_stereo_lvl;
+		mix_32_to_16_level = 5 - vol;
+		PsndMix_32_to_16 = mix_32_to_16_stereo_lvl;
 	}
 }
 

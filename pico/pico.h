@@ -267,7 +267,7 @@ void Pico32xSetClocks(int msh2_hz, int ssh2_hz);
 #define PICO_SSH2_HZ ((int)(7670442.0 * 2.4))
 
 // sound.c
-extern void (*PsndMix_32_to_16l)(s16 *dest, s32 *src, int count);
+extern void (*PsndMix_32_to_16)(s16 *dest, s32 *src, int count);
 void PsndRerate(int preserve_state);
 
 // media.c

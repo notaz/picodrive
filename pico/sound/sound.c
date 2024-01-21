@@ -15,7 +15,7 @@
 #include "resampler.h"
 #include "mix.h"
 
-void (*PsndMix_32_to_16l)(s16 *dest, s32 *src, int count) = mix_32_to_16l_stereo;
+void (*PsndMix_32_to_16)(s16 *dest, s32 *src, int count) = mix_32_to_16_stereo;
 
 // master int buffer to mix to
 // +1 for a fill triggered by an instruction overhanging into the next scanline
@@ -228,7 +228,7 @@ void PsndRerate(int preserve_state)
     PsndClear();
 
   // set mixer
-  PsndMix_32_to_16l = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+  PsndMix_32_to_16 = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16_stereo : mix_32_to_16_mono;
   mix_reset(PicoIn.opt & POPT_EN_SNDFILTER ? PicoIn.sndFilterAlpha : 0);
 
   if (PicoIn.AHW & PAHW_PICO)
@@ -275,8 +275,8 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   if (PicoIn.opt & POPT_EN_STEREO) {
     s16 *d = PicoIn.sndOut + pos*2;
     // left channel only, mixed ro right channel in mixing phase
-    *d++ += Pico.snd.dac_val2; d++;
-    while (--len) *d++ += Pico.snd.dac_val, d++;
+    *d++ += Pico.snd.dac_val2, *d++ += Pico.snd.dac_val2;
+    while (--len) *d++ += Pico.snd.dac_val, *d++ += Pico.snd.dac_val;
   } else {
     s16 *d = PicoIn.sndOut + pos;
     *d++ += Pico.snd.dac_val2;
@@ -345,10 +345,15 @@ PICO_INTERNAL void PsndDoSMSFM(int cyc_to)
   if (Pico.m.hardware & PMS_HW_FMUSED) {
     buf += pos;
     PsndFMUpdate(buf32, len, 0, 0);
-    while (len--) {
-      *buf++ += *buf32++;
-      buf += stereo;
-    }
+    if (stereo) 
+      while (len--) {
+        *buf++ += *buf32;
+        *buf++ += *buf32++;
+      }
+    else
+      while (len--) {
+        *buf++ += *buf32++;
+      }
   }
 }
 
@@ -506,10 +511,10 @@ static int PsndRender(int offset, int length)
     s16 *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
     *dacbuf++ += Pico.snd.dac_val2;
-    if (stereo) dacbuf++;
+    if (stereo) *dacbuf++ += Pico.snd.dac_val2;
     for (daclen++; length-daclen > 0; daclen++) {
       *dacbuf++ += Pico.snd.dac_val;
-      if (stereo) dacbuf++;
+      if (stereo) *dacbuf++ += Pico.snd.dac_val;
     }
     Pico.snd.dac_val2 = Pico.snd.dac_val;
   }
@@ -544,7 +549,7 @@ static int PsndRender(int offset, int length)
 
   // convert + limit to normal 16bit output
   if (PicoIn.sndOut)
-    PsndMix_32_to_16l(PicoIn.sndOut+(offset<<stereo), buf32, length-offset);
+    PsndMix_32_to_16(PicoIn.sndOut+(offset<<stereo), buf32, length-offset);
 
   pprof_end(sound);
 
@@ -589,19 +594,16 @@ static int PsndRenderMS(int offset, int length)
     int len = (length-ym2413len);
     if (Pico.m.hardware & PMS_HW_FMUSED) {
       PsndFMUpdate(buf32, len, 0, 0);
-      while (len--) {
-        *ym2413buf++ += *buf32++;
-        ym2413buf += stereo;
-      }
+      if (stereo)
+        while (len--) {
+          *ym2413buf++ += *buf32;
+          *ym2413buf++ += *buf32++;
+        }
+      else
+        while (len--) {
+          *ym2413buf++ += *buf32++;
+        }
     }
-  }
-
-  // upmix to "stereo" if needed
-  if (PicoIn.opt & POPT_EN_STEREO) {
-    int i;
-    s16 *p;
-    for (i = length, p = (s16 *)PicoIn.sndOut; i > 0; i--, p+=2)
-      *(p + 1) = *p;
   }
 
   pprof_end(sound);

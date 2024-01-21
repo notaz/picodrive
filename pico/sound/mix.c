@@ -18,7 +18,7 @@
 	val -= val >> 3; /* reduce level to avoid clipping */	\
 	if ((s16)val != val) val = (val < 0 ? MINOUT : MAXOUT)
 
-int mix_32_to_16l_level;
+int mix_32_to_16_level;
 
 static struct iir {
 	int	alpha;		// alpha for EMA low pass
@@ -63,33 +63,34 @@ static inline int filter_null(struct iir *fi2, int x)
 
 #define filter	filter_band
 
-#define mix_32_to_16l_stereo_core(dest, src, count, lv, fl) {	\
+#define mix_32_to_16_stereo_core(dest, src, count, lv, fl) {	\
 	int l, r;						\
 	struct iir lf = lfi2, rf = rfi2;			\
 								\
 	for (; count > 0; count--)				\
 	{							\
-		l = r = *dest;					\
+		l = *dest;					\
 		l += *src++ >> lv;				\
-		r += *src++ >> lv;				\
 		l = fl(&lf, l);					\
-		r = fl(&rf, r);					\
 		Limit16(l);					\
-		Limit16(r);					\
 		*dest++ = l;					\
+		r = *dest;					\
+		r += *src++ >> lv;				\
+		r = fl(&rf, r);					\
+		Limit16(r);					\
 		*dest++ = r;					\
 	}							\
 	lfi2 = lf, rfi2 = rf;					\
 }
 
-void mix_32_to_16l_stereo_lvl(s16 *dest, s32 *src, int count)
+void mix_32_to_16_stereo_lvl(s16 *dest, s32 *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level, filter);
+	mix_32_to_16_stereo_core(dest, src, count, mix_32_to_16_level, filter);
 }
 
-void mix_32_to_16l_stereo(s16 *dest, s32 *src, int count)
+void mix_32_to_16_stereo(s16 *dest, s32 *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, 0, filter);
+	mix_32_to_16_stereo_core(dest, src, count, 0, filter);
 }
 
 void mix_32_to_16_mono(s16 *dest, s32 *src, int count)
