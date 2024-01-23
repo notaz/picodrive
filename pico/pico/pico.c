@@ -18,6 +18,7 @@ picohw_state PicoPicohw;
 PICO_INTERNAL void PicoReratePico(void)
 {
   PicoPicoPCMRerate();
+  PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer + PicoPicohw.fifo_bytes;
 }
 
 static void PicoLinePico(void)

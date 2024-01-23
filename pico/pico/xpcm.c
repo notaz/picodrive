@@ -42,14 +42,23 @@ static const int step_deltas[16][16] =
 
 static const int state_deltas[16] = { -1, -1, 0, 0, 1, 2, 2, 3, -1, -1, 0, 0, 1, 2, 2, 3 };
 
-static int sample = 0, state = 0;
-static s32 stepsamples = (44100LL<<16)/ADPCM_CLOCK;
-static s32 samplepos;
-static int samplegain;
+s32 stepsamples = (44100LL<<16)/ADPCM_CLOCK;
 
-static int startpin, irqenable;
-static enum { RESET, START, HDR, COUNT } portstate = RESET;
-static int rate, silence, nibbles, highlow, cache;
+static struct xpcm_state {
+  s32 samplepos;	// leftover duration for current sample wrt sndrate, Q16
+  int sample;		// current sample
+  short state;		// ADPCM engine state
+  short samplegain;	// programmable gain
+
+  char startpin;	// value on the !START pin
+  char irqenable;	// IRQ enabled?
+
+  char portstate;	// data stream state
+  short silence;	// silence blocks still to be played
+  short rate, nibbles;	// ADPCM nibbles still to be played
+  unsigned char highlow, cache;	// nibble selector and cache
+} xpcm;
+enum { RESET, START, HDR, COUNT }; // portstate
 
 
 // SEGA Pico specific filtering
@@ -58,8 +67,8 @@ static int rate, silence, nibbles, highlow, cache;
 #define FP(f)	(int)((f)*(1<<QB))      // convert to fixpoint
 
 static struct iir2 { // 2nd order IIR
-  s32 a[2], gain; // coefficients
-  s32 y[3], x[3]; // filter history
+  s32 a[2], gain;	// coefficients
+  s32 x[3], y[3];	// filter history
 } filters[4];
 static struct iir2 *filter;
 
@@ -85,6 +94,7 @@ static int PicoPicoFilterApply(struct iir2 *iir, int sample)
   if (!iir)
     return sample;
 
+  // NB Butterworth specific!
   iir->x[0] = iir->x[1]; iir->x[1] = iir->x[2];
   iir->x[2] = sample * iir->gain; // Qb
   iir->y[0] = iir->y[1]; iir->y[1] = iir->y[2];
@@ -99,21 +109,21 @@ static int PicoPicoFilterApply(struct iir2 *iir, int sample)
 PICO_INTERNAL void PicoPicoPCMResetN(int pin)
 {
   if (!pin) {
-    portstate = RESET;
-    sample = samplepos = state = 0;
-    portstate = nibbles = silence = 0;
-  } else if (portstate == RESET)
-    portstate = START;
+    xpcm.portstate = RESET;
+    xpcm.sample = xpcm.samplepos = xpcm.state = 0;
+    xpcm.nibbles = xpcm.silence = 0;
+  } else if (xpcm.portstate == RESET)
+    xpcm.portstate = START;
 }
 
 PICO_INTERNAL void PicoPicoPCMStartN(int pin)
 {
-  startpin = pin;
+  xpcm.startpin = pin;
 }
 
 PICO_INTERNAL int PicoPicoPCMBusyN(void)
 {
-  return (portstate <= START);
+  return (xpcm.portstate <= START);
 }
 
 
@@ -125,14 +135,14 @@ PICO_INTERNAL void PicoPicoPCMRerate(void)
   stepsamples = ((u64)PicoIn.sndRate<<16)/ADPCM_CLOCK;
 
   // compute filter coefficients, cutoff at half the ADPCM sample rate
-  PicoPicoFilterCoeff(&filters[1],  5000/2, PicoIn.sndRate); // 5-6 KHz
-  PicoPicoFilterCoeff(&filters[2],  8000/2, PicoIn.sndRate); // 8-12 KHz
-  PicoPicoFilterCoeff(&filters[3], 14000/2, PicoIn.sndRate); // 14-16 KHz
+  PicoPicoFilterCoeff(&filters[1],  6000/2, PicoIn.sndRate); // 5-6 KHz
+  PicoPicoFilterCoeff(&filters[2],  9000/2, PicoIn.sndRate); // 8-12 KHz
+  PicoPicoFilterCoeff(&filters[3], 15000/2, PicoIn.sndRate); // 14-16 KHz
 }
 
 PICO_INTERNAL void PicoPicoPCMGain(int gain)
 {
-  samplegain = gain*4;
+  xpcm.samplegain = gain*4;
 }
 
 PICO_INTERNAL void PicoPicoPCMFilter(int index)
@@ -144,13 +154,14 @@ PICO_INTERNAL void PicoPicoPCMFilter(int index)
 
 PICO_INTERNAL void PicoPicoPCMIrqEn(int enable)
 {
-  irqenable = (enable ? 3 : 0);
+  xpcm.irqenable = (enable ? 3 : 0);
 }
 
 // TODO need an interupt pending mask?
 PICO_INTERNAL int PicoPicoIrqAck(int level)
 {
-  return (PicoPicohw.fifo_bytes < FIFO_IRQ_THRESHOLD && level != irqenable ? irqenable : 0);
+  return (PicoPicohw.fifo_bytes < FIFO_IRQ_THRESHOLD && level != xpcm.irqenable
+            ? xpcm.irqenable : 0);
 }
 
 
@@ -158,18 +169,20 @@ PICO_INTERNAL int PicoPicoIrqAck(int level)
 
 #define apply_filter(v) PicoPicoFilterApply(filter, v)
 
+// compute next ADPCM sample
 #define do_sample(nibble) \
 { \
-  sample += step_deltas[state][nibble]; \
-  state += state_deltas[nibble]; \
-  state = (state < 0 ? 0 : state > 15 ? 15 : state); \
+  xpcm.sample += step_deltas[xpcm.state][nibble]; \
+  xpcm.state += state_deltas[nibble]; \
+  xpcm.state = (xpcm.state < 0 ? 0 : xpcm.state > 15 ? 15 : xpcm.state); \
 }
 
+// writes samples with sndRate, nearest neighbour resampling, filtering
 #define write_sample(buffer, length, stereo) \
 { \
-  while (samplepos > 0 && length > 0) { \
-    int val = Limit(samplegain*sample, 16383, -16384); \
-    samplepos -= 1<<16; \
+  while (xpcm.samplepos > 0 && length > 0) { \
+    int val = Limit(xpcm.samplegain*xpcm.sample, 16383, -16384); \
+    xpcm.samplepos -= 1<<16; \
     length --; \
     if (buffer) { \
       int out = apply_filter(val); \
@@ -191,56 +204,56 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
   // loop over FIFO data, generating ADPCM samples
   while (length > 0 && src < lim)
   {
-    if (silence > 0) {
-      silence --;
-      sample = 0;
-      samplepos += stepsamples*256;
+    if (xpcm.silence > 0) {
+      xpcm.silence --;
+      xpcm.sample = 0;
+      xpcm.samplepos += stepsamples*256;
 
-    } else if (nibbles > 0) {
-      nibbles --;
+    } else if (xpcm.nibbles > 0) {
+      xpcm.nibbles --;
 
-      if (highlow)
-        cache = *src++;
+      if (xpcm.highlow)
+        xpcm.cache = *src++;
       else
-        cache <<= 4;
-      highlow = !highlow;
+        xpcm.cache <<= 4;
+      xpcm.highlow = !xpcm.highlow;
 
-      do_sample((cache & 0xf0) >> 4);
-      samplepos += stepsamples*rate;
+      do_sample((xpcm.cache & 0xf0) >> 4);
+      xpcm.samplepos += stepsamples*xpcm.rate;
 
-    } else switch (portstate) {
+    } else switch (xpcm.portstate) {
       case RESET:
-        sample = 0;
-        samplepos += length<<16;
+        xpcm.sample = 0;
+        xpcm.samplepos += length<<16;
         break;
       case START:
-        if (startpin) {
+        if (xpcm.startpin) {
           if (*src)
-            portstate ++;
+            xpcm.portstate ++;
           else // kill 0x00 bytes at stream start
             src ++;
         } else {
-          sample = 0;
-          samplepos += length<<16;
+          xpcm.sample = 0;
+          xpcm.samplepos += length<<16;
         }
         break;
       case HDR:
         srcval = *src++;
-        nibbles = silence = rate = 0;
-        highlow = 1;
+        xpcm.nibbles = xpcm.silence = xpcm.rate = 0;
+        xpcm.highlow = 1;
         if (srcval == 0) { // terminator
           // HACK, kill leftover odd byte to avoid restart (Minna de Odorou)
           if (lim-src == 1) src++;
-          portstate = START;
+          xpcm.portstate = START;
         } else switch (srcval >> 6) {
-          case 0: silence = (srcval & 0x3f) + 1; break;
-          case 1: rate = (srcval & 0x3f) + 1; nibbles = 256; break;
-          case 2: rate = (srcval & 0x3f) + 1; portstate = COUNT; break;
+          case 0: xpcm.silence = (srcval & 0x3f) + 1; break;
+          case 1: xpcm.rate = (srcval & 0x3f) + 1; xpcm.nibbles = 256; break;
+          case 2: xpcm.rate = (srcval & 0x3f) + 1; xpcm.portstate = COUNT; break;
           case 3: break;
         }
         break;
       case COUNT:
-        nibbles = *src++ + 1; portstate = HDR;
+        xpcm.nibbles = *src++ + 1; xpcm.portstate = HDR;
         break;
       }
 
@@ -255,14 +268,14 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     elprintf(EL_PICOHW, "xpcm update: over %i", di);
 
     if (!irq && di < FIFO_IRQ_THRESHOLD)
-      irq = irqenable;
+      irq = xpcm.irqenable;
     PicoPicohw.fifo_bytes = di;
   } else if (src == lim && src != PicoPicohw.xpcm_buffer) {
     PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
     elprintf(EL_PICOHW, "xpcm update: under %i", length);
 
     if (!irq)
-      irq = irqenable;
+      irq = xpcm.irqenable;
     PicoPicohw.fifo_bytes = 0;
   }
 
@@ -275,11 +288,39 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
 
   if (buffer && length) {
     // for underflow, use last sample to avoid clicks
-    int val = Limit(samplegain*sample, 16383, -16384);
+    int val = Limit(xpcm.samplegain*xpcm.sample, 16383, -16384);
     while (length--) {
       int out = apply_filter(val);
       *buffer++ += out;
       if (stereo) *buffer++ += out;
     }
   }
+}
+
+PICO_INTERNAL int PicoPicoPCMSave(void *buffer, int length)
+{
+  u8 *bp = buffer;
+
+  if (length < sizeof(xpcm) + sizeof(filters)) {
+    elprintf(EL_ANOMALY, "save buffer too small?");
+    return 0;
+  }
+
+  memcpy(bp, &xpcm, sizeof(xpcm));
+  bp += sizeof(xpcm);
+  memcpy(bp, filters, sizeof(filters));
+  bp += sizeof(filters);
+  return (bp - (u8*)buffer);
+}
+
+PICO_INTERNAL void PicoPicoPCMLoad(void *buffer, int length)
+{
+  u8 *bp = buffer;
+
+  if (length >= sizeof(xpcm))
+    memcpy(&xpcm, bp, sizeof(xpcm));
+  bp += sizeof(xpcm);
+  if (length >= sizeof(xpcm) + sizeof(filters))
+    memcpy(filters, bp, sizeof(filters));
+  bp += sizeof(filters);
 }

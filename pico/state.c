@@ -133,6 +133,8 @@ typedef enum {
   CHUNK_CD_CDC,
   CHUNK_CD_CDD,
   CHUNK_YM2413,
+  CHUNK_PICO_PCM,
+  CHUNK_PICO,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -181,9 +183,8 @@ static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "SSH2 BIOS", // 35
   "SDRAM",
   "DRAM",
-  "PAL",
-  "events",
-  "YM2413",   //40
+  "32X palette",
+  "32X events",
 };
 
 static int write_chunk(chunk_name_e name, int len, void *data, void *file)
@@ -230,6 +231,10 @@ static int state_save(void *file)
   int retval = -1;
   int len;
 
+  buf2 = malloc(CHUNK_LIMIT_W);
+  if (buf2 == NULL)
+    return -1;
+
   areaWrite("PicoSEXT", 1, 8, file);
   areaWrite(&ver, 1, 4, file);
 
@@ -243,9 +248,15 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_RAM,   PicoMem.ram);
     CHECKED_WRITE_BUFF(CHUNK_VSRAM, PicoMem.vsram);
     CHECKED_WRITE_BUFF(CHUNK_IOPORTS, PicoMem.ioports);
-    ym2612_pack_state();
-    ym_regs = YM2612GetRegs();
-    CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
+    if (PicoIn.AHW & PAHW_PICO) {
+      len = PicoPicoPCMSave(buf2, CHUNK_LIMIT_W);
+      CHECKED_WRITE(CHUNK_PICO_PCM, len, buf2);
+      CHECKED_WRITE(CHUNK_PICO, sizeof(PicoPicohw), &PicoPicohw);
+    } else {
+      ym2612_pack_state();
+      ym_regs = YM2612GetRegs();
+      CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
+    }
 
     if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
       SekInitIdleDet();
@@ -255,25 +266,23 @@ static int state_save(void *file)
     ym_regs = YM2413GetRegs();
     CHECKED_WRITE(CHUNK_YM2413, 0x40+4, ym_regs);
   }
+  CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
+
+  if (!(PicoIn.AHW & PAHW_PICO)) {
+    z80_pack(buff_z80);
+    CHECKED_WRITE_BUFF(CHUNK_Z80, buff_z80);
+    CHECKED_WRITE_BUFF(CHUNK_ZRAM,  PicoMem.zram);
+  }
 
   CHECKED_WRITE_BUFF(CHUNK_VRAM,  PicoMem.vram);
-  CHECKED_WRITE_BUFF(CHUNK_ZRAM,  PicoMem.zram);
   CHECKED_WRITE_BUFF(CHUNK_CRAM,  PicoMem.cram);
-  CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
 
+  CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
   PicoVideoSave();
   CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
 
-  z80_pack(buff_z80);
-  CHECKED_WRITE_BUFF(CHUNK_Z80, buff_z80);
-  CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
-
   if (PicoIn.AHW & PAHW_MCD)
   {
-    buf2 = malloc(CHUNK_LIMIT_W);
-    if (buf2 == NULL)
-      return -1;
-
     memset(buff, 0, sizeof(buff));
     SekPackCpu(buff, 1);
     if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
@@ -462,6 +471,14 @@ static int state_load(void *file)
         ym_regs = YM2612GetRegs();
         CHECKED_READ2(0x200+4, ym_regs);
         ym2612_unpack_state();
+        break;
+
+      case CHUNK_PICO_PCM:
+        CHECKED_READ(len, buf);
+        PicoPicoPCMLoad(buf, len);
+        break;
+      case CHUNK_PICO:
+        CHECKED_READ_BUFF(PicoPicohw);
         break;
 
       case CHUNK_SMS:

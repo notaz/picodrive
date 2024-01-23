@@ -853,6 +853,8 @@ PICO_INTERNAL void PicoPicoPCMGain(int gain);
 PICO_INTERNAL void PicoPicoPCMFilter(int index);
 PICO_INTERNAL void PicoPicoPCMIrqEn(int enable);
 PICO_INTERNAL void PicoPicoPCMRerate(void);
+PICO_INTERNAL int PicoPicoPCMSave(void *buffer, int length);
+PICO_INTERNAL void PicoPicoPCMLoad(void *buffer, int length);
 
 // sek.c
 PICO_INTERNAL void SekInit(void);

@@ -150,17 +150,14 @@ void PicoGetInternal(pint_t which, pint_ret_t *ret);
 struct PicoEState;
 
 // pico.c
-#define XPCM_BUFFER_SIZE (320+160)
+#define XPCM_BUFFER_SIZE 64
 typedef struct
 {
 	int pen_pos[2];
 	int page;
-	// internal
 	int fifo_bytes;      // bytes in FIFO
-	int fifo_bytes_prev;
-	int fifo_line_bytes; // float part, << 16
-	int line_counter;
 	unsigned short r1, r12;
+	unsigned int reserved[3];
 	unsigned char xpcm_buffer[XPCM_BUFFER_SIZE+4];
 	unsigned char *xpcm_ptr;
 } picohw_state;
