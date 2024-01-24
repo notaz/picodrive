@@ -7,6 +7,17 @@
  * See COPYING file in the top-level directory.
  *
  * The following ADPCM algorithm was derived from MAME upd7759 driver.
+ *
+ * The Pico is using this chip in slave mode. In this mode there are no ROM
+ * headers, but the first byte sent to the chip is used to start the ADPCM
+ * engine. This byte is discarded, i.e. not processed by the engine.
+ *
+ * Data is fed into the chip through a FIFO. An Interrupt is created if the
+ * FIFO has been drained below the low water mark.
+ *
+ * The Pico has 2 extensions to the standard upd7759 chip:
+ * - gain control, used to control the volume of the ADPCM output
+ * - filtering, used to remove (some of) the ADPCM compression artifacts
  */
 
 #include <math.h>
@@ -42,21 +53,24 @@ static const int step_deltas[16][16] =
 
 static const int state_deltas[16] = { -1, -1, 0, 0, 1, 2, 2, 3, -1, -1, 0, 0, 1, 2, 2, 3 };
 
-s32 stepsamples = (44100LL<<16)/ADPCM_CLOCK;
+static s32 stepsamples;	// ratio as Q16, host sound rate / chip sample rate
 
 static struct xpcm_state {
   s32 samplepos;	// leftover duration for current sample wrt sndrate, Q16
   int sample;		// current sample
-  short state;		// ADPCM engine state
+  short state;		// ADPCM decoder state
   short samplegain;	// programmable gain
 
   char startpin;	// value on the !START pin
   char irqenable;	// IRQ enabled?
 
-  char portstate;	// data stream state
+  char portstate;	// ADPCM stream state
   short silence;	// silence blocks still to be played
   short rate, nibbles;	// ADPCM nibbles still to be played
-  unsigned char highlow, cache;	// nibble selector and cache
+  unsigned char highlow, cache; // nibble selector and cache
+
+  char filter;		// filter selector
+  s32 x[3], y[3];	// filter history
 } xpcm;
 enum { RESET, START, HDR, COUNT }; // portstate
 
@@ -66,15 +80,15 @@ enum { RESET, START, HDR, COUNT }; // portstate
 #define QB      16                      // mantissa bits
 #define FP(f)	(int)((f)*(1<<QB))      // convert to fixpoint
 
-static struct iir2 { // 2nd order IIR
+static struct iir2 { // 2nd order Butterworth IIR coefficients
   s32 a[2], gain;	// coefficients
-  s32 x[3], y[3];	// filter history
 } filters[4];
-static struct iir2 *filter;
+static struct iir2 *filter; // currently selected filter
 
 
 static void PicoPicoFilterCoeff(struct iir2 *iir, int cutoff, int rate)
 {
+  // no filter if the cutoff is above the Nyquist frequency
   if (cutoff >= rate/2) {
     memset(iir, 0, sizeof(*iir));
     return;
@@ -95,12 +109,12 @@ static int PicoPicoFilterApply(struct iir2 *iir, int sample)
     return sample;
 
   // NB Butterworth specific!
-  iir->x[0] = iir->x[1]; iir->x[1] = iir->x[2];
-  iir->x[2] = sample * iir->gain; // Qb
-  iir->y[0] = iir->y[1]; iir->y[1] = iir->y[2];
-  iir->y[2] = (iir->x[0] + 2*iir->x[1] + iir->x[2]
-               + iir->y[0]*iir->a[1] + iir->y[1]*iir->a[0]) >> QB;
-  return iir->y[2];
+  xpcm.x[0] = xpcm.x[1]; xpcm.x[1] = xpcm.x[2];
+  xpcm.x[2] = sample * iir->gain; // Qb
+  xpcm.y[0] = xpcm.y[1]; xpcm.y[1] = xpcm.y[2];
+  xpcm.y[2] = (xpcm.x[0] + 2*xpcm.x[1] + xpcm.x[2]
+               + xpcm.y[0]*iir->a[1] + xpcm.y[1]*iir->a[0]) >> QB;
+  return xpcm.y[2];
 }
 
 
@@ -131,13 +145,23 @@ PICO_INTERNAL int PicoPicoPCMBusyN(void)
 
 PICO_INTERNAL void PicoPicoPCMRerate(void)
 {
+  s32 nextstep = ((u64)PicoIn.sndRate<<16)/ADPCM_CLOCK;
+
+  // if the sound rate changes, erase filter history to avoid freak behaviour
+  if (stepsamples != nextstep) {
+    memset(xpcm.x, 0, sizeof(xpcm.x));
+    memset(xpcm.y, 0, sizeof(xpcm.y));
+  }
+
   // output samples per chip clock
-  stepsamples = ((u64)PicoIn.sndRate<<16)/ADPCM_CLOCK;
+  stepsamples = nextstep;
 
   // compute filter coefficients, cutoff at half the ADPCM sample rate
   PicoPicoFilterCoeff(&filters[1],  6000/2, PicoIn.sndRate); // 5-6 KHz
   PicoPicoFilterCoeff(&filters[2],  9000/2, PicoIn.sndRate); // 8-12 KHz
   PicoPicoFilterCoeff(&filters[3], 15000/2, PicoIn.sndRate); // 14-16 KHz
+
+  PicoPicoPCMFilter(xpcm.filter);
 }
 
 PICO_INTERNAL void PicoPicoPCMGain(int gain)
@@ -147,6 +171,13 @@ PICO_INTERNAL void PicoPicoPCMGain(int gain)
 
 PICO_INTERNAL void PicoPicoPCMFilter(int index)
 {
+  // if the filter changes, erase the history to avoid freak behaviour
+  if (index != xpcm.filter) {
+    memset(xpcm.x, 0, sizeof(xpcm.x));
+    memset(xpcm.y, 0, sizeof(xpcm.y));
+  }
+
+  xpcm.filter = index;
   filter = filters+index;
   if (filter->a[0] == 0)
     filter = NULL;
@@ -204,12 +235,13 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
   // loop over FIFO data, generating ADPCM samples
   while (length > 0 && src < lim)
   {
-    if (xpcm.silence > 0) {
+    // ADPCM state engine
+    if (xpcm.silence > 0) { // generate silence
       xpcm.silence --;
       xpcm.sample = 0;
       xpcm.samplepos += stepsamples*256;
 
-    } else if (xpcm.nibbles > 0) {
+    } else if (xpcm.nibbles > 0) { // produce samples
       xpcm.nibbles --;
 
       if (xpcm.highlow)
@@ -221,7 +253,7 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
       do_sample((xpcm.cache & 0xf0) >> 4);
       xpcm.samplepos += stepsamples*xpcm.rate;
 
-    } else switch (xpcm.portstate) {
+    } else switch (xpcm.portstate) { // handle stream headers
       case RESET:
         xpcm.sample = 0;
         xpcm.samplepos += length<<16;
@@ -301,15 +333,13 @@ PICO_INTERNAL int PicoPicoPCMSave(void *buffer, int length)
 {
   u8 *bp = buffer;
 
-  if (length < sizeof(xpcm) + sizeof(filters)) {
+  if (length < sizeof(xpcm)) {
     elprintf(EL_ANOMALY, "save buffer too small?");
     return 0;
   }
 
   memcpy(bp, &xpcm, sizeof(xpcm));
   bp += sizeof(xpcm);
-  memcpy(bp, filters, sizeof(filters));
-  bp += sizeof(filters);
   return (bp - (u8*)buffer);
 }
 
@@ -320,7 +350,4 @@ PICO_INTERNAL void PicoPicoPCMLoad(void *buffer, int length)
   if (length >= sizeof(xpcm))
     memcpy(&xpcm, bp, sizeof(xpcm));
   bp += sizeof(xpcm);
-  if (length >= sizeof(xpcm) + sizeof(filters))
-    memcpy(filters, bp, sizeof(filters));
-  bp += sizeof(filters);
 }
