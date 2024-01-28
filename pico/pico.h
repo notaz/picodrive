@@ -235,6 +235,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 #define PDRAW_30_ROWS      (1<<11) // 30 rows mode (240 lines)
 #define PDRAW_32X_SCALE    (1<<12) // scale CLUT layer for 32X
 #define PDRAW_SMS_BLANK_1  (1<<13) // 1st column blanked
+#define PDRAW_BGC_DMA      (1<<14) // in background color DMA
 #define PDRAW_SOFTSCALE    (1<<15) // H32 upscaling
 #define PDRAW_SYNC_NEEDED  (1<<16) // redraw needed
 #define PDRAW_SYNC_NEXT    (1<<17) // redraw next frame
