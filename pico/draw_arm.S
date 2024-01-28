@@ -1631,16 +1631,16 @@ PicoDoHighPal555_end:
 .global FinalizeLine555
 
 FinalizeLine555:
+    ldr     r3, [r11, #OFS_EST_rendstatus]
+    mov     r0, r2
+    tst     r3, #PDRAW_BGC_DMA
+    bne     BgcDMA
+
     stmfd   sp!, {r4-r11,lr}
     mov     r11,r2               @ est
-    ldr     r4, [r11, #OFS_EST_rendstatus]
+    mov     r4, r3
 
     bl      PicoDrawUpdateHighPal
-
-    tst     r4, #PDRAW_BGC_DMA
-    movne   r0, r11
-    ldmnefd sp!, {r4-r11,lr}
-    bne     BgcDMA
 
     ldr     r8, [r11, #OFS_EST_Pico]
     add     r3, r11, #OFS_EST_HighPal

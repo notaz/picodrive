@@ -439,8 +439,9 @@ void PicoVideoFIFOMode(int active, int h40)
 
 static __inline void AutoIncrement(void)
 {
-  Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
-  if (Pico.video.addr < Pico.video.reg[0xf]) Pico.video.addr_u ^= 1;
+  struct PicoVideo *pvid = &Pico.video;
+  pvid->addr=(unsigned short)(pvid->addr+pvid->reg[0xf]);
+  if (pvid->addr < pvid->reg[0xf]) pvid->addr_u ^= 1;
 }
 
 static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
@@ -458,23 +459,24 @@ static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
 
 static void VideoWrite(u16 d)
 {
-  unsigned int a = Pico.video.addr;
+  struct PicoVideo *pvid = &Pico.video;
+  unsigned int a = pvid->addr;
 
-  switch (Pico.video.type)
+  switch (pvid->type)
   {
     case 1: if (a & 1)
               d = (u16)((d << 8) | (d >> 8));
-            a |= Pico.video.addr_u << 16;
+            a |= pvid->addr_u << 16;
             VideoWriteVRAM(a, d);
             break;
-    case 3: if (PicoMem.cram [(a >> 1) & 0x3f] != d) Pico.m.dirtyPal = 1;
+    case 3: if (PicoMem.cram [(a >> 1) & 0x3f] != (d & 0xeee)) Pico.m.dirtyPal = 1;
             PicoMem.cram [(a >> 1) & 0x3f] = d & 0xeee; break;
     case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d & 0x7ff; break;
     case 0x81:
-            a |= Pico.video.addr_u << 16;
+            a |= pvid->addr_u << 16;
             VideoWriteVRAM128(a, d);
             break;
-    //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
+    //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, pvid->type); break;
   }
 
   AutoIncrement();
@@ -482,21 +484,22 @@ static void VideoWrite(u16 d)
 
 static unsigned int VideoRead(int is_from_z80)
 {
+  struct PicoVideo *pvid = &Pico.video;
   unsigned int a, d = VdpFIFO.fifo_data[(VdpFIFO.fifo_dx+1)&3];
 
-  a=Pico.video.addr; a>>=1;
+  a=pvid->addr; a>>=1;
 
   if (!is_from_z80)
     SekCyclesBurnRun(PicoVideoFIFORead());
-  switch (Pico.video.type)
+  switch (pvid->type)
   {
     case 0: d=PicoMem.vram [a & 0x7fff]; break;
     case 8: d=PicoMem.cram [a & 0x003f] | (d & ~0x0eee); break;
     case 4: if ((a & 0x3f) >= 0x28) a = 0;
             d=PicoMem.vsram [a & 0x003f] | (d & ~0x07ff); break;
-    case 12:a=PicoMem.vram [a & 0x7fff]; if (Pico.video.addr&1) a >>= 8;
+    case 12:a=PicoMem.vram [a & 0x7fff]; if (pvid->addr&1) a >>= 8;
             d=(a & 0x00ff) | (d & ~0x00ff); break;
-    default:elprintf(EL_ANOMALY, "VDP read with bad type %i", Pico.video.type); break;
+    default:elprintf(EL_ANOMALY, "VDP read with bad type %i", pvid->type); break;
   }
 
   AutoIncrement();
@@ -518,17 +521,18 @@ static int GetDmaLength(void)
 
 static void DmaSlow(int len, u32 source)
 {
-  u32 inc = Pico.video.reg[0xf];
-  u32 a = Pico.video.addr | (Pico.video.addr_u << 16), e;
+  struct PicoVideo *pvid=&Pico.video;
+  u32 inc = pvid->reg[0xf];
+  u32 a = pvid->addr | (pvid->addr_u << 16), e;
   u16 *r, *base = NULL;
   u32 mask = 0x1ffff;
   int lc = SekCyclesDone()-Pico.t.m68c_line_start;
 
   elprintf(EL_VDPDMA, "DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%u] @ %06x",
-    Pico.video.type, source, a, len, inc, (Pico.video.status&SR_VB)||!(Pico.video.reg[1]&0x40),
+    pvid->type, source, a, len, inc, (pvid->status&SR_VB)||!(pvid->reg[1]&0x40),
     SekCyclesDone(), SekPc);
 
-  SekCyclesBurnRun(PicoVideoFIFOWrite(len, FQ_FGDMA | (Pico.video.type == 1),
+  SekCyclesBurnRun(PicoVideoFIFOWrite(len, FQ_FGDMA | (pvid->type == 1),
                               PVS_DMABG, SR_DMA | PVS_CPUWR));
 
   if ((source & 0xe00000) == 0xe00000) { // Ram
@@ -569,7 +573,7 @@ static void DmaSlow(int len, u32 source)
       base = m68k_dma_source(source);
   }
   if (!base) {
-    elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
+    elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", pvid->type, source, a);
     return;
   }
 
@@ -577,7 +581,7 @@ static void DmaSlow(int len, u32 source)
   source >>= 1;
   mask >>= 1;
 
-  switch (Pico.video.type)
+  switch (pvid->type)
   {
     case 1: // vram
       e = a + len*2-1;
@@ -604,7 +608,8 @@ static void DmaSlow(int len, u32 source)
     case 3: // cram
       Pico.m.dirtyPal = 1;
       r = PicoMem.cram;
-      if (inc == 0 && (Pico.video.reg[7] & 0x3f) == ((a/2) & 0x3f)) { // bg color DMA
+      if (inc == 0 && !(pvid->reg[1] & 0x40) &&
+            (pvid->reg[7] & 0x3f) == ((a/2) & 0x3f)) { // bg color DMA
         PicoVideoSync(1);
         int sl = VdpFIFO.fifo_hcounts[lc/clkdiv];
         if (sl > VdpFIFO.fifo_hcounts[0]-5) // hint delay is 5 slots
@@ -612,6 +617,9 @@ static void DmaSlow(int len, u32 source)
         // TODO this is needed to cover timing inaccuracies
         if (sl <= 12)  sl = -2;
         PicoDrawBgcDMA(base, source, mask, len, sl);
+        // do last DMA cycle since it's all going to the same cram location
+        source = source+len-1;
+        len = 1;
       }
       for (; len; len--)
       {
@@ -642,20 +650,21 @@ static void DmaSlow(int len, u32 source)
       break;
 
     default:
-      if (Pico.video.type != 0 || (EL_LOGMASK & EL_VDPDMA))
-        elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", Pico.video.type);
+      if (pvid->type != 0 || (EL_LOGMASK & EL_VDPDMA))
+        elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", pvid->type);
       break;
   }
   // remember addr
-  Pico.video.addr = a;
-  Pico.video.addr_u = a >> 16;
+  pvid->addr = a;
+  pvid->addr_u = a >> 16;
 }
 
 static void DmaCopy(int len)
 {
-  u32 a = Pico.video.addr | (Pico.video.addr_u << 16);
+  struct PicoVideo *pvid=&Pico.video;
+  u32 a = pvid->addr | (pvid->addr_u << 16);
   u8 *vr = (u8 *)PicoMem.vram;
-  u8 inc = Pico.video.reg[0xf];
+  u8 inc = pvid->reg[0xf];
   int source;
   elprintf(EL_VDPDMA, "DmaCopy len %i [%u]", len, SekCyclesDone());
 
@@ -663,8 +672,8 @@ static void DmaCopy(int len)
   SekCyclesBurnRun(PicoVideoFIFOWrite(2*len, FQ_BGDMA, // 2 slots each (rd+wr)
                               PVS_CPUWR, SR_DMA | PVS_DMABG));
 
-  source =Pico.video.reg[0x15];
-  source|=Pico.video.reg[0x16]<<8;
+  source =pvid->reg[0x15];
+  source|=pvid->reg[0x16]<<8;
 
   for (; len; len--)
   {
@@ -675,16 +684,17 @@ static void DmaCopy(int len)
     a = (a+inc) & ~0x20000;
   }
   // remember addr
-  Pico.video.addr = a;
-  Pico.video.addr_u = a >> 16;
+  pvid->addr = a;
+  pvid->addr_u = a >> 16;
 }
 
 static NOINLINE void DmaFill(int data)
 {
-  u32 a = Pico.video.addr | (Pico.video.addr_u << 16), e;
+  struct PicoVideo *pvid=&Pico.video;
+  u32 a = pvid->addr | (pvid->addr_u << 16), e;
   u8 *vr = (u8 *)PicoMem.vram;
   u8 high = (u8)(data >> 8);
-  u8 inc = Pico.video.reg[0xf];
+  u8 inc = pvid->reg[0xf];
   int source;
   int len, l;
 
@@ -694,7 +704,7 @@ static NOINLINE void DmaFill(int data)
   SekCyclesBurnRun(PicoVideoFIFOWrite(len, FQ_BGDMA, // 1 slot each (wr)
                               PVS_CPUWR | PVS_DMAFILL, SR_DMA | PVS_DMABG));
 
-  switch (Pico.video.type)
+  switch (pvid->type)
   {
     case 1: // vram
       e = a + len-1;
@@ -751,16 +761,15 @@ static NOINLINE void DmaFill(int data)
   }
 
   // remember addr
-  Pico.video.addr = a;
-  Pico.video.addr_u = a >> 16;
+  pvid->addr = a;
+  pvid->addr_u = a >> 16;
   // register update
-  Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0;
-  source  = Pico.video.reg[0x15];
-  source |= Pico.video.reg[0x16] << 8;
+  pvid->reg[0x13] = pvid->reg[0x14] = 0;
+  source  = pvid->reg[0x15];
+  source |= pvid->reg[0x16] << 8;
   source += len;
-  Pico.video.reg[0x15] = source;
-  Pico.video.reg[0x16] = source >> 8;
-
+  pvid->reg[0x15] = source;
+  pvid->reg[0x16] = source >> 8;
 }
 
 // VDP command handling
@@ -780,9 +789,9 @@ static NOINLINE void CommandDma(void)
   }
 
   len = GetDmaLength();
-  source =Pico.video.reg[0x15];
-  source|=Pico.video.reg[0x16] << 8;
-  source|=Pico.video.reg[0x17] << 16;
+  source  = pvid->reg[0x15];
+  source |= pvid->reg[0x16] << 8;
+  source |= pvid->reg[0x17] << 16;
 
   method=pvid->reg[0x17]>>6;
   if (method < 2)
@@ -794,9 +803,9 @@ static NOINLINE void CommandDma(void)
     return;
   }
   source += len;
-  Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0;
-  Pico.video.reg[0x15] = source;
-  Pico.video.reg[0x16] = source >> 8;
+  pvid->reg[0x13] = pvid->reg[0x14] = 0;
+  pvid->reg[0x15] = source;
+  pvid->reg[0x16] = source >> 8;
 }
 
 static NOINLINE void CommandChange(struct PicoVideo *pvid)
@@ -893,7 +902,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
       SekCyclesBurnRun(PicoVideoFIFOWrite(1, pvid->type == 1, 0, PVS_CPUWR));
 
       elprintf(EL_ASVDP, "VDP data write: [%04x] %04x [%u] {%i} @ %06x",
-        Pico.video.addr, d, SekCyclesDone(), Pico.video.type, SekPc);
+        pvid->addr, d, SekCyclesDone(), pvid->type, SekPc);
     }
     VideoWrite(d);
 
@@ -948,7 +957,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
           lineenabled = (d&0x40) ? Pico.m.scanline : -1;
           linedisabled = (d&0x40) ? -1 : Pico.m.scanline;
           lineoffset = SekCyclesDone() - Pico.t.m68c_line_start;
-	} else if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
+        } else if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
           // VDP regs 0-7,11-13,16-18 influence rendering, ignore all others
           PicoVideoSync(InHblank(93)); // Toy Story
         pvid->reg[num] = d;
@@ -1064,11 +1073,11 @@ static u32 VideoSr(const struct PicoVideo *pv)
 
 PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
 {
+  struct PicoVideo *pv = &Pico.video;
   a &= 0x1c;
 
   if (a == 0x04) // control port
   {
-    struct PicoVideo *pv = &Pico.video;
     u32 d = VideoSr(pv);
     if (pv->pending) {
       CommandChange(pv);
@@ -1084,11 +1093,11 @@ PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
     u32 d;
 
     c = SekCyclesDone() - Pico.t.m68c_line_start;
-    if (Pico.video.reg[0]&2)
-         d = Pico.video.hv_latch;
-    else d = VdpFIFO.fifo_hcounts[c/clkdiv] | (Pico.video.v_counter << 8);
+    if (pv->reg[0]&2)
+         d = pv->hv_latch;
+    else d = VdpFIFO.fifo_hcounts[c/clkdiv] | (pv->v_counter << 8);
 
-    elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
+    elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, pv->v_counter, SekCyclesDone(), SekPc);
     return d;
   }
 

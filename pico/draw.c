@@ -1636,7 +1636,7 @@ void BgcDMA(struct PicoEState *est)
   BgcDMAsrc += xl; // HSYNC DMA
   BgcDMAoffs = 0;
 
-  t = est->HighPal[Pico.video.reg[7] & 0x3f];
+  t = PXCONV(PicoMem.cram[Pico.video.reg[7] & 0x3f]);
   while (i < len) q[i++] = t; // fill partial line with BG
 
   if (upscale) {
@@ -1737,6 +1737,9 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   if (DrawLineDestIncrement == 0)
     return;
 
+  if (est->rendstatus & PDRAW_BGC_DMA)
+    return BgcDMA(est);
+
   PicoDrawUpdateHighPal();
 
   len = 256;
@@ -1746,9 +1749,6 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
     len = 160;
   else if ((PicoIn.AHW & PAHW_SMS) && (est->Pico->video.reg[0] & 0x20))
     len -= 8, ps += 8;
-
-  if (est->rendstatus & PDRAW_BGC_DMA)
-    return BgcDMA(est);
 
   if ((est->rendstatus & PDRAW_SOFTSCALE) && len < 320) {
     if (len >= 240 && len <= 256) {
