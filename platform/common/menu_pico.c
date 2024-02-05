@@ -72,6 +72,8 @@ static int menu_w, menu_h;
 #include <platform/gp2x/menu.c>
 #elif defined(__PSP__)
 #include <platform/psp/menu.c>
+#elif defined(__PS2__)
+#include <platform/ps2/menu.c>
 #elif defined(PANDORA)
 #include <platform/pandora/menu.c>
 #else

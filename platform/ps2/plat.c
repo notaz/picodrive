@@ -19,7 +19,8 @@
 
 #include "../libpicofe/plat.h"
 
-struct plat_target plat_target = {};
+static int sound_rates[] = { 11025, 22050, 44100, -1 };
+struct plat_target plat_target = { .sound_rates = sound_rates };
 
 static void reset_IOP() {
     SifInitRpc(0);

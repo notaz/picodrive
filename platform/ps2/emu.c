@@ -20,7 +20,7 @@
 
 #include <pico/pico_int.h>
 
-#define OSD_FPS_X 220
+#define OSD_FPS_X (gsGlobal->Width - 80)
 
 /* turn black GS Screen */
 #define GS_BLACK GS_SETREG_RGBA(0x00, 0x00, 0x00, 0x80)
@@ -29,6 +29,8 @@
 
 static int osd_buf_cnt, osd_cdleds;
 
+static int out_x, out_y;
+static int out_w, out_h;
 static float hscale, vscale;
 
 static struct in_default_bind in_ps2_defbinds[] =
@@ -51,14 +53,18 @@ static struct in_default_bind in_ps2_defbinds[] =
 const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
+static int is_bg_frame;
 
 static GSGLOBAL *gsGlobal;
 
 static GSTEXTURE *g_menuscreen;
 static GSPRIMUVPOINT *g_menuscreen_vertices;
 
+static GSTEXTURE *g_screens[2];
+static int g_screen_index;
 static GSTEXTURE *g_screen;
 static GSPRIMUVPOINT *g_screen_vertices;
+static u16 *g_screen_palette;
 
 static GSTEXTURE *osd;
 static uint32_t osd_vertices_count;
@@ -72,84 +78,73 @@ static int32_t vsync_callback_id;
 static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 
 /* sound stuff */
-#define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
-#define SOUND_BLOCK_SIZE_PAL  (1764*2)
 #define SOUND_BLOCK_COUNT    8
+#define SOUND_BUFFER_SIZE    (2*54000/50*SOUND_BLOCK_COUNT) // max.rate/min.frames
 
-static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 54000/50*2];
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_SIZE];
 static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
 static int samples_made = 0, samples_done = 0, samples_block = 0;
 static int sound_thread_exit = 0;
 static int32_t sound_sem = -1;
-static uint8_t stack[0x10000] __attribute__((aligned(16)));
+static uint8_t stack[0x4000] __attribute__((aligned(16)));
 extern void *_gp;
 
 static int mp3_init(void) { return 0; }
 
 static void writeSound(int len)
 {
-	int ret;
-
-    // printf("writeSound, len: %i\n", len);
+	int ret, l;
 
 	PicoIn.sndOut += len / 2;
-	/*if (PicoIn.sndOut > sndBuffer_endptr) {
-		memcpy((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) * 2);
-		PicoIn.sndOut = &sndBuffer[PicoIn.sndOut - endptr];
-		lprintf("mov\n");
-	}
-	else*/
-	if (PicoIn.sndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PicoIn.sndOut - sndBuffer_endptr);
-	if (PicoIn.sndOut >= sndBuffer_endptr)
+
+	l = PicoIn.sndOut - sndBuffer;
+	if (l > sizeof(sndBuffer)/2)
+		lprintf("ovfl %d %d\n", len, PicoIn.sndOut - sndBuffer);
+	if (l > samples_block * 6) {
+		sndBuffer_endptr = PicoIn.sndOut;
 		PicoIn.sndOut = sndBuffer;
+	}
+	if (sndBuffer_endptr < PicoIn.sndOut)
+		sndBuffer_endptr = PicoIn.sndOut;
 
 	// signal the snd thread
 	samples_made += len / 2;
-	if (samples_made - samples_done > samples_block*2) {
-		lprintf("signal, %i/%i\n", samples_done, samples_made);
-		ret = SignalSema(sound_sem);
-		//if (ret < 0) lprintf("snd signal ret %08x\n", ret);
-	}
+//	lprintf("signal, %i/%i\n", samples_done, samples_made);
+	ret = SignalSema(sound_sem);
+//	if (ret < 0) lprintf("snd signal ret %08x\n", ret);
 }
 
 static int sound_thread(void *argp)
 {
-	int ret = 0;
-
 	while (!sound_thread_exit)
 	{
+		int ret = 0;
+
 		if (samples_made - samples_done < samples_block) {
 			// wait for data (use at least 2 blocks)
-			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
-			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit) {
-                printf("sthr: WaitSema\n");
+//			lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
+			while (samples_made - samples_done < samples_block*2 && !sound_thread_exit)
 				ret = WaitSema(sound_sem);
-            }
 			if (ret < 0) lprintf("sthr: WaitSema: %i\n", ret);
 			continue;
 		}
+//		lprintf("sthr: got data: %i\n", samples_made - samples_done);
+		short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
+		int buflen = samples_block * 2;
+		if (sndOut >= snd_playptr)
+			buflen = sndOut - snd_playptr;
+		else	buflen = sndEnd - snd_playptr;
+		if (buflen > samples_block)
+			buflen = samples_block;
+		ret = audsrv_play_audio((char *)snd_playptr, buflen*2);
+//		if (ret != buflen*2 && ret >= 0) lprintf("sthr: play ret: %i, buflen: %i\n", ret, buflen*2);
+		if (ret < 0) lprintf("sthr: play: ret %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
-		// lprintf("sthr: got data: %i\n", samples_made - samples_done);
-        int buflen = samples_block * 2;
-        ret = (audsrv_play_audio((char *)snd_playptr, buflen) != buflen) ? -1 : 0;
-        printf("audsrv_play_audio ret: %i, buflen: %i\n", ret, buflen);
-		// ret = sceAudioSRCOutputBlocking(PSP_AUDIO_VOLUME_MAX, snd_playptr);
+		samples_done += buflen;
+		snd_playptr  += buflen;
 
-		samples_done += samples_block;
-		snd_playptr  += samples_block;
 		if (snd_playptr >= sndBuffer_endptr)
 			snd_playptr = sndBuffer;
-		// 1.5 kernel returns 0, newer ones return # of samples queued
-		if (ret < 0)
-			lprintf("sthr: audsrv_play_audio: %08x; pos %i/%i\n", ret, samples_done, samples_made);
-
-		// shouln't happen, but just in case
-		if (samples_made - samples_done >= samples_block*3) {
-			//lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
-			samples_done += samples_block; // skip
-			snd_playptr  += samples_block;
-		}
-
 	}
 
 	lprintf("sthr: exit\n");
@@ -162,36 +157,39 @@ static void sound_init(void)
 	int thid;
 	int ret;
 	ee_sema_t sema;
-    ee_thread_t thread;
+	ee_thread_t thread;
 
-    sema.max_count  = 1;
-    sema.init_count = 0;
-    sema.option     = (u32) "sndsem";
-    if ((sound_sem = CreateSema(&sema)) < 0)
-        return;
+	sema.max_count  = 1;
+	sema.init_count = 0;
+	sema.option     = (u32) "sndsem";
+	if ((sound_sem = CreateSema(&sema)) < 0)
+		return;
+	audsrv_init();
 
-    thread.func             = &sound_thread;
-    thread.stack            = stack;
-    thread.stack_size       = sizeof(stack);
-    thread.gp_reg           = &_gp;
-    thread.option           = (u32) "sndthread";
-    thread.initial_priority = 0x12;
-    thid = CreateThread(&thread);
+	thread.func             = &sound_thread;
+	thread.stack            = stack;
+	thread.stack_size       = sizeof(stack);
+	thread.gp_reg           = &_gp;
+	thread.option           = (u32) "sndthread";
+	thread.initial_priority = 40;
+	thid = CreateThread(&thread);
 
-    if (thid >= 0) {
+	samples_block = 22050/50; // needs to be initialized before thread start
+	if (thid >= 0) {
 		ret = StartThread(thid, NULL);
 		if (ret < 0) lprintf("sound_init: StartThread returned %08x\n", ret);
-	}else {
-        DeleteSema(sound_sem);
+		ChangeThreadPriority(0, 64);
+	} else {
+		DeleteSema(sound_sem);
 		lprintf("CreateThread failed: %i\n", thid);
-    }
+	}
 }
 
 void pemu_sound_start(void) {
-    static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	static int mp3_init_done;
 	int ret, stereo;
-    struct audsrv_fmt_t format;
+	struct audsrv_fmt_t format;
 
 	samples_made = samples_done = 0;
 
@@ -215,49 +213,35 @@ void pemu_sound_start(void) {
 	}
 	stereo=(PicoIn.opt&8)>>3;
 
-	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
-    printf("samples_block: %i\n", samples_block);
-	if (PicoIn.sndRate <= 22050) samples_block /= 2;
-	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
+	samples_block = PicoIn.sndRate * (stereo ? 2 : 1) / (Pico.m.pal ? 50 : 60);
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
 
 	format.bits = 16;
-    format.freq = PicoIn.sndRate;
-    format.channels = 2;
+	format.freq = PicoIn.sndRate;
+	format.channels = 2;
 	ret = audsrv_set_format(&format);
-    audsrv_set_volume(MAX_VOLUME);
+	audsrv_set_volume(MAX_VOLUME);
 	if (ret < 0) {
 		lprintf("audsrv_set_format() failed: %i\n", ret);
 		emu_status_msg("sound init failed (%i), snd disabled", ret);
 		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
 		PicoIn.writeSound = writeSound;
-		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
-		snd_playptr = sndBuffer_endptr - samples_block;
-		samples_made = samples_block; // send 1 empty block first..
-		PicoIn.sndOut = sndBuffer;
+		snd_playptr = PicoIn.sndOut = sndBuffer_endptr = sndBuffer;
+
 		PsndRate_old = PicoIn.sndRate;
 		PicoOpt_old  = PicoIn.opt;
 		pal_old = Pico.m.pal;
 	}
+	ret = audsrv_play_audio((char *)snd_playptr, 4);
 }
 
 void pemu_sound_stop(void)
 {
-	int i;
-	if (samples_done == 0)
-	{
-		// if no data is written between sceAudioSRCChReserve and sceAudioSRCChRelease calls,
-		// we get a deadlock on next sceAudioSRCChReserve call
-		// so this is yet another workaround:
-		memset32((int *)(void *)sndBuffer, 0, samples_block*4/4);
-		samples_made = samples_block * 3;
-		SignalSema(sound_sem);
-	}
-	plat_sleep_ms(100);
 	samples_made = samples_done = 0;
+	plat_sleep_ms(100);
 	audsrv_stop_audio();
 }
 
@@ -270,192 +254,297 @@ static void sound_deinit(void)
 }
 
 #define is_16bit_mode() \
-	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X) || is_bg_frame)
 
 static int vsync_handler(void)
 {
-   iSignalSema(vsync_sema_id);
+	iSignalSema(vsync_sema_id);
 
-   ExitHandler();
-   return 0;
+	ExitHandler();
+	return 0;
 }
 
-static void set_g_menuscreen_values()
+/* Copy of gsKit_sync_flip, but without the 'flip' */
+static void gsKit_sync(GSGLOBAL *gsGlobal)
 {
-    if (g_menuscreen != NULL) {
-        free(g_menuscreen->Mem);
-        free(g_menuscreen);
-        free(g_menubg_ptr);
-        free(g_menuscreen_vertices);
-    }
-    g_menuscreen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-    size_t g_menuscreenSize = gsKit_texture_size_ee(gsGlobal->Width, gsGlobal->Height, GS_PSM_CT16);
-    g_menuscreen->Width = gsGlobal->Width;
-    g_menuscreen->Height = gsGlobal->Height;
-    g_menuscreen->PSM = GS_PSM_CT16;
-    g_menuscreen->Mem = malloc(g_menuscreenSize);
+	if (!gsGlobal->FirstFrame)
+		WaitSema(vsync_sema_id);
 
-    g_menubg_ptr = (uint8_t *)malloc(g_menuscreenSize);
+	while (PollSema(vsync_sema_id) >= 0);
+}
 
-    g_menuscreen_w = g_menuscreen->Width;
-    g_menuscreen_h  = g_menuscreen->Height; 
-    g_menuscreen_pp = g_menuscreen->Width;
-    g_menuscreen_ptr = g_menuscreen->Mem;
+/* Copy of gsKit_sync_flip, but without the 'sync' */
+static void gsKit_flip(GSGLOBAL *gsGlobal)
+{
+	if (!gsGlobal->FirstFrame)
+	{
+		if (gsGlobal->DoubleBuffering == GS_SETTING_ON)
+		{
+			GS_SET_DISPFB2(gsGlobal->ScreenBuffer[gsGlobal->ActiveBuffer & 1] / 8192,
+					gsGlobal->Width / 64, gsGlobal->PSM, 0, 0);
 
-    g_menubg_src_w = g_menuscreen->Width;
-    g_menubg_src_h  = g_menuscreen->Height;
-    g_menubg_src_pp = g_menuscreen->Width;
+			gsGlobal->ActiveBuffer ^= 1;
+		}
+	}
 
-    g_menuscreen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
-    
-    g_menuscreen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 2);
+	gsKit_setactive(gsGlobal);
+}
+
+static void flipScreen()
+{
+	gsKit_flip(gsGlobal);
+
+	gsKit_TexManager_nextFrame(gsGlobal);
+}
+
+
+static void set_g_menuscreen_values(void)
+{
+	size_t g_menuscreenSize = gsKit_texture_size_ee(gsGlobal->Width, gsGlobal->Height, GS_PSM_CT16);
+
+	g_menuscreen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+	g_menuscreen->Mem = malloc(g_menuscreenSize);
+	g_menuscreen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
+
+	g_menuscreen->Width = gsGlobal->Width;
+	g_menuscreen->Height = gsGlobal->Height;
+	g_menuscreen->PSM = GS_PSM_CT16;
+
+	g_menuscreen_w = g_menuscreen->Width;
+	g_menuscreen_h  = g_menuscreen->Height;
+	g_menuscreen_pp = g_menuscreen->Width;
+	g_menuscreen_ptr = g_menuscreen->Mem;
+
+	g_menuscreen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 2);
 	g_menuscreen_vertices[0].uv = vertex_to_UV(g_menuscreen, 0, 0);
 	g_menuscreen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 
-    g_menuscreen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, g_menuscreen->Width, g_menuscreen->Height, 2);
-    g_menuscreen_vertices[1].uv = vertex_to_UV(g_menuscreen, g_menuscreen->Width, g_menuscreen->Height);
-    g_menuscreen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+	g_menuscreen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, g_menuscreen->Width, g_menuscreen->Height, 2);
+	g_menuscreen_vertices[1].uv = vertex_to_UV(g_menuscreen, g_menuscreen->Width, g_menuscreen->Height);
+	g_menuscreen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 }
 
 void set_g_screen_values() {
-    if (g_screen != NULL) {
-        free(g_screen->Mem);
-        free(g_screen);
-        free(g_screen_vertices);
-    }
-    g_screen = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-    size_t g_screenSize = gsKit_texture_size_ee(328, 256, GS_PSM_CT16);
-    g_screen->Width = 328;
-    g_screen->Height = 256;
-    g_screen->PSM = GS_PSM_CT16;
-    g_screen->Mem = (uint32_t *)malloc(g_screenSize);
+	size_t g_screenSize = gsKit_texture_size_ee(328, 256, GS_PSM_CT16);
+	int i;
 
-    g_screen_width = 328;
-    g_screen_height = 256; 
-    g_screen_ppitch = 328;
-    g_screen_ptr = g_screen->Mem;
+	g_screen_palette = malloc(gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
+	g_screen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
+	for (i = 0; i < 2; i++) {
+		g_screens[i] = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+		g_screens[i]->Mem = (uint32_t *)malloc(g_screenSize);
 
-    g_screen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
-    
-    g_screen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 0);
-    g_screen_vertices[0].uv = vertex_to_UV(g_screen, 0, 0);
-    g_screen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+		g_screens[i]->Width = 328;
+		g_screens[i]->Height = 256;
+		g_screens[i]->PSM = GS_PSM_CT16;
+		g_screens[i]->Filter = GS_FILTER_LINEAR;
 
-    g_screen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, gsGlobal->Width, gsGlobal->Height, 0);
-    g_screen_vertices[1].uv = vertex_to_UV(g_screen, g_screen->Width, g_screen->Height);
-    g_screen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+		g_screens[i]->Clut = g_screen_palette;
+		g_screens[i]->ClutPSM = GS_PSM_CT16;
+	}
+	g_screen = g_screens[g_screen_index];
+	g_screen_ptr = g_screen->Mem;
 
-    if (is_16bit_mode())
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
-	else
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch);
+	g_screen_width = 328;
+	g_screen_height = 256;
+	g_screen_ppitch = 328;
+
+	g_screen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 0);
+	g_screen_vertices[0].uv = vertex_to_UV(g_screen, 0, 0);
+	g_screen_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+
+	g_screen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, gsGlobal->Width, gsGlobal->Height, 0);
+	g_screen_vertices[1].uv = vertex_to_UV(g_screen, g_screen->Width, g_screen->Height);
+	g_screen_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 }
 
 void set_cdleds_values() {
-    if (cdleds != NULL) {
-        free(cdleds->Mem);
-        free(cdleds);
-        free(cdleds_vertices);
-    }
-    cdleds = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-    size_t cdledsSize = gsKit_texture_size_ee(14, 5, GS_PSM_CT16);
-    cdleds->Width = 14;
-    cdleds->Height = 5;
-    cdleds->PSM = GS_PSM_CT16;
-    cdleds->Mem = (uint32_t *)malloc(cdledsSize);
+	size_t cdledsSize = gsKit_texture_size_ee(14, 5, GS_PSM_CT16);
 
-    cdleds_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
-    
-    cdleds_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 4, 1, 1);
-    cdleds_vertices[0].uv = vertex_to_UV(cdleds, 0, 0);
-    cdleds_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+	cdleds = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+	cdleds->Mem = (uint32_t *)malloc(cdledsSize);
+	cdleds_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
 
-    cdleds_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, cdleds->Width, cdleds->Height, 1);
-    cdleds_vertices[1].uv = vertex_to_UV(cdleds, cdleds->Width, cdleds->Height);
-    cdleds_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+	cdleds->Width = 14;
+	cdleds->Height = 5;
+	cdleds->PSM = GS_PSM_CT16;
+
+	cdleds_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 4, 1, 1);
+	cdleds_vertices[0].uv = vertex_to_UV(cdleds, 0, 0);
+	cdleds_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+
+	cdleds_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, cdleds->Width, cdleds->Height, 1);
+	cdleds_vertices[1].uv = vertex_to_UV(cdleds, cdleds->Width, cdleds->Height);
+	cdleds_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 }
 
 void set_osd_values() {
-    if (osd != NULL) {
-        free(osd->Mem);
-        free(osd);
-        free(osd_vertices);
-    }
-    osd = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-    size_t osdSize = gsKit_texture_size_ee(512, 8, GS_PSM_CT16);
-    osd->Width = 512;
-    osd->Height = 8;
-    osd->PSM = GS_PSM_CT16;
-    osd->Mem = (uint32_t *)malloc(osdSize);
+	size_t osdSize = gsKit_texture_size_ee(gsGlobal->Width, 8, GS_PSM_CT16);
+	int num_osds = 4, i;
 
-    osd_vertices_count = 2;
-    osd_vertices = (GSPRIMUVPOINT *)calloc(osd_vertices_count, sizeof(GSPRIMUVPOINT));
-    
-    osd_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, 0, 0, 1);
-    osd_vertices[0].uv = vertex_to_UV(osd, 0, 0);
-    osd_vertices[0].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+	osd = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
+	osd->Mem = (uint32_t *)malloc(osdSize);
 
-    osd_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, osd->Width, osd->Height, 1);
-    osd_vertices[1].uv = vertex_to_UV(osd, osd->Width, osd->Height);
-    osd_vertices[1].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
+	osd_vertices_count = 2*num_osds;
+	osd_vertices = (GSPRIMUVPOINT *)calloc(osd_vertices_count, sizeof(GSPRIMUVPOINT));
+
+	osd->Width = gsGlobal->Width;
+	osd->Height = 8;
+	osd->PSM = GS_PSM_CT16;
+
+	for (i = 0; i < 2*num_osds; i++)
+		osd_vertices[i].rgbaq = color_to_RGBAQ(0x80, 0x80, 0x80, 0x80, 0);
 }
 
 static void video_init(void)
 {
-    ee_sema_t sema;
+	ee_sema_t sema;
 
-    sema.init_count = 0;
-    sema.max_count  = 1;
-    sema.option     = 0;
+	sema.init_count = 0;
+	sema.max_count  = 1;
+	sema.option     = 0;
 
-    vsync_sema_id   = CreateSema(&sema);
+	vsync_sema_id   = CreateSema(&sema);
 
-    gsGlobal = gsKit_init_global();
-    gsGlobal->Mode = GS_MODE_NTSC;
-    gsGlobal->Height = 448;
+	gsGlobal = gsKit_init_global();
+//	gsGlobal->Mode = GS_MODE_NTSC;
+//	gsGlobal->Height = 448;
 
-    gsGlobal->PSM  = GS_PSM_CT24;
-    gsGlobal->PSMZ = GS_PSMZ_16S;
-    gsGlobal->ZBuffering = GS_SETTING_OFF;
-    gsGlobal->DoubleBuffering = GS_SETTING_ON;
-    gsGlobal->PrimAlphaEnable = GS_SETTING_OFF;
-    gsGlobal->Dithering = GS_SETTING_OFF;
+	gsGlobal->PSM  = GS_PSM_CT16;
+	gsGlobal->PSMZ = GS_PSMZ_16S;
+	gsGlobal->ZBuffering = GS_SETTING_OFF;
+	gsGlobal->DoubleBuffering = GS_SETTING_ON;
+	gsGlobal->PrimAlphaEnable = GS_SETTING_OFF;
+	gsGlobal->Dithering = GS_SETTING_OFF;
 
 
-    dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);
-    dmaKit_chan_init(DMA_CHANNEL_GIF);
+	dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);
+	dmaKit_chan_init(DMA_CHANNEL_GIF);
 
-    gsKit_set_clamp(gsGlobal, GS_CMODE_REPEAT);
+	gsKit_set_clamp(gsGlobal, GS_CMODE_REPEAT);
 
-    gsKit_vram_clear(gsGlobal);
-    gsKit_init_screen(gsGlobal);
-    gsKit_TexManager_init(gsGlobal);
-    gsKit_mode_switch(gsGlobal, GS_ONESHOT);
-    gsKit_clear(gsGlobal, GS_BLACK);
-    vsync = 0;
-    vsync_callback_id = gsKit_add_vsync_handler(vsync_handler);
+	gsKit_vram_clear(gsGlobal);
+	gsKit_init_screen(gsGlobal);
+	gsKit_TexManager_init(gsGlobal);
+	gsKit_mode_switch(gsGlobal, GS_ONESHOT);
+	gsKit_clear(gsGlobal, GS_BLACK);
+	vsync = 0;
+	vsync_callback_id = gsKit_add_vsync_handler(vsync_handler);
 
-    set_g_menuscreen_values();
+	set_g_screen_values();
+	set_g_menuscreen_values();
+	set_osd_values();
+	set_cdleds_values();
+
+	g_menubg_ptr = (uint8_t *)malloc(2 * g_menuscreen_pp * g_menuscreen_h);
+	g_menubg_src_w = g_screen->Width;
+	g_menubg_src_h = g_screen->Height;
+	g_menubg_src_pp = g_screen->Width;
 }
 
 static void video_deinit(void)
 {
-    free(g_menuscreen->Mem);
-    free(g_menuscreen);
-    free(g_menuscreen_vertices);
-    free(g_menubg_ptr);
+	free(g_screens[0]->Mem);
+	free(g_screens[0]);
+	free(g_screens[1]->Mem);
+	free(g_screens[1]);
+	free(g_screen_vertices);
+	free(g_screen_palette);
 
-    gsKit_clear(gsGlobal, GS_BLACK);
-    gsKit_vram_clear(gsGlobal);
-    gsKit_deinit_global(gsGlobal);
-    gsKit_remove_vsync_handler(vsync_callback_id);
+	free(g_menuscreen->Mem);
+	free(g_menuscreen);
+	free(g_menuscreen_vertices);
+	free(g_menubg_ptr);
 
-    if (vsync_sema_id >= 0)
-        DeleteSema(vsync_sema_id);
+	free(osd->Mem);
+	free(osd);
+	free(osd_vertices);
+
+	free(cdleds->Mem);
+	free(cdleds);
+	free(cdleds_vertices);
+
+	gsKit_clear(gsGlobal, GS_BLACK);
+	gsKit_vram_clear(gsGlobal);
+	gsKit_deinit_global(gsGlobal);
+	gsKit_remove_vsync_handler(vsync_callback_id);
+
+	if (vsync_sema_id >= 0)
+		DeleteSema(vsync_sema_id);
+}
+
+static void set_scaling_params(void)
+{
+	int width, height, xoffs, yoffs;
+	int u[2], v[2];
+
+	height = (int)(out_h * vscale + 0.5);
+	width  = (int)(out_w * hscale + 0.5);
+
+	if (width  & 1) width++;  // make even
+	if (height & 1) height++;
+
+	if (width >= gsGlobal->Width) {
+		u[0] = out_x + (width-gsGlobal->Width)/2;
+		u[1] = out_x + out_w - (width-gsGlobal->Width)/2 - 1;
+		width = gsGlobal->Width;
+		xoffs = 0;
+	} else {
+		u[0] = out_x;
+		u[1] = out_x + out_w;
+		xoffs = gsGlobal->Width/2 - width/2;
+	}
+
+	if (height >= gsGlobal->Height) {
+		v[0] = out_y + (height-gsGlobal->Height)/2;
+		v[1] = out_y + out_h - (height-gsGlobal->Height)/2;
+		height = gsGlobal->Height;
+		yoffs = 0;
+	} else {
+		v[0] = out_y;
+		v[1] = out_y + out_h;
+		yoffs = gsGlobal->Height/2 - height/2;
+	}
+
+	if (xoffs < 0) xoffs = 0;
+	if (yoffs < 0) yoffs = 0;
+	g_screen_vertices[0].xyz2 = vertex_to_XYZ2(gsGlobal, xoffs, yoffs, 0);
+	g_screen_vertices[1].xyz2 = vertex_to_XYZ2(gsGlobal, xoffs + width, yoffs + height, 0);
+
+	if (!is_16bit_mode()) {
+		// 8-bit modes have an 8 px overlap area on the left
+		u[0] += 8; u[1] += 8;
+	}
+	g_screen_vertices[0].uv = vertex_to_UV(g_screen, u[0], v[0]);
+	g_screen_vertices[1].uv = vertex_to_UV(g_screen, u[1], v[1]);
+
+//	lprintf("set_scaling_params: wxh = %ix%i\n",gsGlobal->Width,gsGlobal->Height);
+//	lprintf("offs: %i, %i  wh: %i, %i\n", xoffs, yoffs, width, height);
+//	lprintf("uv0, uv1: %i, %i; %i, %i\n", u[0], v[0], u[1], v[1]);
+}
+
+static void make_ps2_palette(void)
+{
+	PicoDrawUpdateHighPal();
+
+	// Rotate CLUT. PS2 is special since entries in CLUT are not in sequence.
+	unsigned short int *pal=(void *)g_screen_palette;
+	int i;
+
+	for (i = 0; i < 256; i+=8) {
+		if ((i&0x18) == 0x08)
+			memcpy(pal+i,Pico.est.HighPal+i+8,16);
+		else if ((i&0x18) == 0x10)
+			memcpy(pal+i,Pico.est.HighPal+i-8,16);
+		else
+			memcpy(pal+i,Pico.est.HighPal+i,16);
+	}
 }
 
 static int get_renderer(void)
 {
+	if (is_bg_frame)
+		return RT_16BIT;
 	if (PicoIn.AHW & PAHW_32X)
 		return currentConfig.renderer32x;
 	else
@@ -480,7 +569,6 @@ static void change_renderer(int diff)
 static void apply_renderer(void)
 {
 	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
-	PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	switch (get_renderer()) {
 	case RT_16BIT:
@@ -496,57 +584,65 @@ static void apply_renderer(void)
 	}
 }
 
-static void osd_text(int x, const char *text)
-{
-    // int len = strlen(text) * 8;
-	// int *p, h;
-	// void *tmp = g_screen_ptr;
-    // printf("osd_text, text: %s\n", text);
-
-	// g_screen_ptr = osd_buf;
-	// for (h = 0; h < 8; h++) {
-	// 	p = (int *) (osd_buf+x+512*h);
-	// 	p = (int *) ((int)p & ~3); // align
-	// 	memset32_uncached(p, 0, len/2);
-	// }
-	// emu_text_out16(x, 0, text);
-	// g_screen_ptr = tmp;
-
-	// osd_buf_x[osd_buf_cnt] = x;
-	// osd_buf_l[osd_buf_cnt] = len;
-	// osd_buf_cnt ++;
-}
-
 static void blit_screen(void)
 {
-    gsKit_TexManager_invalidate(gsGlobal, g_screen);
+	if (!is_16bit_mode() && Pico.m.dirtyPal)
+		make_ps2_palette();
 
-    gsKit_TexManager_bind(gsGlobal, g_screen);
-    gskit_prim_list_sprite_texture_uv_3d(
-        gsGlobal, 
-        g_screen,
-        2,
-        g_screen_vertices
-    );
+	g_screen->PSM = is_16bit_mode() ? GS_PSM_CT16 : GS_PSM_T8;
+	g_screen->Filter = (currentConfig.filter ? GS_FILTER_LINEAR : GS_FILTER_NEAREST);
+
+	gsKit_TexManager_bind(gsGlobal, g_screen);
+	gskit_prim_list_sprite_texture_uv_3d(gsGlobal, g_screen, 2, g_screen_vertices);
+}
+
+static void osd_text(int x, const char *text)
+{
+	void *old_ptr = g_screen_ptr;
+	int old_pitch = g_screen_ppitch;
+
+	int len = strlen(text) * 8;
+	u16 *osd_buf = osd->Mem;
+	int *p, h;
+
+	g_screen_ptr = osd_buf;
+	g_screen_ppitch = gsGlobal->Width;
+	for (h = 0; h < 8; h++) {
+		p = (int *) (osd_buf + x + gsGlobal->Width*h);
+		p = (int *) ((int)p & ~3); // align
+		memset32_uncached(p, 0, len/2);
+	}
+	emu_text_out16(x, 0, text);
+	g_screen_ptr = old_ptr;
+	g_screen_ppitch = old_pitch;
+
+	osd_vertices[osd_buf_cnt].xyz2 = vertex_to_XYZ2(gsGlobal, x, gsGlobal->Height-8, 1);
+	osd_vertices[osd_buf_cnt].uv = vertex_to_UV(osd, x, 0);
+	osd_vertices[osd_buf_cnt+1].xyz2 = vertex_to_XYZ2(gsGlobal, x+len, gsGlobal->Height, 1);
+	osd_vertices[osd_buf_cnt+1].uv = vertex_to_UV(osd, x+len, 8);
+	osd_buf_cnt += 2;
 }
 
 static void blit_osd(void)
 {
-
+	gsKit_TexManager_bind(gsGlobal, osd);
+	while (osd_buf_cnt > 0) {
+		osd_buf_cnt -= 2;
+		gskit_prim_list_sprite_texture_uv_3d(gsGlobal, osd, 2, osd_vertices+osd_buf_cnt);
+	}
 }
 
 static void cd_leds(void)
 {
-    unsigned int reg, col_g, col_r, *p;
-    gsKit_TexManager_invalidate(gsGlobal, cdleds);
+	unsigned int reg, col_g, col_r, *p;
 
 	reg = Pico_mcd->s68k_regs[0];
 
 	p = (unsigned int *)cdleds->Mem;
 	col_g = (reg & 2) ? 0x06000600 : 0;
 	col_r = (reg & 1) ? 0x00180018 : 0;
-	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
-	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += gsGlobal->Width/2 - 12/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += gsGlobal->Width/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 
 	osd_cdleds = 1;
@@ -554,137 +650,42 @@ static void cd_leds(void)
 
 static void blit_cdleds(void)
 {
-    if (!osd_cdleds) return;
+	if (!osd_cdleds) return;
 
-    gsKit_TexManager_bind(gsGlobal, cdleds);
-    gskit_prim_list_sprite_texture_uv_3d(
-        gsGlobal, 
-        cdleds, 
-        2,
-        cdleds_vertices
-    );
+	gsKit_TexManager_bind(gsGlobal, cdleds);
+	gskit_prim_list_sprite_texture_uv_3d(gsGlobal, cdleds, 2, cdleds_vertices);
 }
 
 static void draw_pico_ptr(void)
 {
-	// unsigned char *p = (unsigned char *)g_screen_ptr + 8;
+	int x = pico_pen_x, y = pico_pen_y, offs;
+	int pp = g_screen_ppitch;
 
-	// // only if pen enabled and for 8bit mode
-	// if (pico_inp_mode == 0 || is_16bit_mode()) return;
+	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
 
-	// p += 512 * (pico_pen_y + PICO_PEN_ADJUST_Y);
-	// p += pico_pen_x + PICO_PEN_ADJUST_X;
-	// if (!(Pico.video.reg[12]&1) && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-	// 	p += 32;
+	offs = g_screen_ppitch * (out_y+y) + (out_x+x);
 
-	// p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
-	// p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
-	// p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
+	if (is_16bit_mode()) {
+		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+
+		p[    -1] = 0x0000; p[   0] = 0x001f; p[     1] = 0x0000;
+		p[  pp-1] = 0x001f; p[  pp] = 0x001f; p[  pp+1] = 0x001f;
+		p[2*pp-1] = 0x0000; p[2*pp] = 0x001f; p[2*pp+1] = 0x0000;
+	} else {
+		unsigned char *p = (unsigned char *)g_screen_ptr + offs + 8;
+
+		p[    -1] = 0xe0; p[   0] = 0xf0; p[     1] = 0xe0;
+		p[  pp-1] = 0xf0; p[  pp] = 0xf0; p[  pp+1] = 0xf0;
+		p[2*pp-1] = 0xe0; p[2*pp] = 0xf0; p[2*pp+1] = 0xe0;
+	}
 }
 
-static void vidResetMode(void) {}
-
-/* Copy of gsKit_sync_flip, but without the 'flip' */
-static void gsKit_sync(GSGLOBAL *gsGlobal)
+static void vidResetMode(void)
 {
-   if (!gsGlobal->FirstFrame)
-      WaitSema(vsync_sema_id);
+	set_scaling_params();
 
-   while (PollSema(vsync_sema_id) >= 0);
-}
-
-/* Copy of gsKit_sync_flip, but without the 'sync' */
-static void gsKit_flip(GSGLOBAL *gsGlobal)
-{
-   if (!gsGlobal->FirstFrame)
-   {
-      if (gsGlobal->DoubleBuffering == GS_SETTING_ON)
-      {
-         GS_SET_DISPFB2(gsGlobal->ScreenBuffer[gsGlobal->ActiveBuffer & 1] / 8192,
-                        gsGlobal->Width / 64, gsGlobal->PSM, 0, 0);
-
-         gsGlobal->ActiveBuffer ^= 1;
-      }
-   }
-
-   gsKit_setactive(gsGlobal);
-}
-
-static void flipScreen()
-{
-	gsKit_queue_exec(gsGlobal);
-	gsKit_finish();
-    gsKit_flip(gsGlobal);
-
-	gsKit_TexManager_nextFrame(gsGlobal);
-    gsKit_clear(gsGlobal, GS_BLACK);
-}
-
-
-/* display a completed frame buffer and prepare a new render buffer */
-void plat_video_flip(void)
-{
-    blit_screen();
-    blit_osd();
-	blit_cdleds();
-    flipScreen();
-}
-
-/* wait for start of vertical blanking */
-void plat_video_wait_vsync(void)
-{
-    gsKit_sync(gsGlobal);
-}
-
-/* switch from emulation display to menu display */
-void plat_video_menu_enter(int is_rom_loaded)
-{
-}
-
-/* start rendering a menu screen */
-void plat_video_menu_begin(void)
-{
-    gsKit_TexManager_invalidate(gsGlobal, g_menuscreen);
-}
-
-/* display a completed menu screen */
-void plat_video_menu_end(void)
-{
-    gsKit_TexManager_bind(gsGlobal, g_menuscreen);
-    gskit_prim_list_sprite_texture_uv_3d(
-        gsGlobal, 
-        g_menuscreen, 
-        2, 
-        g_menuscreen_vertices
-    );
-    flipScreen(1);
-}
-
-/* terminate menu display */
-void plat_video_menu_leave(void)
-{
-}
-
-/* set default configuration values */
-void pemu_prep_defconfig(void)
-{
-	defaultConfig.s_PsndRate = 44100;
-	defaultConfig.s_PicoCDBuffers = 64;
-	defaultConfig.filter = EOPT_FILTER_BILINEAR; // bilinear filtering
-	defaultConfig.scaling = EOPT_SCALE_43;
-	defaultConfig.vscaling = EOPT_VSCALE_FULL;
-	defaultConfig.renderer = RT_16BIT;
-	defaultConfig.renderer32x = RT_8BIT_ACC;
-	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
-}
-
-/* check configuration for inconsistencies */
-void pemu_validate_config(void)
-{
-	if (currentConfig.gamma < -4 || currentConfig.gamma >  16)
-		currentConfig.gamma = 0;
-	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)
-		currentConfig.gamma2 = 0;
+	Pico.m.dirtyPal = 1;
 }
 
 /* finalize rendering a frame */
@@ -692,8 +693,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoIn.AHW & PAHW_PICO)
-		draw_pico_ptr();
+	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
+		if (pico_inp_mode) draw_pico_ptr();
 
 	osd_buf_cnt = 0;
 	if (notice)      osd_text(4, notice);
@@ -706,22 +707,99 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	FlushCache(WRITEBACK_DCACHE);
 }
 
-void plat_init(void) 
+/* display a completed frame buffer and prepare a new render buffer */
+void plat_video_flip(void)
 {
-    video_init();
-    init_joystick_driver(false);
-    in_ps2_init(in_ps2_defbinds);
-    in_probe();
-    init_audio_driver();
-    sound_init();
-    plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
+	gsKit_TexManager_invalidate(gsGlobal, osd);
+	gsKit_TexManager_invalidate(gsGlobal, cdleds);
+	gsKit_TexManager_invalidate(gsGlobal, g_screen);
+
+	gsKit_finish();
+	flipScreen();
+
+	gsKit_clear(gsGlobal, GS_BLACK);
+	blit_screen();
+	blit_osd();
+	blit_cdleds();
+	gsKit_queue_exec(gsGlobal);
+
+	g_screen_index ^= 1;
+	g_screen = g_screens[g_screen_index];
+	g_screen_ptr = g_screen->Mem;
+
+	plat_video_set_buffer(g_screen_ptr);
+}
+
+/* wait for start of vertical blanking */
+void plat_video_wait_vsync(void)
+{
+	gsKit_sync(gsGlobal);
+}
+
+/* switch from emulation display to menu display */
+void plat_video_menu_enter(int is_rom_loaded)
+{
+	g_screen_ptr = NULL;
+}
+
+/* start rendering a menu screen */
+void plat_video_menu_begin(void)
+{
+}
+
+/* display a completed menu screen */
+void plat_video_menu_end(void)
+{
+	gsKit_TexManager_bind(gsGlobal, g_menuscreen);
+	gskit_prim_list_sprite_texture_uv_3d( gsGlobal, g_menuscreen, 2, g_menuscreen_vertices);
+	gsKit_queue_exec(gsGlobal);
+	gsKit_finish();
+	gsKit_TexManager_invalidate(gsGlobal, g_menuscreen);
+
+	flipScreen();
+}
+
+/* terminate menu display */
+void plat_video_menu_leave(void)
+{
+	g_screen_ptr = g_screen->Mem;
+	plat_video_set_buffer(g_screen_ptr);
+}
+
+/* set default configuration values */
+void pemu_prep_defconfig(void)
+{
+	defaultConfig.s_PsndRate = 22050;
+	defaultConfig.s_PicoCDBuffers = 64;
+	defaultConfig.filter = EOPT_FILTER_BILINEAR; // bilinear filtering
+	defaultConfig.scaling = EOPT_SCALE_43;
+	defaultConfig.vscaling = EOPT_VSCALE_FULL;
+	defaultConfig.renderer = RT_8BIT_ACC;
+	defaultConfig.renderer32x = RT_8BIT_ACC;
+	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
+}
+
+/* check configuration for inconsistencies */
+void pemu_validate_config(void)
+{
+}
+
+void plat_init(void)
+{
+	video_init();
+	init_joystick_driver(false);
+	in_ps2_init(in_ps2_defbinds);
+	in_probe();
+	init_audio_driver();
+	sound_init();
+	plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
 }
 
 void plat_finish(void) {
-    sound_deinit();
-    deinit_audio_driver();
-    deinit_joystick_driver(false);
-    video_deinit();
+	sound_deinit();
+	deinit_audio_driver();
+	deinit_joystick_driver(false);
+	video_deinit();
 }
 
 /* display emulator status messages before holding emulation */
@@ -754,37 +832,38 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	int h43 = (col_count  >= 192 ? 320 : col_count); // ugh, mind GG...
 	int v43 = (line_count >= 192 ? Pico.m.pal ? 240 : 224 : line_count);
 
+	out_y = start_line; out_x = start_col;
+	out_h = line_count; out_w = col_count;
+
 	if (col_count == 248) // mind aspect ratio when blanking 1st column
 		col_count = 256;
-    
-    g_screen_vertices[0].uv = vertex_to_UV(g_screen, start_col, start_line);
-    g_screen_vertices[1].uv = vertex_to_UV(g_screen, col_count, line_count);
 
 	switch (currentConfig.vscaling) {
 	case EOPT_VSCALE_FULL:
 		line_count = v43;
-		vscale = (float)270/line_count;
+		vscale = (float)gsGlobal->Height/line_count;
 		break;
 	case EOPT_VSCALE_NOBORDER:
-		vscale = (float)270/line_count;
+		vscale = (float)gsGlobal->Height/line_count;
 		break;
 	default:
 		vscale = 1;
 		break;
 	}
 
+	hscale = vscale * (gsGlobal->Aspect == GS_ASPECT_16_9 ? (4./3)/(16./9) : 1);
 	switch (currentConfig.scaling) {
 	case EOPT_SCALE_43:
-		hscale = (vscale*h43)/col_count;
+		hscale = (hscale*h43)/col_count;
 		break;
 	case EOPT_SCALE_STRETCH:
-		hscale = (vscale*h43/2 + 480/2)/col_count;
+		hscale = (hscale*h43/2 + gsGlobal->Width/2)/col_count;
 		break;
 	case EOPT_SCALE_WIDE:
-		hscale = (float)480/col_count;
+		hscale = (float)gsGlobal->Width/col_count;
 		break;
 	default:
-		hscale = vscale;
+		// hscale = vscale, computed before switch
 		break;
 	}
 
@@ -794,11 +873,15 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 /* render one frame in RGB */
 void pemu_forced_frame(int no_scale, int do_emu)
 {
+	is_bg_frame = 1;
 	Pico.m.dirtyPal = 1;
 
 	if (!no_scale)
 		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
 	emu_cmn_forced_frame(no_scale, do_emu, g_screen_ptr);
+
+	g_menubg_src_ptr = g_screen_ptr;
+	is_bg_frame = 0;
 }
 
 /* change the platform output rendering */
@@ -819,8 +902,17 @@ void plat_video_toggle_renderer(int change, int is_menu_call)
 		emu_status_msg(renderer_names[get_renderer()]);
 }
 
+/* set the buffer for emulator output rendering */
+void plat_video_set_buffer(void *buf)
+{
+	if (is_16bit_mode())
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+	else
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch);
+}
+
 /* prepare for emulator output rendering */
-void plat_video_loop_prepare(void) 
+void plat_video_loop_prepare(void)
 {
 	apply_renderer();
 	vidResetMode();
@@ -829,12 +921,11 @@ void plat_video_loop_prepare(void)
 /* prepare for entering the emulator loop */
 void pemu_loop_prep(void)
 {
-    set_g_screen_values();
-    set_cdleds_values();
 }
 
 /* terminate the emulator loop */
 void pemu_loop_end(void)
 {
-    pemu_sound_stop();
+	pemu_sound_stop();
+	pemu_forced_frame(0, 1);
 }
