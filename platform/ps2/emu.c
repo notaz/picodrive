@@ -78,7 +78,7 @@ static int32_t vsync_callback_id;
 static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 
 /* sound stuff */
-#define SOUND_BLOCK_COUNT    8
+#define SOUND_BLOCK_COUNT    6
 #define SOUND_BUFFER_SIZE    (2*54000/50*SOUND_BLOCK_COUNT) // max.rate/min.frames
 
 static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_SIZE];
@@ -100,7 +100,7 @@ static void writeSound(int len)
 	l = PicoIn.sndOut - sndBuffer;
 	if (l > sizeof(sndBuffer)/2)
 		lprintf("ovfl %d %d\n", len, PicoIn.sndOut - sndBuffer);
-	if (l > samples_block * 6) {
+	if (l > samples_block * (SOUND_BLOCK_COUNT-2)) {
 		sndBuffer_endptr = PicoIn.sndOut;
 		PicoIn.sndOut = sndBuffer;
 	}
@@ -111,11 +111,12 @@ static void writeSound(int len)
 	samples_made += len / 2;
 //	lprintf("signal, %i/%i\n", samples_done, samples_made);
 	ret = SignalSema(sound_sem);
-//	if (ret < 0) lprintf("snd signal ret %08x\n", ret);
+	if (ret < 0) lprintf("snd signal ret %08x\n", ret);
 }
 
 static int sound_thread(void *argp)
 {
+	lprintf("sthr: start\n");
 	while (!sound_thread_exit)
 	{
 		int ret = 0;
@@ -130,14 +131,13 @@ static int sound_thread(void *argp)
 		}
 //		lprintf("sthr: got data: %i\n", samples_made - samples_done);
 		short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
-		int buflen = samples_block * 2;
+		int buflen = sndEnd - snd_playptr;
 		if (sndOut >= snd_playptr)
 			buflen = sndOut - snd_playptr;
-		else	buflen = sndEnd - snd_playptr;
 		if (buflen > samples_block)
 			buflen = samples_block;
 		ret = audsrv_play_audio((char *)snd_playptr, buflen*2);
-//		if (ret != buflen*2 && ret >= 0) lprintf("sthr: play ret: %i, buflen: %i\n", ret, buflen*2);
+		if (ret != buflen*2 && ret >= 0) lprintf("sthr: play ret: %i, buflen: %i\n", ret, buflen*2);
 		if (ret < 0) lprintf("sthr: play: ret %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
 		samples_done += buflen;
@@ -241,7 +241,7 @@ void pemu_sound_start(void) {
 void pemu_sound_stop(void)
 {
 	samples_made = samples_done = 0;
-	plat_sleep_ms(100);
+	plat_sleep_ms(200);
 	audsrv_stop_audio();
 }
 
@@ -336,8 +336,6 @@ void set_g_screen_values() {
 
 		g_screens[i]->Width = 328;
 		g_screens[i]->Height = 256;
-		g_screens[i]->PSM = GS_PSM_CT16;
-		g_screens[i]->Filter = GS_FILTER_LINEAR;
 
 		g_screens[i]->Clut = g_screen_palette;
 		g_screens[i]->ClutPSM = GS_PSM_CT16;
