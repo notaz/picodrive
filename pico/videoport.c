@@ -397,7 +397,7 @@ int PicoVideoFIFOHint(void)
   // reset slot to start of scanline
   vf->fifo_slot = 0;
   // only need to refresh sprite position if we are synced
-  if (Pico.est.DrawScanline == Pico.m.scanline)
+  if (Pico.est.DrawScanline == Pico.m.scanline && !(pv->status & SR_VB))
     PicoDrawRefreshSprites();
  
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free

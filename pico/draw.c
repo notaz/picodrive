@@ -2095,17 +2095,16 @@ static void PicoLine(int line, int offs, int sh, int bgc, int off, int on)
 void PicoDrawSync(int to, int off, int on)
 {
   struct PicoEState *est = &Pico.est;
-  int line, offs = 0;
+  int line, offs;
   int sh = (est->Pico->video.reg[0xC] & 8) >> 3; // shadow/hilight?
   int bgc = est->Pico->video.reg[7] & 0x3f;
 
   pprof_start(draw);
 
-  if (rendlines != 240) {
-    offs = 8;
-    if (to > 223)
-      to = 223;
-  }
+  offs = (240-rendlines) >> 1;
+  if (to >= rendlines)
+    to = rendlines-1;
+
   if (est->DrawScanline <= to &&
                 (est->rendstatus & (PDRAW_DIRTY_SPRITES|PDRAW_PARSE_SPRITES)))
     ParseSprites(to + 1, on);
