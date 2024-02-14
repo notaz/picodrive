@@ -134,16 +134,38 @@ unsigned int plat_get_ticks_us(void)
 	return ret;
 }
 
-/* sleep for some time in ms */
-void plat_sleep_ms(int ms)
+/* Unfortunately the SetTimerAlarm function in ps2sdk has a bug which makes it
+ * waiting much too long in some cases. For now, replaced by SetAlarm and a
+ * polling loop with RotateThreadReadyQueue for yielding to other threads.
+ */
+
+static void alarm_cb(int id, unsigned short time, void *arg)
 {
-	usleep(ms * 1000);
+	iWakeupThread((s32)arg);
 }
 
 /* sleep for some time in us */
 void plat_wait_till_us(unsigned int us_to)
 {
-	usleep(us_to - plat_get_ticks_us());
+	// TODO hsync depends on NTSC/PAL (15750/15625 Hz), it however doesn't
+	// matter if it falls a bit short, the while loop will catch the rest
+	unsigned hsyncs = (us_to - plat_get_ticks_us()) * 15620 / 1000000;
+
+	if (hsyncs && SetAlarm(hsyncs, alarm_cb, (void *)GetThreadId()) >= 0)
+		SleepThread();
+	while ((int)(us_to - plat_get_ticks_us()) > 0)
+		RotateThreadReadyQueue(0);
+
+//	unsigned int ticks = plat_get_ticks_us();
+//	if ((int)(us_to - ticks) > 0)
+//		usleep(us_to - ticks);
+}
+
+/* sleep for some time in ms */
+void plat_sleep_ms(int ms)
+{
+	plat_wait_till_us(plat_get_ticks_us() + ms*1000);
+//	usleep(ms * 1000);
 }
 
 /* wait until some event occurs, or timeout */
