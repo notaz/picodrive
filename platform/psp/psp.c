@@ -257,14 +257,14 @@ char *psp_get_status_line(void)
 {
 	static char buff[64];
 	int ret, bat_percent, bat_time;
-	pspTime time;
+	ScePspDateTime time;
 
 	ret = sceRtcGetCurrentClockLocalTime(&time);
 	bat_percent = scePowerGetBatteryLifePercent();
 	bat_time = scePowerGetBatteryLifeTime();
 	if (ret < 0 || bat_percent < 0 || bat_time < 0) return NULL;
 
-	snprintf(buff, sizeof(buff), "%02i:%02i  bat: %3i%%", time.hour, time.minutes, bat_percent);
+	snprintf(buff, sizeof(buff), "%02i:%02i  bat: %3i%%", time.hour, time.minute, bat_percent);
 	if (!scePowerIsPowerOnline())
 		snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), " (%i:%02i)", bat_time/60, bat_time%60);
 	return buff;
