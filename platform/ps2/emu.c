@@ -79,9 +79,10 @@ static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 
 /* sound stuff */
 #define SOUND_BLOCK_COUNT    6
-#define SOUND_BUFFER_SIZE    (2*54000/50*SOUND_BLOCK_COUNT) // max.rate/min.frames
+#define SOUND_BUFFER_CHUNK   (2*54000/50) // max.rate/min.frames, stereo
 
-static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_SIZE];
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_CHUNK*SOUND_BLOCK_COUNT];
+static short __attribute__((aligned(4))) nulBuffer[SOUND_BUFFER_CHUNK];
 static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
 static int samples_made = 0, samples_done = 0, samples_block = 0;
 static int sound_thread_exit = 0;
@@ -90,6 +91,23 @@ static uint8_t stack[0x4000] __attribute__((aligned(16)));
 extern void *_gp;
 
 static int mp3_init(void) { return 0; }
+
+/* audsrv in ps2sdk has shortcomings:
+ * - it has a bug which prevents it from discerning "ringbuffer empty" from
+ *   "ringbuffer full", which leads to audio not stopped if all queued samples
+ *   have been played. Hence, it repeats the complete ringbuffer over and again.
+ * - on audsrv_set_format the ringbuffer is preset to be about 40% filled,
+ *   regardless of the data in the buffer at that moment. Old data is played out
+ *   if audio play is started.
+ * - stopping audio play is keeping any remaining samples in the buffer, which
+ *   are played first after the next audio play. There's no method to clear the
+ *   ringbuffer.
+ *
+ * To cope with this, audio samples are always pushed to audsrv to prevent the
+ * ringbuffer from emptying, even in the menu. This also avoids stopping audio.
+ * Since silence is played in the menu, the behaviour of set_format when leaving
+ * the menu is covered since the buffer is filled with silence at that time.
+ */
 
 static void writeSound(int len)
 {
@@ -106,45 +124,72 @@ static void writeSound(int len)
 	}
 	if (sndBuffer_endptr < PicoIn.sndOut)
 		sndBuffer_endptr = PicoIn.sndOut;
+	samples_made += len / 2;
 
 	// signal the snd thread
-	samples_made += len / 2;
-//	lprintf("signal, %i/%i\n", samples_done, samples_made);
-	ret = SignalSema(sound_sem);
-	if (ret < 0) lprintf("snd signal ret %08x\n", ret);
+//	ret = SignalSema(sound_sem);
+//	if (ret < 0) lprintf("snd signal ret %08x\n", ret);
 }
 
 static int sound_thread(void *argp)
 {
 	lprintf("sthr: start\n");
+
 	while (!sound_thread_exit)
 	{
 		int ret = 0;
 
-		if (samples_made - samples_done < samples_block) {
-			// wait for data (use at least 2 blocks)
-//			lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
-			while (samples_made - samples_done < samples_block*2 && !sound_thread_exit)
-				ret = WaitSema(sound_sem);
-			if (ret < 0) lprintf("sthr: WaitSema: %i\n", ret);
-			continue;
+		// curb the sample queue to prevent it from filling
+		while (samples_made - samples_done > 4*samples_block) {
+			short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
+
+			int buflen = sndEnd - snd_playptr;
+			if (sndOut > snd_playptr)
+				buflen = sndOut - snd_playptr;
+			if (buflen > samples_made - samples_done - 4*samples_block)
+				buflen = samples_made - samples_done - 4*samples_block;
+
+			samples_done += buflen;
+			snd_playptr  += buflen;
+			if (snd_playptr >= sndBuffer_endptr)
+				snd_playptr -= sndBuffer_endptr - sndBuffer;
 		}
-//		lprintf("sthr: got data: %i\n", samples_made - samples_done);
-		short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
-		int buflen = sndEnd - snd_playptr;
-		if (sndOut >= snd_playptr)
-			buflen = sndOut - snd_playptr;
-		if (buflen > samples_block)
-			buflen = samples_block;
-		ret = audsrv_play_audio((char *)snd_playptr, buflen*2);
-		if (ret != buflen*2 && ret >= 0) lprintf("sthr: play ret: %i, buflen: %i\n", ret, buflen*2);
-		if (ret < 0) lprintf("sthr: play: ret %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
-		samples_done += buflen;
-		snd_playptr  += buflen;
+		// queue samples to audsrv, minimum 2 frames
+		// if there aren't enough samlpes, queue silence
+		int queued = audsrv_queued()/2;
+		while (queued < 2*samples_block) {
+			short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
 
-		if (snd_playptr >= sndBuffer_endptr)
-			snd_playptr = sndBuffer;
+			// compute sample chunk size
+			int buflen = sndEnd - snd_playptr;
+			if (sndOut > snd_playptr)
+				buflen = sndOut - snd_playptr;
+			if (buflen > samples_made - samples_done)
+				buflen = samples_made - samples_done;
+			if (buflen > 4*samples_block - queued)
+				buflen = 4*samples_block - queued;
+
+			// play audio
+			if (buflen > 0) {
+				ret = audsrv_play_audio((char *)snd_playptr, buflen*2);
+
+				samples_done += buflen;
+				snd_playptr  += buflen;
+				if (snd_playptr >= sndBuffer_endptr)
+					snd_playptr -= sndBuffer_endptr - sndBuffer;
+			} else {
+				buflen = 3*samples_block - queued;
+				ret = audsrv_play_audio((char *)nulBuffer, buflen*2);
+			}
+			if (ret != buflen*2 && ret >= 0) lprintf("sthr: play ret: %i, buflen: %i\n", ret, buflen*2);
+			if (ret < 0) lprintf("sthr: play: ret %08x; pos %i/%i\n", ret, samples_done, samples_made);
+
+			queued = audsrv_queued()/2;
+		}
+
+		ret = WaitSema(sound_sem);
+		if (ret < 0) lprintf("sthr: WaitSema failed (%d)\n", ret);
 	}
 
 	lprintf("sthr: exit\n");
@@ -235,14 +280,13 @@ void pemu_sound_start(void) {
 		PicoOpt_old  = PicoIn.opt;
 		pal_old = Pico.m.pal;
 	}
-	ret = audsrv_play_audio((char *)snd_playptr, 4);
+	audsrv_play_audio((char *)snd_playptr, 2*2);
 }
 
 void pemu_sound_stop(void)
 {
 	samples_made = samples_done = 0;
 	plat_sleep_ms(200);
-	audsrv_stop_audio();
 }
 
 static void sound_deinit(void)
@@ -259,6 +303,7 @@ static void sound_deinit(void)
 static int vsync_handler(void)
 {
 	iSignalSema(vsync_sema_id);
+	iSignalSema(sound_sem);
 
 	ExitHandler();
 	return 0;
