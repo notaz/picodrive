@@ -30,7 +30,8 @@ static struct in_pdata in_sdl_platform_data = {
 	.defbinds = in_sdl_defbinds,
 };
 
-struct plat_target plat_target;
+static int sound_rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, 53000, -1 };
+struct plat_target plat_target = { .sound_rates = sound_rates };
 
 #if defined __MIYOO__
 const char *plat_device = "miyoo";

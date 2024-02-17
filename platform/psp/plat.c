@@ -273,6 +273,7 @@ static int plat_bat_capacity_get(void)
 	return scePowerGetBatteryLifePercent();
 }
 
+static int sound_rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, -1 };
 struct plat_target plat_target = {
 	.cpu_clock_get = plat_cpu_clock_get,
 	.cpu_clock_set = plat_cpu_clock_set,
@@ -280,6 +281,7 @@ struct plat_target plat_target = {
 //	.gamma_set = plat_gamma_set,
 //	.hwfilter_set = plat_hwfilter_set,
 //	.hwfilters = plat_hwfilters,
+	.sound_rates = sound_rates,
 };
 
 int _flush_cache (char *addr, const int size, const int op)

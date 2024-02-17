@@ -778,7 +778,7 @@ void pemu_sound_start(void)
 	}
 }
 
-static const int sound_rates[] = { 53000, 44100, 32000, 22050, 16000, 11025, 8000 };
+static const int sound_rates[] = { 52000, 44100, 32000, 22050, 16000, 11025, 8000 };
 
 void pemu_sound_stop(void)
 {

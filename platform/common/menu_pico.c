@@ -637,10 +637,12 @@ static int menu_loop_adv_options(int id, int keys)
 
 static int sndrate_prevnext(int rate, int dir)
 {
-	static const int rates[] = { 8000, 11025, 16000, 22050, 44100, 53000 };
-	int rate_count = sizeof(rates)/sizeof(rates[0]);
+	const int *rates = plat_target.sound_rates;
+	int rate_count;
 	int i;
 
+	for (rate_count = 0; rates[rate_count] != -1; rate_count++)
+		;
 	for (i = 0; i < rate_count; i++)
 		if (rates[i] == rate) break;
 
