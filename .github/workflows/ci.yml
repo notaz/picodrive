@@ -94,6 +94,30 @@ jobs:
         name: PSP
         path: PicoDrive_psp_*.zip
 
+  build-ps2:
+    runs-on: ubuntu-latest
+    container: ps2dev/ps2dev
+    steps:
+    - name: build environment
+      run: |
+        apk add build-base cmake git zip make
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: build
+      run: |
+        export CROSS_COMPILE=mips64r5900el-ps2-elf-
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        ./configure --platform=ps2
+        make -j2
+        make -C platform/ps2 rel VER=$ver
+    - name: artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: PS2
+        path: PicoDrive_ps2_*.zip
+
 
   build-dingux:
     runs-on: ubuntu-latest

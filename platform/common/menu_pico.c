@@ -19,7 +19,7 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
-#ifdef PANDORA
+#if defined(PANDORA) || defined(__PS2__)
 #define MENU_X2 1
 #else
 #define MENU_X2 0
@@ -72,6 +72,8 @@ static int menu_w, menu_h;
 #include <platform/gp2x/menu.c>
 #elif defined(__PSP__)
 #include <platform/psp/menu.c>
+#elif defined(__PS2__)
+#include <platform/ps2/menu.c>
 #elif defined(PANDORA)
 #include <platform/pandora/menu.c>
 #else

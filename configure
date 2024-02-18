@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gph dingux retrofw opendingux[-gcw0] odbeta[-gcw0] miyoo rpi1 rpi2 psp"
+platform_list="generic pandora gph dingux retrofw opendingux[-gcw0] odbeta[-gcw0] miyoo rpi1 rpi2 ps2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -59,6 +59,7 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 STRIP="${STRIP-${CROSS_COMPILE}strip}"
+LD="${LD-${CROSS_COMPILE}gcc}" # Use better gcc for linking
 SYSROOT=`$CC $CFLAGS $LDFLAGS --print-sysroot 2> /dev/null || true`
 config_mak="config.mak"
 
@@ -149,6 +150,15 @@ set_platform()
     SYSLIBS="-lc -lpspuser -lpspkernel"
     MFLAGS="-march=allegrex"
     ARCH=mipsel
+    ;;
+  ps2)
+    # use newlib
+    SYSLIBS=""
+    MFLAGS=""
+    ARCH=mips64r5900el
+    ASFLAGS="$ASFLAGS -G0 -call_shared"
+    CFLAGS="$CFLAGS -D_EE -G0 -I${PS2SDK}/ee/include -I${PS2SDK}/common/include -I${PS2DEV}/gsKit/include -I${PS2SDK}/ports/include"
+    LDFLAGS="$LDFLAGS -Wl,-zmax-page-size=128 -T${PS2SDK}/ee/startup/linkfile -L${PS2SDK}/ee/lib -L${PS2DEV}/gsKit/lib -L${PS2SDK}/ports/lib"
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -457,6 +467,7 @@ echo "CC = $CC" >> $config_mak
 echo "CXX = $CXX" >> $config_mak
 echo "AS = $AS" >> $config_mak
 echo "STRIP = $STRIP" >> $config_mak
+echo "LD = $LD" >> $config_mak
 echo "CFLAGS += $MFLAGS $CFLAGS" >> $config_mak
 echo "ASFLAGS += $MFLAGS $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak

@@ -181,7 +181,7 @@ unsigned int plat_get_ticks_ms(void)
 
 	ret = (unsigned)tv.tv_sec * 1000;
 	/* approximate /= 1000 */
-	ret += ((unsigned)tv.tv_usec * 4195) >> 22;
+	ret += ((unsigned)tv.tv_usec * 4194) >> 22;
 
 	return ret;
 }
