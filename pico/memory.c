@@ -678,7 +678,7 @@ static u32 PicoRead8_z80(u32 a)
   if (((Pico.m.z80Run & 1) || Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     // open bus. Pulled down if MegaCD2 is attached.
-    return 0;
+    return (PicoIn.AHW & PAHW_MCD ? 0 : d);
   }
 
   if ((a & 0x4000) == 0x0000) {
@@ -755,13 +755,13 @@ u32 PicoRead8_io(u32 a)
   d ^= d << 6;
 
   if ((a & 0xfc00) == 0x1000) {
-    // bit8 seems to be readable in this range
-    if (!(a & 1))
-      d &= ~0x01;
-
     if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
-      d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
-      elprintf(EL_BUSREQ, "get_zrun: %02x [%u] @%06x", d, SekCyclesDone(), SekPc);
+      // bit8 seems to be readable in this range
+      if (!(a & 1)) {
+        d &= ~0x01;
+        d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
+        elprintf(EL_BUSREQ, "get_zrun: %02x [%u] @%06x", d, SekCyclesDone(), SekPc);
+      }
     }
     goto end;
   }
@@ -788,9 +788,8 @@ u32 PicoRead16_io(u32 a)
 
   // bit8 seems to be readable in this range
   if ((a & 0xfc00) == 0x1000) {
-    d &= ~0x0100;
-
     if ((a & 0xff00) == 0x1100) { // z80 busreq
+      d &= ~0x0100;
       d |= ((Pico.m.z80Run | Pico.m.z80_reset) & 1) << 8;
       elprintf(EL_BUSREQ, "get_zrun: %04x [%u] @%06x", d, SekCyclesDone(), SekPc);
     }
@@ -855,22 +854,22 @@ void PicoWrite16_io(u32 a, u32 d)
 // TODO: verify if lower byte goes to PSG on word writes
 u32 PicoRead8_vdp(u32 a)
 {
+  u32 d = 0;
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH(0);
-      case 0x01: return PicoVideoRead8DataL(0);
-      case 0x04: return PicoVideoRead8CtlH(0);
-      case 0x05: return PicoVideoRead8CtlL(0);
+      case 0x00: d = PicoVideoRead8DataH(0); break;
+      case 0x01: d = PicoVideoRead8DataL(0); break;
+      case 0x04: d = PicoVideoRead8CtlH(0); break;
+      case 0x05: d = PicoVideoRead8CtlL(0); break;
       case 0x08:
-      case 0x0c: return PicoVideoRead8HV_H(0);
+      case 0x0c: d = PicoVideoRead8HV_H(0); break;
       case 0x09:
-      case 0x0d: return PicoVideoRead8HV_L(0);
+      case 0x0d: d = PicoVideoRead8HV_L(0); break;
     }
-  }
-
-  elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
-  return 0;
+  } else
+    elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
+  return d;
 }
 
 static u32 PicoRead16_vdp(u32 a)

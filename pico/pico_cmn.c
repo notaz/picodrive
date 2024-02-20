@@ -250,9 +250,10 @@ static int PicoFrameHints(void)
     SekInterrupt(6);
   }
 
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
+  // assert Z80 interrupt for one scanline even in busrq hold (Teddy Blues)
+  if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     elprintf(EL_INTS, "zint");
-    z80_int();
+    z80_int_assert(1);
   }
 
   // Run scanline:
@@ -261,6 +262,10 @@ static int PicoFrameHints(void)
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
+
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
+    PicoSyncZ80(Pico.t.m68c_aim);
+  z80_int_assert(0);
 
   // === VBLANK ===
   lines = Pico.m.pal ? 313 : 262;
