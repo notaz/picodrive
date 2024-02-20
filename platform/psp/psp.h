@@ -25,11 +25,13 @@ void psp_msleep(int ms);
 #define VRAMOFFS_DEPTH  0x00088000
 #define VRAMOFFS_STUFF  0x000cc000
 
-#define VRAM_FB0        ((void *) (0x44000000+VRAMOFFS_FB0))
-#define VRAM_FB1        ((void *) (0x44000000+VRAMOFFS_FB1))
-#define VRAM_STUFF      ((void *) (0x44000000+VRAMOFFS_STUFF))
+#define VRAM_ADDR       0x44000000
+#define VRAM_FB0        ((void *) (VRAM_ADDR+VRAMOFFS_FB0))
+#define VRAM_FB1        ((void *) (VRAM_ADDR+VRAMOFFS_FB1))
+#define VRAM_STUFF      ((void *) (VRAM_ADDR+VRAMOFFS_STUFF))
 
-#define VRAM_CACHED_STUFF   ((void *) (0x04000000+VRAMOFFS_STUFF))
+#define VRAM_CACHEDADDR 0x04000000
+#define VRAM_CACHED_STUFF   ((void *) (VRAM_CACHEDADDR+VRAMOFFS_STUFF))
 
 #define GU_CMDLIST_SIZE (16*1024)
 
@@ -38,7 +40,7 @@ extern int psp_unhandled_suspend;
 
 void *psp_video_get_active_fb(void);
 void  psp_video_switch_to_single(void);
-void  psp_video_flip(int wait_vsync, int other);
+void  psp_video_flip(int wait_vsync);
 extern void *psp_screen;
 
 unsigned int psp_pad_read(int blocking);

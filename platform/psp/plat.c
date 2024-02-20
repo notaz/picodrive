@@ -70,15 +70,16 @@ void plat_target_finish(void)
 /* display a completed frame buffer and prepare a new render buffer */
 void plat_video_flip(void)
 {
-	int offs = (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
+	unsigned long offs;
 
 	g_menubg_src_ptr = psp_screen;
 
 	sceGuSync(0, 0); // sync with prev
-	psp_video_flip(currentConfig.EmuOpt & EOPT_VSYNC, 0);
+	psp_video_flip(currentConfig.EmuOpt & EOPT_VSYNC);
+	offs = (unsigned long)psp_screen - VRAM_ADDR; // back buffer offset
 
 	sceGuStart(GU_DIRECT, guCmdList);
-	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512); // point to back buffer
+	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512);
 	sceGuClearColor(0);
 	sceGuClearDepth(0);
 	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
@@ -87,7 +88,7 @@ void plat_video_flip(void)
 
 	sceGuFinish();
 
-	g_screen_ptr = VRAM_CACHED_STUFF + (psp_screen - VRAM_FB0);
+	g_screen_ptr = VRAM_CACHED_STUFF + offs;
 	plat_video_set_buffer(g_screen_ptr);
 }
 
@@ -100,6 +101,7 @@ void plat_video_wait_vsync(void)
 /* switch from emulation display to menu display */
 void plat_video_menu_enter(int is_rom_loaded)
 {
+	g_screen_ptr = NULL;
 }
 
 /* start rendering a menu screen */
@@ -112,7 +114,7 @@ void plat_video_menu_begin(void)
 void plat_video_menu_end(void)
 {
 	g_menuscreen_ptr = NULL;
-	psp_video_flip(1, 0);
+	psp_video_flip(1);
 }
 
 /* terminate menu display */

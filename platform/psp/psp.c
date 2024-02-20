@@ -65,9 +65,7 @@ int psp_unhandled_suspend = 0;
 
 unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 
-void *psp_screen = VRAM_FB0;
-
-static int current_screen = 0; /* front bufer */
+void *psp_screen = VRAM_FB0; /* back buffer */
 
 static SceUID main_thread_id = -1;
 
@@ -145,7 +143,6 @@ void psp_init(void)
 	/* video */
 	sceDisplaySetMode(0, 480, 272);
 	sceDisplaySetFrameBuf(VRAM_FB1, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
-	current_screen = 1;
 	psp_screen = VRAM_FB0;
 
 	/* gu */
@@ -193,27 +190,17 @@ void psp_finish(void)
 	sceKernelExitGame();
 }
 
-void psp_video_flip(int wait_vsync, int other)
+void psp_video_flip(int wait_vsync)
 {
-	unsigned long fb = (unsigned long)psp_screen & ~0x40000000;
-	if (other) fb ^= 0x44000;
 	if (wait_vsync) sceDisplayWaitVblankStart();
-	sceDisplaySetFrameBuf((void *)fb, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
+	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
 		PSP_DISPLAY_SETBUF_IMMEDIATE);
-	current_screen ^= 1;
-	psp_screen = current_screen ? VRAM_FB0 : VRAM_FB1;
+	psp_screen = (void *)((unsigned long)psp_screen ^ (VRAMOFFS_FB1 ^ VRAMOFFS_FB0));
 }
 
 void *psp_video_get_active_fb(void)
 {
-	return current_screen ? VRAM_FB1 : VRAM_FB0;
-}
-
-void psp_video_switch_to_single(void)
-{
-	psp_screen = VRAM_FB0;
-	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
-	current_screen = 0;
+	return (void *)((unsigned long)psp_screen ^ (VRAMOFFS_FB1 ^ VRAMOFFS_FB0));
 }
 
 void psp_msleep(int ms)

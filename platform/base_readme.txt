@@ -26,8 +26,6 @@ the root of SD, etc).
 If you are running a custom firmware, just copy the whole PicoDrive directory to
 /PSP/GAME or /PSP/GAMEXXX directory in your memory stick (it shouldn't matter
 which one GAME* directory to use).
-
-If you are on 1.5, there is a separate KXploited version for it.
 #endif
 #ifdef PANDORA
 Just copy the .pnd to <sd card>/pandora/menu or <sd card>/pandora/desktop.
