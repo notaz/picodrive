@@ -6,22 +6,26 @@ $(error need VER)
 endif
 endif
 
+include ../../config.mak
+
 ../../tools/textfilter: ../../tools/textfilter.c
 	make -C ../../tools/ textfilter
 
 readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
 	../../tools/textfilter ../base_readme.txt $@ PS2
 
-# ?
-rel: ../../PicoDrive readme.txt ../game_def.cfg
-	mkdir -p PicoDrive/skin/
-	cp $^ PicoDrive/
-	cp ../../skin/* PicoDrive/skin/
-	zip -9 -r ../../PicoDrive_ps2_$(VER).zip PicoDrive
-	rm -rf PicoDrive
-	mkdir bin_to_cso_mp3
-	cp ../../tools/bin_to_cso_mp3/* bin_to_cso_mp3/
-	zip -9 -r ../../PicoDrive_ps2_$(VER).zip bin_to_cso_mp3
-	rm -rf bin_to_cso_mp3
+PicoDrive: ../../PicoDrive
+	$(STRIP) $^ -o $@
 
+PicoDrive.elf: PicoDrive
+	ps2-packer $^ $@
+
+rel: PicoDrive.elf readme.txt ../game_def.cfg
+	mkdir -p out/PicoDrive/skin/ out/bin_to_cso_mp3
+	cp $^ out/PicoDrive/
+	cp ../../skin/* out/PicoDrive/skin/
+	#mkdir -p out/bin_to_cso_mp3
+	#cp ../../tools/bin_to_cso_mp3/* out/bin_to_cso_mp3/
+	cd out && zip -9 -r ../../../PicoDrive_ps2_$(VER).zip *
+	rm -rf out
 

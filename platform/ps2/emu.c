@@ -114,7 +114,7 @@ static void writeSound(int len)
 {
 	int ret, l;
 
-	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-3)) {
+	if (samples_made - samples_done <= samples_block * (SOUND_BLOCK_COUNT-3)) {
 		samples_made += len / 2;
 		PicoIn.sndOut += len / 2;
 	} else
