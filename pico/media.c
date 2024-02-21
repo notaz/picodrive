@@ -138,16 +138,18 @@ static int detect_media(const char *fname, const unsigned char *rom, unsigned in
 
 extension_check:
   /* probably some headerless thing. Maybe check the extension after all. */
+  ext_ptr = pmf && *pmf->ext ? pmf->ext : ext;
+
   for (i = 0; i < ARRAY_SIZE(md_exts); i++)
-    if (strcasecmp(ext, md_exts[i]) == 0)
+    if (strcasecmp(ext_ptr, md_exts[i]) == 0)
       goto looks_like_md;
 
   for (i = 0; i < ARRAY_SIZE(sms_exts); i++)
-    if (strcasecmp(ext, sms_exts[i]) == 0)
+    if (strcasecmp(ext_ptr, sms_exts[i]) == 0)
       goto looks_like_sms;
 
   for (i = 0; i < ARRAY_SIZE(pico_exts); i++)
-    if (strcasecmp(ext, pico_exts[i]) == 0)
+    if (strcasecmp(ext_ptr, pico_exts[i]) == 0)
       goto looks_like_pico;
 
   /* If everything else fails, make a guess on the reset vector */
