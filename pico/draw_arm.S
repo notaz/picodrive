@@ -1631,7 +1631,7 @@ PicoDoHighPal555_end:
 .global FinalizeLine555
 
 FinalizeLine555:
-    ldr     r3, [r11, #OFS_EST_rendstatus]
+    ldr     r3, [r2, #OFS_EST_rendstatus]
     mov     r0, r2
     tst     r3, #PDRAW_BGC_DMA
     bne     BgcDMA
