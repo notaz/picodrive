@@ -711,15 +711,6 @@ OP_EI:
 		USE_CYCLES(4)
 		if (!zIFF1)
 		{
-			zIFF1 = zIFF2 = (1 << 2);
-			while (GET_OP() == 0xfb)
-			{
-				USE_CYCLES(4)
-				PC++;
-#if CZ80_EMULATE_R_EXACTLY
-				zR++;
-#endif
-			}
 			if (CPU->IRQState)
 			{
 				CPU->Status |= CZ80_HAS_INT;
@@ -727,7 +718,7 @@ OP_EI:
 				CPU->ICount = 0;
 			}
 		}
-		else zIFF2 = (1 << 2);
+		zIFF1 = zIFF2 = (1 << 2);
 		goto Cz80_Exec_nocheck;
 
 /*-----------------------------------------

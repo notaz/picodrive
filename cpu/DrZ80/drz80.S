@@ -855,7 +855,8 @@ z80_xmap_rebase_sp:
 	strb \reg,[z80sp,#-1]!
 .else
     mov r0,\reg
-	sub z80sp,z80sp,#2
+	subs z80sp,z80sp,#2
+	@ addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 .endif
@@ -872,7 +873,8 @@ z80_xmap_rebase_sp:
 	strb r1,[z80sp,#-1]!
 .else
 	mov r0,\reg,lsr #16
-	sub z80sp,z80sp,#2
+	subs z80sp,z80sp,#2
+	@ addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 .endif
@@ -1472,7 +1474,7 @@ DoInterrupt:
 	;@ r0 == z80if
 	stmfd sp!,{r2,lr}
 
-	tst r0,#4 ;@ check halt
+	tst r0,#Z80_HALT ;@ check halt
 	addne z80pc,z80pc,#1
 
 	ldrb r1,[cpucontext,#z80im]
@@ -1503,7 +1505,8 @@ DoInterrupt_mode0:
 	strb r1,[z80sp,#-1]!
 	strb r0,[z80sp,#-1]!
 .else
-	sub z80sp,z80sp,#2
+	subs z80sp,z80sp,#2
+	@ addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 	ldr r2,[cpucontext, #z80irqvector]
@@ -1577,7 +1580,9 @@ DoInterrupt_end:
 	;@ interupt accepted so callback irq interface
 	ldr r0,[cpucontext, #z80irqcallback]
 	tst r0,r0
-	streqb r0,[cpucontext,#z80irq]       ;@ default handling
+	ldreqb r0,[cpucontext,#z80irq]       ;@ default handling
+	biceq r0,r0,#1
+	streqb r0,[cpucontext,#z80irq]
 	ldmeqfd sp!,{r2,pc}
 	stmfd sp!,{r3,r12}
 	mov lr,pc
@@ -5758,7 +5763,10 @@ opcode_F_3:
 	ldrb r1,[cpucontext,#z80if]
 	bic r1,r1,#(Z80_IF1)|(Z80_IF2)
 	strb r1,[cpucontext,#z80if]
-	fetch 4
+
+	ldrb r0,[z80pc],#1
+	eatcycles 4
+	ldr pc,[opcodes, r0, lsl #2]
 ;@CALL P,NN
 opcode_F_4:
 	tst z80f,#1<<SFlag

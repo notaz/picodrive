@@ -407,29 +407,14 @@ OP_SBC16:
 		RET(8)
 
 /*-----------------------------------------
- RETN
+ RETI/RETN
 -----------------------------------------*/
 
-	OPED(0x45): // RETN;
-	OPED(0x55): // RETN;
-	OPED(0x65): // RETN;
-	OPED(0x75): // RETN;
-		POP_16(res);
-		SET_PC(res);
-		if (!zIFF1 && zIFF2)
-		{
-			zIFF1 = (1 << 2);
-			if (CPU->IRQState)
-			{
-				CPU->Status |= CZ80_HAS_INT;
-			}
-		}
-		else zIFF1 = zIFF2;
-		RET(10)
-
-/*-----------------------------------------
- RETI
------------------------------------------*/
+	// works the same, but Z80 PIO can detect the opcode
+	OPED(0x45): // RETN
+	OPED(0x55): // RETN
+	OPED(0x65): // RETN
+	OPED(0x75): // RETN
 
 	OPED(0x4d): // RETI
 	OPED(0x5d): // RETI
@@ -437,6 +422,14 @@ OP_SBC16:
 	OPED(0x7d): // RETI
 		POP_16(res);
 		SET_PC(res);
+		if (!zIFF1 && zIFF2)
+		{
+			if (CPU->IRQState)
+			{
+				CPU->Status |= CZ80_HAS_INT;
+			}
+		}
+		zIFF1 = zIFF2;
 		RET(10)
 
 /*-----------------------------------------
