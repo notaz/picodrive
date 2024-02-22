@@ -1349,15 +1349,16 @@ void emu_sound_start(void)
 	{
 		int is_stereo = (PicoIn.opt & POPT_EN_STEREO) ? 1 : 0;
 
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PicoIn.sndOut = sndBuffer;
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 
 		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
 			PicoIn.sndRate, Pico.snd.len, is_stereo, Pico.m.pal);
+
 		sndout_start(PicoIn.sndRate, is_stereo);
 		PicoIn.writeSound = snd_write_nonblocking;
 		plat_update_volume(0, 0);
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PicoIn.sndOut = sndBuffer;
 	}
 }
 

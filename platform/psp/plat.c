@@ -275,7 +275,7 @@ static int plat_bat_capacity_get(void)
 	return scePowerGetBatteryLifePercent();
 }
 
-static int sound_rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, -1 };
+static int sound_rates[] = { 11025, 22050, 44100, -1 };
 struct plat_target plat_target = {
 	.cpu_clock_get = plat_cpu_clock_get,
 	.cpu_clock_set = plat_cpu_clock_set,

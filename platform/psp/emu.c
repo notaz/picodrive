@@ -415,54 +415,139 @@ static void vidResetMode(void)
 }
 
 /* sound stuff */
-#define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
-#define SOUND_BLOCK_SIZE_PAL  (1764*2)
-#define SOUND_BLOCK_COUNT    8
+#define SOUND_BLOCK_COUNT    7
+#define SOUND_BUFFER_CHUNK   (2*44100/50) // max.rate/min.frames in stereo
 
-static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 54000/50*2];
-static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
-static int samples_made = 0, samples_done = 0, samples_block = 0;
+static short sndBuffer_emu[SOUND_BUFFER_CHUNK+4]; // 4 for sample rounding overhang
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_CHUNK*SOUND_BLOCK_COUNT];
+static short *sndBuffer_endptr;
+static int samples_block;
+
+static short *snd_playptr, *sndBuffer_ptr;
+static int samples_made, samples_done;
+
 static int sound_thread_exit = 0;
 static SceUID sound_sem = -1;
 
-static void writeSound(int len);
+// There are problems if the sample rate used with the PSP isn't 44100 Hz stereo.
+// Hence, use only 11025,22050,44100 here and handle duplication and upsampling.
+// Upsample by nearest neighbour, which is the fastest but may create artifacts.
+
+static void writeSound(int len)
+{
+	// make sure there is (samples_block+2) free space in the buffer after
+	// this frame, else the next frame may overwrite old stored samples.
+	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 4) {
+		sndBuffer_ptr += len / 2;
+		if (sndBuffer_ptr - sndBuffer > sizeof(sndBuffer)/2)
+			lprintf("snd ovrn %d %d\n", len, PicoIn.sndOut - sndBuffer);
+		if (sndBuffer_ptr >= sndBuffer_endptr) {
+			int wrap = sndBuffer_ptr - sndBuffer_endptr;
+			if (wrap > 0)
+				memcpy(sndBuffer, sndBuffer_endptr, 2*wrap);
+			sndBuffer_ptr -= sndBuffer_endptr - sndBuffer;
+		}
+
+		samples_made += len / 2;
+	} else
+		lprintf("snd oflow %i!\n", samples_made - samples_done);
+
+	// signal the snd thread
+	sceKernelSignalSema(sound_sem, 1);
+}
+
+static void writeSound_44100_stereo(int len)
+{
+	writeSound(len);
+	PicoIn.sndOut = sndBuffer_ptr;
+}
+
+static void writeSound_44100_mono(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i++, p+=2)
+		p[0] = p[1] = PicoIn.sndOut[i];
+	writeSound(2*len);
+}
+
+static void writeSound_22050_stereo(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i+=2, p+=4) {
+		p[0] = p[2] = PicoIn.sndOut[i];
+		p[1] = p[3] = PicoIn.sndOut[i+1];
+	}
+	writeSound(2*len);
+}
+
+static void writeSound_22050_mono(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i++, p+=4) {
+		p[0] = p[2] = PicoIn.sndOut[i];
+		p[1] = p[3] = PicoIn.sndOut[i];
+	}
+	writeSound(4*len);
+}
+
+static void writeSound_11025_stereo(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i+=2, p+=8) {
+		p[0] = p[2] = p[4] = p[6] = PicoIn.sndOut[i];
+		p[1] = p[3] = p[5] = p[7] = PicoIn.sndOut[i+1];
+	}
+	writeSound(4*len);
+}
+
+static void writeSound_11025_mono(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i++, p+=8) {
+		p[0] = p[2] = p[4] = p[6] = PicoIn.sndOut[i];
+		p[1] = p[3] = p[5] = p[7] = PicoIn.sndOut[i];
+	}
+	writeSound(8*len);
+}
 
 static int sound_thread(SceSize args, void *argp)
 {
-	int ret = 0;
-
 	lprintf("sthr: started, priority %i\n", sceKernelGetThreadCurrentPriority());
 
 	while (!sound_thread_exit)
 	{
+		int ret;
+
 		if (samples_made - samples_done < samples_block) {
 			// wait for data (use at least 2 blocks)
 			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
-			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit)
+			while (samples_made - samples_done < samples_block*2 && !sound_thread_exit) {
 				ret = sceKernelWaitSema(sound_sem, 1, 0);
-			if (ret < 0) lprintf("sthr: sceKernelWaitSema: %i\n", ret);
-			continue;
+				if (ret < 0) lprintf("sthr: sceKernelWaitSema: %i\n", ret);
+			}
 		}
 
-		// lprintf("sthr: got data: %i\n", samples_made - samples_done);
-
+		// if the sample buffer runs low, push some extra
+		if (sceAudioOutput2GetRestSample()*2 < samples_block/4)
+			ret = sceAudioSRCOutputBlocking(PSP_AUDIO_VOLUME_MAX, snd_playptr);
 		ret = sceAudioSRCOutputBlocking(PSP_AUDIO_VOLUME_MAX, snd_playptr);
+		// 1.5 kernel returns 0, newer ones return # of samples queued
+		if (ret < 0) lprintf("sthr: play: ret %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
 		samples_done += samples_block;
 		snd_playptr  += samples_block;
 		if (snd_playptr >= sndBuffer_endptr)
-			snd_playptr = sndBuffer;
-		// 1.5 kernel returns 0, newer ones return # of samples queued
-		if (ret < 0)
-			lprintf("sthr: sceAudioSRCOutputBlocking: %08x; pos %i/%i\n", ret, samples_done, samples_made);
-
-		// shouln't happen, but just in case
-		if (samples_made - samples_done >= samples_block*3) {
-			//lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
-			samples_done += samples_block; // skip
-			snd_playptr  += samples_block;
-		}
-
+			snd_playptr -= sndBuffer_endptr - sndBuffer;
 	}
 
 	lprintf("sthr: exit\n");
@@ -479,7 +564,7 @@ static void sound_init(void)
 	if (sound_sem < 0) lprintf("sceKernelCreateSema() failed: %i\n", sound_sem);
 
 	samples_made = samples_done = 0;
-	samples_block = SOUND_BLOCK_SIZE_NTSC; // make sure it goes to sema
+	samples_block = 2*22050/60; // make sure it goes to sema
 	sound_thread_exit = 0;
 	thid = sceKernelCreateThread("sndthread", sound_thread, 0x12, 0x10000, 0, NULL);
 	if (thid >= 0)
@@ -491,11 +576,13 @@ static void sound_init(void)
 		lprintf("sceKernelCreateThread failed: %i\n", thid);
 }
 
+#define PSP_RATE 44100 // PicoIn.sndRate
+
 void pemu_sound_start(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	static int mp3_init_done;
-	int ret, stereo;
+	int ret, stereo, factor;
 
 	samples_made = samples_done = 0;
 
@@ -511,34 +598,38 @@ void pemu_sound_start(void)
 		}
 	}
 
-	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
-		PicoIn.sndRate = YM2612_NATIVE_RATE();
 	ret = POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO;
 	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&ret) != (PicoOpt_old&ret) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
-	stereo=(PicoIn.opt&8)>>3;
+	stereo = (PicoIn.opt&8)>>3;
 
-	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
-	if (PicoIn.sndRate <= 22050) samples_block /= 2;
-	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
+	// PSP doesn't support mono in SRC, always use stereo and convert
+	factor = PSP_RATE / PicoIn.sndRate;
+	samples_block = (PSP_RATE / (Pico.m.pal ? 50 : 60)) * 2;
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
 
-	// while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
-	// sceAudioSRCChRelease();
-	ret = sceAudioSRCChReserve(samples_block/2, PicoIn.sndRate, 2); // seems to not need that stupid 64byte alignment
+	ret = sceAudioSRCChReserve(samples_block/2, PSP_RATE, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudioSRCChReserve() failed: %i\n", ret);
 		emu_status_msg("sound init failed (%i), snd disabled", ret);
 		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
-		PicoIn.writeSound = writeSound;
-		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
-		snd_playptr = sndBuffer_endptr - samples_block;
-		samples_made = samples_block; // send 1 empty block first..
-		PicoIn.sndOut = sndBuffer;
+		switch (factor) {
+		case 1: PicoIn.writeSound = stereo ? writeSound_44100_stereo:writeSound_44100_mono; break;
+		case 2: PicoIn.writeSound = stereo ? writeSound_22050_stereo:writeSound_22050_mono; break;
+		case 4: PicoIn.writeSound = stereo ? writeSound_11025_stereo:writeSound_11025_mono; break;
+		}
+		sndBuffer_endptr = sndBuffer + (SOUND_BLOCK_COUNT-1)*samples_block;
+		snd_playptr = sndBuffer_ptr = sndBuffer;
+		PicoIn.sndOut = (factor == 1 && stereo ? sndBuffer_ptr : sndBuffer_emu);
+
+		// push one audio block to cover time to first frame audio
+//		memset32(PicoIn.sndOut, 0, samples_block/2);
+//		writeSound(samples_block*2);
+
 		PsndRate_old = PicoIn.sndRate;
 		PicoOpt_old  = PicoIn.opt;
 		pal_old = Pico.m.pal;
@@ -564,14 +655,6 @@ void pemu_sound_stop(void)
 	sceAudioSRCChRelease();
 }
 
-/* wait until we can write more sound */
-void pemu_sound_wait(void)
-{
-	// TODO: test this
-	while (!sound_thread_exit && samples_made - samples_done > samples_block * 4)
-		psp_msleep(10);
-}
-
 static void sound_deinit(void)
 {
 	sound_thread_exit = 1;
@@ -579,31 +662,6 @@ static void sound_deinit(void)
 	sceKernelDeleteSema(sound_sem);
 	sound_sem = -1;
 }
-
-static void writeSound(int len)
-{
-	int ret;
-
-	PicoIn.sndOut += len / 2;
-	/*if (PicoIn.sndOut > sndBuffer_endptr) {
-		memcpy((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) * 2);
-		PicoIn.sndOut = &sndBuffer[PicoIn.sndOut - endptr];
-		lprintf("mov\n");
-	}
-	else*/
-	if (PicoIn.sndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PicoIn.sndOut - sndBuffer_endptr);
-	if (PicoIn.sndOut >= sndBuffer_endptr)
-		PicoIn.sndOut = sndBuffer;
-
-	// signal the snd thread
-	samples_made += len / 2;
-	if (samples_made - samples_done > samples_block*2) {
-		// lprintf("signal, %i/%i\n", samples_done, samples_made);
-		ret = sceKernelSignalSema(sound_sem, 1);
-		//if (ret < 0) lprintf("snd signal ret %08x\n", ret);
-	}
-}
-
 
 /* set default configuration values */
 void pemu_prep_defconfig(void)
@@ -615,7 +673,7 @@ void pemu_prep_defconfig(void)
 	defaultConfig.scaling = EOPT_SCALE_43;
 	defaultConfig.vscaling = EOPT_VSCALE_FULL;
 	defaultConfig.renderer = RT_8BIT_ACC;
-	defaultConfig.renderer32x = RT_8BIT_ACC;
+	defaultConfig.renderer32x = RT_8BIT_FAST;
 	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
 }
 
