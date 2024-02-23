@@ -182,7 +182,7 @@ static void cdd_change_track(int index, int lba)
 {
   int i, base, lba_offset, lb_len;
 
-  for (i = index; i > 0; i--)
+  for (i = index; i >= 0; i--)
     if (cdd.toc.tracks[i].fd != NULL)
       break;
 
@@ -510,7 +510,7 @@ int cdd_unload(void)
 void cdd_read_data(uint8 *dst)
 {
   /* only read DATA track sectors */
-  if ((cdd.lba >= 0) && (cdd.lba < cdd.toc.tracks[cdd.index].end))
+  if (!is_audio(cdd.index) && (cdd.lba >= 0) && (cdd.lba < cdd.toc.tracks[cdd.index].end))
   {
     /* BIN format ? */
     if (cdd.sectorSize == 2352)
