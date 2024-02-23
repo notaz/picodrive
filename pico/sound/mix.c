@@ -114,7 +114,7 @@ void mix_16h_to_32(s32 *dest_buf, s16 *mp3_buf, int count)
 {
 	while (count--)
 	{
-		*dest_buf++ += *mp3_buf++ >> 1;
+		*dest_buf++ += (*mp3_buf++ * 5) >> 3;
 	}
 }
 
@@ -123,8 +123,8 @@ void mix_16h_to_32_s1(s32 *dest_buf, s16 *mp3_buf, int count)
 	count >>= 1;
 	while (count--)
 	{
-		*dest_buf++ += *mp3_buf++ >> 1;
-		*dest_buf++ += *mp3_buf++ >> 1;
+		*dest_buf++ += (*mp3_buf++ * 5) >> 3;
+		*dest_buf++ += (*mp3_buf++ * 5) >> 3;
 		mp3_buf += 1*2;
 	}
 }
@@ -134,8 +134,8 @@ void mix_16h_to_32_s2(s32 *dest_buf, s16 *mp3_buf, int count)
 	count >>= 1;
 	while (count--)
 	{
-		*dest_buf++ += *mp3_buf++ >> 1;
-		*dest_buf++ += *mp3_buf++ >> 1;
+		*dest_buf++ += (*mp3_buf++ * 5) >> 3;
+		*dest_buf++ += (*mp3_buf++ * 5) >> 3;
 		mp3_buf += 3*2;
 	}
 }
@@ -146,8 +146,8 @@ void mix_16h_to_32_resample_stereo(s32 *dest_buf, s16 *cdda_buf, int count, int 
 	int pos16 = 0;
 	while (count--) {
 		int pos = 2 * (pos16>>16);
-		*dest_buf++ += cdda_buf[pos  ] >> 1;
-		*dest_buf++ += cdda_buf[pos+1] >> 1;
+		*dest_buf++ += (cdda_buf[pos  ] * 5) >> 3;
+		*dest_buf++ += (cdda_buf[pos+1] * 5) >> 3;
 		pos16 += fac16;
 	}
 }
@@ -158,8 +158,8 @@ void mix_16h_to_32_resample_mono(s32 *dest_buf, s16 *cdda_buf, int count, int fa
 	int pos16 = 0;
 	while (count--) {
 		int pos = 2 * (pos16>>16);
-		*dest_buf   += cdda_buf[pos  ] >> 2;
-		*dest_buf++ += cdda_buf[pos+1] >> 2;
+		*dest_buf   += (cdda_buf[pos  ] * 5) >> 4;
+		*dest_buf++ += (cdda_buf[pos+1] * 5) >> 4;
 		pos16 += fac16;
 	}
 }

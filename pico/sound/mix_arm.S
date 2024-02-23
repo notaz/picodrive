@@ -31,12 +31,16 @@ m16_32_loop:
     ldmia   r0, {r3-r6}
     ldmia   r1!,{r12,lr}
     subs    r2, r2, #4
-    add     r4, r4, r12,asr #17 @ we use half volume
+    add     r4, r4, r12,asr #17 @ we use 5/8 volume
+    add     r4, r4, r12,asr #19
     mov     r12,r12,lsl #16
     add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r6, r6, lr, asr #17
+    add     r6, r6, lr, asr #19
     mov     lr, lr, lsl #16
     add     r5, r5, lr, asr #17
+    add     r5, r5, lr, asr #19
     stmia   r0!,{r3-r6}
     bpl     m16_32_loop
 
@@ -47,7 +51,9 @@ m16_32_end:
     ldmia   r0, {r3,r4}
     mov     r12,r5, lsl #16
     add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r4, r4, r5, asr #17
+    add     r4, r4, r5, asr #19
     stmia   r0!,{r3,r4}
 
 m16_32_no_unal2:
@@ -56,6 +62,7 @@ m16_32_no_unal2:
     ldrsh   r4, [r1], #2
     ldr     r3, [r0]
     add     r3, r3, r4, asr #1
+    add     r3, r3, r4, asr #3
     str     r3, [r0], #4
 
     ldmfd   sp!, {r4-r6,lr}
@@ -76,12 +83,16 @@ m16_32_s1_loop:
     ldr     r12,[r1], #8
     ldr     lr, [r1], #8
     subs    r2, r2, #4
-    add     r4, r4, r12,asr #17
+    add     r4, r4, r12,asr #17 @ we use 5/8 volume
+    add     r4, r4, r12,asr #19
     mov     r12,r12,lsl #16
-    add     r3, r3, r12,asr #17 @ we use half volume
+    add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r6, r6, lr, asr #17
+    add     r6, r6, lr, asr #19
     mov     lr, lr, lsl #16
     add     r5, r5, lr, asr #17
+    add     r5, r5, lr, asr #19
     stmia   r0!,{r3-r6}
     bpl     m16_32_s1_loop
 
@@ -92,7 +103,9 @@ m16_32_s1_end:
     ldmia   r0, {r3,r4}
     mov     r12,r5, lsl #16
     add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r4, r4, r5, asr #17
+    add     r4, r4, r5, asr #19
     stmia   r0!,{r3,r4}
 
 m16_32_s1_no_unal2:
@@ -101,6 +114,7 @@ m16_32_s1_no_unal2:
     ldrsh   r4, [r1], #2
     ldr     r3, [r0]
     add     r3, r3, r4, asr #1
+    add     r3, r3, r4, asr #3
     str     r3, [r0], #4
 
     ldmfd   sp!, {r4-r6,lr}
@@ -121,12 +135,16 @@ m16_32_s2_loop:
     ldr     r12,[r1], #16
     ldr     lr, [r1], #16
     subs    r2, r2, #4
-    add     r4, r4, r12,asr #17
+    add     r4, r4, r12,asr #17 @ we use 5/8 volume
+    add     r4, r4, r12,asr #19
     mov     r12,r12,lsl #16
-    add     r3, r3, r12,asr #17 @ we use half volume
+    add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r6, r6, lr, asr #17
+    add     r6, r6, lr, asr #19
     mov     lr, lr, lsl #16
     add     r5, r5, lr, asr #17
+    add     r5, r5, lr, asr #19
     stmia   r0!,{r3-r6}
     bpl     m16_32_s2_loop
 
@@ -137,7 +155,9 @@ m16_32_s2_end:
     ldmia   r0, {r3,r4}
     mov     r12,r5, lsl #16
     add     r3, r3, r12,asr #17
+    add     r3, r3, r12,asr #19
     add     r4, r4, r5, asr #17
+    add     r4, r4, r5, asr #19
     stmia   r0!,{r3,r4}
 
 m16_32_s2_no_unal2:
@@ -146,6 +166,7 @@ m16_32_s2_no_unal2:
     ldrsh   r4, [r1], #2
     ldr     r3, [r0]
     add     r3, r3, r4, asr #1
+    add     r3, r3, r4, asr #3
     str     r3, [r0], #4
 
     ldmfd   sp!, {r4-r6,lr}
@@ -171,12 +192,16 @@ m16_32_rss_loop:
     ldr     lr ,[r1, r9, lsl #2]
     add     r4, r4, r3
     subs    r2, r2, #2
-    add     r6, r6, r12,asr #17
+    add     r6, r6, r12,asr #17 @ we use 5/8 volume
+    add     r6, r6, r12,asr #19
     mov     r12,r12,lsl #16
-    add     r5, r5, r12,asr #17 @ we use half volume
+    add     r5, r5, r12,asr #17
+    add     r5, r5, r12,asr #19
     add     r8, r8, lr, asr #17
+    add     r8, r8, lr, asr #19
     mov     lr, lr, lsl #16
     add     r7, r7, lr, asr #17
+    add     r7, r7, lr, asr #19
     stmia   r0!,{r5-r8}
     bpl     m16_32_rss_loop
 
@@ -188,7 +213,9 @@ m16_32_rss_end:
     ldmia   r0, {r5,r6}
     mov     r12,lr, lsl #16
     add     r5, r5, r12,asr #17
+    add     r5, r5, r12,asr #19
     add     r6, r6, lr, asr #17
+    add     r6, r6, lr, asr #19
     stmia   r0!,{r5,r6}
 
     ldmfd   sp!, {r4-r9,lr}
@@ -214,12 +241,16 @@ m16_32_rsm_loop:
     ldr     lr ,[r1, r9, lsl #2]
     add     r4, r4, r3
     subs    r2, r2, #2
-    add     r5, r5, r12,asr #18
+    add     r5, r5, r12,asr #18 @ we use 5/8 volume (= 5/16 vol per channel)
+    add     r5, r5, r12,asr #20
     mov     r12,r12,lsl #16
-    add     r5, r5, r12,asr #18 @ we use half volume (= quarter vol per channel)
+    add     r5, r5, r12,asr #18
+    add     r5, r5, r12,asr #20
     add     r6, r6, lr, asr #18
+    add     r6, r6, lr, asr #20
     mov     lr, lr, lsl #16
     add     r6, r6, lr, asr #18
+    add     r6, r6, lr, asr #20
     stmia   r0!,{r5-r6}
     bpl     m16_32_rsm_loop
 
@@ -231,7 +262,9 @@ m16_32_rsm_end:
     ldr     r5, [r0]
     mov     r12,lr, lsl #16
     add     r5, r5, r12,asr #18
+    add     r5, r5, r12,asr #20
     add     r5, r5, lr, asr #18
+    add     r5, r5, lr, asr #20
     str     r5, [r0]
 
     ldmfd   sp!, {r4-r6,r9,lr}
