@@ -1225,6 +1225,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 {
   if (!Pico_mcd)
     Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
+  memset(Pico_mcd, 0, sizeof(mcd_state));
   pcd_base_address = (Pico.romsize > 0x20000 ? 0x400000 : 0x000000);
 
   // setup default main68k map
