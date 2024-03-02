@@ -112,14 +112,7 @@ void z80_reset(void)
   drZ80.Z80IF = 0;
   drZ80.z80irqvector = 0xff0000; // RST 38h
   drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
-  drZ80.Z80SP = 0xffff;
-  drZ80.Z80F = 0xff;
-  drZ80.Z80A = 0xff << 24;
   // others not changed, undefined on cold boot
-/*
-  drZ80.Z80IX = 0xFFFF << 16;
-  drZ80.Z80IY = 0xFFFF << 16;
-*/
 #ifdef FAST_Z80SP
   // drZ80 is locked in single bank
   drz80_sp_base = (PicoIn.AHW & PAHW_SMS) ? 0xc000 : 0x0000;

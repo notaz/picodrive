@@ -827,6 +827,7 @@ z80_xmap_rebase_sp:
 	mov r0,z80sp
 	readmem16
 	add z80sp,z80sp,#2
+	bic z80sp,z80sp,#1<<16
 .endif
 .endm
 
@@ -856,7 +857,7 @@ z80_xmap_rebase_sp:
 .else
     mov r0,\reg
 	subs z80sp,z80sp,#2
-	@ addcc z80sp,z80sp,#1<<16
+	addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 .endif
@@ -874,7 +875,7 @@ z80_xmap_rebase_sp:
 .else
 	mov r0,\reg,lsr #16
 	subs z80sp,z80sp,#2
-	@ addcc z80sp,z80sp,#1<<16
+	addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 .endif
@@ -1506,7 +1507,7 @@ DoInterrupt_mode0:
 	strb r0,[z80sp,#-1]!
 .else
 	subs z80sp,z80sp,#2
-	@ addcc z80sp,z80sp,#1<<16
+	addcc z80sp,z80sp,#1<<16
 	mov r1,z80sp
 	writemem16
 	ldr r2,[cpucontext, #z80irqvector]
@@ -4732,6 +4733,9 @@ opcode_3_2:
 ;@INC SP
 opcode_3_3:
 	add z80sp,z80sp,#1
+.if !FAST_Z80SP
+	bic z80sp,z80sp,#1<<16
+.endif
 	fetch 6
 ;@INC (HL)
 opcode_3_4:
@@ -4782,7 +4786,10 @@ opcode_3_A:
 	fetch 13
 ;@DEC SP
 opcode_3_B:
-	sub z80sp,z80sp,#1
+	subs z80sp,z80sp,#1
+.if !FAST_Z80SP
+	addcc z80sp,z80sp,#1<<16
+.endif
 	fetch 6
 ;@INC A
 opcode_3_C:
@@ -5745,6 +5752,7 @@ opcode_F_1:
 	mov r0,z80sp
 	readmem16
 	add z80sp,z80sp,#2
+	bic z80sp,z80sp,#1<<16
 	and z80a,r0,#0xFF00
 	mov z80a,z80a,lsl#16
 	and z80f,r0,#0xFF
@@ -7638,6 +7646,7 @@ opcode_DD_E1:
 	readmem16
 	ldmfd sp!,{r2,z80xx}
 	add z80sp,z80sp,#2
+	bic z80sp,z80sp,#1<<16
 .endif
 	strh r0,[z80xx,#2]
 	fetch 14
