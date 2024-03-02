@@ -83,7 +83,7 @@ static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 
 static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_CHUNK*SOUND_BLOCK_COUNT];
 static short __attribute__((aligned(4))) nulBuffer[SOUND_BUFFER_CHUNK];
-static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
+static short *snd_playptr, *sndBuffer_endptr;
 static int samples_made, samples_done, samples_block;
 
 static int sound_thread_exit = 0, sound_stopped = 1;
@@ -112,9 +112,9 @@ static int mp3_init(void) { return 0; }
 
 static void writeSound(int len)
 {
-	int ret, l;
+	int l;
 
-	if (samples_made - samples_done <= samples_block * (SOUND_BLOCK_COUNT-3)) {
+	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 4) {
 		samples_made += len / 2;
 		PicoIn.sndOut += len / 2;
 	} else
@@ -168,7 +168,7 @@ static int sound_thread(void *argp)
 
 			// compute sample chunk size
 			int buflen = sndEnd - snd_playptr;
-			if (sndOut > snd_playptr)
+			if (sndOut >= snd_playptr)
 				buflen = sndOut - snd_playptr;
 			if (buflen > samples_made - samples_done)
 				buflen = samples_made - samples_done;
@@ -268,14 +268,12 @@ void pemu_sound_start(void) {
 	ret = WaitSema(sound_mutex);
 	if (ret < 0) lprintf("WaitSema mutex failed (%d)\n", ret);
 
-	if (PicoIn.sndRate > 52000 && PicoIn.sndRate < 54000)
-		PicoIn.sndRate = YM2612_NATIVE_RATE();
 	ret = POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO;
 	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&ret) != (PicoOpt_old&ret) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo = (PicoIn.opt&8)>>3;
-	samples_block = PicoIn.sndRate * (stereo ? 2 : 1) / (Pico.m.pal ? 50 : 60);
+	samples_block = (PicoIn.sndRate / (Pico.m.pal ? 50 : 60)) * (stereo ? 2 : 1);
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
