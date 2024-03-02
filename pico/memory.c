@@ -1092,7 +1092,7 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
        * Starting a timer takes place at the next tick, so xcycles needs to be
        * rounded up to that: t = next tick# = (xcycles / TICK_ZCYCLES) + 1
        */
-      unsigned t = ((xcycles * (((1<<20)/TIMER_A_TICK_ZCYCLES)+1))>>20) + 1;
+      unsigned t = ((xcycles * (((1LL<<32)/TIMER_A_TICK_ZCYCLES)+1))>>32) + 1;
       Pico.t.timer_a_next_oflow = t*TIMER_A_TICK_ZCYCLES + Pico.t.timer_a_step;
     }
   }
@@ -1115,7 +1115,7 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
        * reset by loading timer b. The first run of timer b after loading is
        * therefore shorter by up to 15 ticks.
        */
-      unsigned t = ((xcycles * (((1<<20)/TIMER_A_TICK_ZCYCLES)+1))>>20) + 1;
+      unsigned t = ((xcycles * (((1LL<<32)/TIMER_A_TICK_ZCYCLES)+1))>>32) + 1;
       int step = Pico.t.timer_b_step - TIMER_A_TICK_ZCYCLES*(t&15);
       Pico.t.timer_b_next_oflow = t*TIMER_A_TICK_ZCYCLES + step;
     }

@@ -97,9 +97,9 @@ void m68k_comm_check(u32 a)
 
 u32 pcd_stopwatch_read(int sub)
 {
-  // ugh..
+  // ugh... stopwatch runs 384 cycles per step, divide by mult with inverse
   u32 d = sub ? SekCyclesDoneS68k() : pcd_cycles_m68k_to_s68k(SekCyclesDone());
-  d = (d - Pico_mcd->m.stopwatch_base_c) / 384;
+  d = ((d - Pico_mcd->m.stopwatch_base_c) * ((1LL << 32) / 384)) >> 32;
   return d & 0x0fff;
 }
 
