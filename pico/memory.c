@@ -675,14 +675,15 @@ static void PicoWrite16_sram(u32 a, u32 d)
 static u32 PicoRead8_z80(u32 a)
 {
   u32 d = 0xff;
-  if (((Pico.m.z80Run & 1) || Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
+  if ((Pico.m.z80Run | Pico.m.z80_reset | (z80_cycles_from_68k() < Pico.t.z80c_cnt)) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     // open bus. Pulled down if MegaCD2 is attached.
     return (PicoIn.AHW & PAHW_MCD ? 0 : d);
   }
+  Pico.t.z80c_cnt += 3;
+  SekCyclesBurnRun(1);
 
   if ((a & 0x4000) == 0x0000) {
-    SekCyclesBurnRun(1);
     d = PicoMem.zram[a & 0x1fff];
   } else if ((a & 0x6000) == 0x4000) // 0x4000-0x5fff
     d = ym2612_read_local_68k(); 
@@ -699,14 +700,15 @@ static u32 PicoRead16_z80(u32 a)
 
 static void PicoWrite8_z80(u32 a, u32 d)
 {
-  if (((Pico.m.z80Run & 1) || Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
+  if ((Pico.m.z80Run | Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     // verified on real hw
     elprintf(EL_ANOMALY, "68k z80 write with no bus or reset! [%06x] %02x @ %06x", a, d&0xff, SekPc);
     return;
   }
+  Pico.t.z80c_cnt += 3;
+  SekCyclesBurnRun(1);
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
-    SekCyclesBurnRun(1);
     PicoMem.zram[a & 0x1fff] = (u8)d;
     return;
   }
@@ -759,6 +761,8 @@ u32 PicoRead8_io(u32 a)
       // bit8 seems to be readable in this range
       if (!(a & 1)) {
         d &= ~0x01;
+	// Z80 ahead of 68K only if in BUSREQ, BUSACK only after 68K reached Z80
+        d |= (z80_cycles_from_68k() < Pico.t.z80c_cnt);
         d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
         elprintf(EL_BUSREQ, "get_zrun: %02x [%u] @%06x", d, SekCyclesDone(), SekPc);
       }
@@ -790,6 +794,7 @@ u32 PicoRead16_io(u32 a)
   if ((a & 0xfc00) == 0x1000) {
     if ((a & 0xff00) == 0x1100) { // z80 busreq
       d &= ~0x0100;
+      d |= (z80_cycles_from_68k() < Pico.t.z80c_cnt) << 8;
       d |= ((Pico.m.z80Run | Pico.m.z80_reset) & 1) << 8;
       elprintf(EL_BUSREQ, "get_zrun: %04x [%u] @%06x", d, SekCyclesDone(), SekPc);
     }
@@ -1344,6 +1349,10 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 
 static void access_68k_bus(int delay) // bus delay as Q8
 {
+  // TODO: if the 68K is in DMA wait, Z80 has to wait until DMA ends
+  if (Pico.video.status & (PVS_CPUWR|PVS_CPURD))
+    z80_subCLeft(z80_cyclesLeft); // rather rough on both condition and action
+
   // 68k bus access delay for z80. The fractional part needs to be accumulated
   // until an additional cycle is full. That is then added to the integer part.
   Pico.t.z80_busdelay = (delay&0xff) + (Pico.t.z80_busdelay&0xff); // accumulate
@@ -1379,7 +1388,7 @@ static unsigned char z80_md_vdp_read(unsigned short a)
 static unsigned char z80_md_bank_read(unsigned short a)
 {
   unsigned int addr68k;
-  unsigned char ret;
+  unsigned char ret = 0xff;
 
   // 68k bus access delay=3.3 per kabuto, but for notaz picotest 3.02<delay<3.32
   access_68k_bus(0x340); // Q8, picotest: 0x306(>3.02)-0x351(<3.32)
@@ -1387,7 +1396,8 @@ static unsigned char z80_md_bank_read(unsigned short a)
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k |= a & 0x7fff;
 
-  ret = m68k_read8(addr68k);
+  if (addr68k < 0xe00000) // can't read from 68K RAM
+    ret = m68k_read8(addr68k);
 
   elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
   return ret;
