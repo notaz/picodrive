@@ -112,12 +112,13 @@ void z80_reset(void)
   drZ80.Z80IF = 0;
   drZ80.z80irqvector = 0xff0000; // RST 38h
   drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
-  // others not changed, undefined on cold boot
+  // other registers not changed, undefined on cold boot
 #ifdef FAST_Z80SP
   // drZ80 is locked in single bank
   drz80_sp_base = (PicoIn.AHW & PAHW_SMS) ? 0xc000 : 0x0000;
   drZ80.Z80SP_BASE = z80_read_map[drz80_sp_base >> Z80_MEM_SHIFT] << 1;
 #endif
+  drZ80.Z80SP = drZ80.Z80SP_BASE + 0xffff;
   drZ80.z80_irq_callback = NULL; // use auto-clear
   if (PicoIn.AHW & PAHW_SMS) {
     drZ80.Z80SP = drZ80.Z80SP_BASE + 0xdff0; // simulate BIOS
@@ -128,6 +129,7 @@ void z80_reset(void)
 #endif
 #ifdef _USE_CZ80
   Cz80_Reset(&CZ80);
+  Cz80_Set_Reg(&CZ80, CZ80_SP, 0xffff);
   if (PicoIn.AHW & PAHW_SMS)
     Cz80_Set_Reg(&CZ80, CZ80_SP, 0xdff0);
 #endif

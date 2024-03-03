@@ -521,7 +521,7 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + 1;
     }
     else
     {
@@ -553,7 +553,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + 1;
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -680,7 +680,6 @@ static u32 PicoRead8_z80(u32 a)
     // open bus. Pulled down if MegaCD2 is attached.
     return (PicoIn.AHW & PAHW_MCD ? 0 : d);
   }
-  Pico.t.z80c_cnt += 3;
   SekCyclesBurnRun(1);
 
   if ((a & 0x4000) == 0x0000) {
@@ -705,7 +704,6 @@ static void PicoWrite8_z80(u32 a, u32 d)
     elprintf(EL_ANOMALY, "68k z80 write with no bus or reset! [%06x] %02x @ %06x", a, d&0xff, SekPc);
     return;
   }
-  Pico.t.z80c_cnt += 3;
   SekCyclesBurnRun(1);
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
@@ -1359,7 +1357,7 @@ static void access_68k_bus(int delay) // bus delay as Q8
   z80_subCLeft((delay>>8) + (Pico.t.z80_busdelay>>8));
   // don't use SekCyclesBurn() here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
-  Pico.t.z80_buscycles += 7;
+  Pico.t.z80_buscycles += 8;
 }
 
 static unsigned char z80_md_vdp_read(unsigned short a)
