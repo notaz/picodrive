@@ -566,7 +566,7 @@ static void sound_init(void)
 	samples_made = samples_done = 0;
 	samples_block = 2*22050/60; // make sure it goes to sema
 	sound_thread_exit = 0;
-	thid = sceKernelCreateThread("sndthread", sound_thread, 0x12, 0x10000, 0, NULL);
+	thid = sceKernelCreateThread("sndthread", sound_thread, 0x12, 0x1000, 0, NULL);
 	if (thid >= 0)
 	{
 		ret = sceKernelStartThread(thid, 0, 0);
