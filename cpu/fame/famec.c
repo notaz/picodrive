@@ -183,6 +183,11 @@
 // internals core macros
 /////////////////////////
 
+// helper macros
+#define BITCOUNT(r,v)	\
+    (r = (v) - (((v)>>1)&0x55555555), r = (r&0x33333333) + ((r>>2)&0x33333333), \
+     r = (((r + (r>>4))&0x0f0f0f0f) * 0x01010101)>>24)
+
 #define XB		MEM_LE4(0)
 #define XW		MEM_LE2(0)
 
@@ -525,13 +530,13 @@ static const s32 exception_cycle_table[256] =
 	 50, //  2: Bus Error
 	 50, //  3: Address Error
 	 34, //  4: Illegal Instruction
-	 38, //  5: Divide by Zero
-	 40, //  6: CHK
+	 34, //  5: Divide by Zero
+	 34, //  6: CHK
 	 34, //  7: TRAPV
 	 34, //  8: Privilege Violation
 	 34, //  9: Trace
-	  4, // 10:
-	  4, // 11:
+	 34, // 10: Line A
+	 34, // 11: Line F
 	  4, // 12: RESERVED
 	  4, // 13: Coprocessor Protocol Violation
 	  4, // 14: Format Error
