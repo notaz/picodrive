@@ -208,6 +208,7 @@ z80_xmap_read16: @ addr
     bl z80_xmap_read8
     mov r9,r0
     add r0,r8,#1
+    bic r0,r0,#1<<16
     bl z80_xmap_read8
     orr r0,r9,r0,lsl #8
     ldmfd sp!,{r2,r8,r9,pc}
@@ -236,6 +237,7 @@ z80_xmap_write16: @ data, addr
     bl z80_xmap_write8
     mov r0,r8,lsr #8
     add r1,r9,#1
+    bic r1,r1,#1<<16
     bl z80_xmap_write8
     ldmfd sp!,{r2,r8,r9,pc}
 
