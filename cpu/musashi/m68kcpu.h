@@ -71,8 +71,12 @@ typedef uint8_t  UINT8;
 #define uint32 unsigned int			/* AWJ: changed from long to int */
 
 /* signed and unsigned int must be at least 32 bits wide */
-#define sint   signed   int
-#define uint   unsigned int
+//#define sint   signed   int
+//#define uint   unsigned int
+#define sint _sint
+#define uint _uint
+typedef signed int sint;
+typedef unsigned int uint;
 
 
 #if M68K_USE_64_BIT
@@ -1537,7 +1541,7 @@ INLINE void m68ki_set_sr_noint_nosp(uint value)
 INLINE void m68ki_set_sr(uint value)
 {
 	m68ki_set_sr_noint(value);
-	if (GET_CYCLES() >= 0) // notaz
+	if (GET_CYCLES() > 0) // notaz
 		m68ki_check_interrupts();
 }
 

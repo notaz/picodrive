@@ -91,6 +91,9 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 
 #ifdef EMU_M68K
 #include <cpu/musashi/m68kcpu.h>
+#undef INLINE
+#undef USE_CYCLES
+#undef ADD_CYCLES
 extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #ifndef SekCyclesLeft
 #define SekCyclesLeft     PicoCpuMM68k.cyc_remaining_cycles

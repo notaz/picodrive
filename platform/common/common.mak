@@ -207,6 +207,7 @@ $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 
 $(FR)cpu/musashi/m68kops.c:
 	@make -C $(R)cpu/musashi
+$(FR)cpu/musashi/m68kcpu.c: $(FR)cpu/musashi/m68kops.c
 
 deps_set = yes
 endif # deps_set

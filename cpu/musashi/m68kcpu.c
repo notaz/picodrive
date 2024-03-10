@@ -787,12 +787,12 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 /* ASG: removed per-instruction interrupt checks */
 int m68k_execute(int num_cycles)
 {
+	// notaz
+	m68ki_check_interrupts();
+
 	/* Make sure we're not stopped */
 	if(!CPU_STOPPED)
 	{
-		// notaz
-		m68ki_check_interrupts();
-
 		/* Set our pool of clock cycles available */
 		SET_CYCLES(num_cycles);
 		m68ki_initial_cycles = num_cycles;
