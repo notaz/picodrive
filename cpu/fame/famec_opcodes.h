@@ -27884,7 +27884,7 @@ RET(16+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(16+(dst>>31)*2)
-} else	RET(152+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(152+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(80)
 #endif
@@ -27896,7 +27896,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(152+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(152+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(108)
 #endif
@@ -27946,7 +27946,7 @@ RET(20+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(20+(dst>>31)*2)
-} else	RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(84)
 #endif
@@ -27958,7 +27958,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(112)
 #endif
@@ -28009,7 +28009,7 @@ RET(20+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(20+(dst>>31)*2)
-} else	RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(84)
 #endif
@@ -28021,7 +28021,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(112)
 #endif
@@ -28072,7 +28072,7 @@ RET(22+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(22+(dst>>31)*2)
-} else	RET(158+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(158+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(86)
 #endif
@@ -28084,7 +28084,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(158+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(158+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(114)
 #endif
@@ -28135,7 +28135,7 @@ RET(24+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(24+(dst>>31)*2)
-} else	RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(88)
 #endif
@@ -28147,7 +28147,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(116)
 #endif
@@ -28198,7 +28198,7 @@ RET(26+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(26+(dst>>31)*2)
-} else	RET(162+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(162+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(90)
 #endif
@@ -28210,7 +28210,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(162+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(162+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(118)
 #endif
@@ -28260,7 +28260,7 @@ RET(24+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(24+(dst>>31)*2)
-} else	RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(88)
 #endif
@@ -28272,7 +28272,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(116)
 #endif
@@ -28322,7 +28322,7 @@ RET(28+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(28+(dst>>31)*2)
-} else	RET(164+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(164+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(92)
 #endif
@@ -28334,7 +28334,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(164+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(164+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(120)
 #endif
@@ -28385,7 +28385,7 @@ RET(24+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(24+(dst>>31)*2)
-} else	RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(88)
 #endif
@@ -28397,7 +28397,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(160+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(116)
 #endif
@@ -28448,7 +28448,7 @@ RET(26+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(26+(dst>>31)*2)
-} else	RET(162+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(162+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(90)
 #endif
@@ -28460,7 +28460,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(162+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(162+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(118)
 #endif
@@ -28508,7 +28508,7 @@ RET(20+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(20+(dst>>31)*2)
-} else	RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(84)
 #endif
@@ -28520,7 +28520,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(112)
 #endif
@@ -28571,7 +28571,7 @@ RET(20+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(20+(dst>>31)*2)
-} else	RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(84)
 #endif
@@ -28583,7 +28583,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(156+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(156+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(112)
 #endif
@@ -28634,7 +28634,7 @@ RET(22+(dst>>31)*2)
 #ifdef USE_CYCLONE_TIMING_DIV
 if (q > 0xFFFF || q < -0x10000) {
 	RET(22+(dst>>31)*2)
-} else	RET(158+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+} else	RET(158+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 	RET(86)
 #endif
@@ -28646,7 +28646,7 @@ if (q > 0xFFFF || q < -0x10000) {
 		res = q | (r << 16);
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(158+(dst>>31)*4+((src^dst)>>31)*2-BITCOUNT(res,abs(q))*2)
+RET(158+(dst>>31)*4-(q>>31)*2-BITCOUNT(res,abs(q))*2)
 #else
 RET(114)
 #endif
