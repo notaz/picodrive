@@ -521,13 +521,19 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + 1;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + (Pico.t.z80_busdelay >> 8);
+      Pico.t.z80_busdelay &= 0xff;
     }
     else
     {
       if ((PicoIn.opt & POPT_EN_Z80) && !Pico.m.z80_reset) {
+        // Z80 grants bus 2 cycles after the next M cycle, even within an insn
+        // simulate this by accumulating the last insn overhang in busdelay
+        unsigned granted = z80_cycles_from_68k() + 6;
         pprof_start(m68k);
         PicoSyncZ80(SekCyclesDone());
+        Pico.t.z80_busdelay += (Pico.t.z80c_cnt - granted) << 8;
+        Pico.t.z80c_cnt = granted;
         pprof_end_sub(m68k);
       }
     }
@@ -553,7 +559,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + 1;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -675,7 +681,8 @@ static void PicoWrite16_sram(u32 a, u32 d)
 static u32 PicoRead8_z80(u32 a)
 {
   u32 d = 0xff;
-  if ((Pico.m.z80Run | Pico.m.z80_reset) && !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
+  if ((Pico.m.z80Run | Pico.m.z80_reset | (z80_cycles_from_68k() < Pico.t.z80c_cnt)) &&
+      !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     // open bus. Pulled down if MegaCD2 is attached.
     return (PicoIn.AHW & PAHW_MCD ? 0 : d);
@@ -759,7 +766,7 @@ u32 PicoRead8_io(u32 a)
       // bit8 seems to be readable in this range
       if (!(a & 1)) {
         d &= ~0x01;
-	// Z80 ahead of 68K only if in BUSREQ, BUSACK only after 68K reached Z80
+        // Z80 ahead of 68K only if in BUSREQ, BUSACK only after 68K reached Z80
         d |= (z80_cycles_from_68k() < Pico.t.z80c_cnt);
         d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
         elprintf(EL_BUSREQ, "get_zrun: %02x [%u] @%06x", d, SekCyclesDone(), SekPc);
@@ -1356,8 +1363,9 @@ static void access_68k_bus(int delay) // bus delay as Q8
 
   // 68k bus access delay for z80. The fractional part needs to be accumulated
   // until an additional cycle is full. That is then added to the integer part.
-  Pico.t.z80_busdelay = (delay&0xff) + (Pico.t.z80_busdelay&0xff); // accumulate
+  Pico.t.z80_busdelay += (delay&0xff); // accumulate
   z80_subCLeft((delay>>8) + (Pico.t.z80_busdelay>>8));
+  Pico.t.z80_busdelay &= 0xff; // leftover cycle fraction
   // don't use SekCyclesBurn() here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
   Pico.t.z80_buscycles += 8;

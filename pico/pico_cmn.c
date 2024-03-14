@@ -80,7 +80,7 @@ static __inline void SekAimM68k(int cyc, int mult)
 
 static __inline void SekRunM68k(int cyc)
 {
-  // TODO 0x100 would by 2 cycles/128, moreover far too sensitive
+  // TODO 0x100 would be 2 cycles/128, moreover far too sensitive
   SekAimM68k(cyc, 0x10c); // OutRunners, testpico, VDPFIFOTesting
   SekSyncM68k(0);
 }
