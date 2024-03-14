@@ -205,7 +205,7 @@ $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/$(CYCLONE_CONFIG)
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 
-$(FR)cpu/musashi/m68kops.c:
+$(FR)cpu/musashi/m68kops.c: $(FR)cpu/musashi/m68k_in.c
 	@make -C $(R)cpu/musashi
 $(FR)cpu/musashi/m68kcpu.c: $(FR)cpu/musashi/m68kops.c
 
