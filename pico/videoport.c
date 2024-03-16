@@ -1087,7 +1087,7 @@ PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
     return d;
   }
 
-  if ((a&0x1c)==0x08)
+  if (a == 0x08)
   {
     unsigned int c;
     u32 d;
@@ -1106,7 +1106,7 @@ PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
     return VideoRead(0);
   }
 
-  return 0;
+  return PicoRead16_floating(a | 0xc00000);
 }
 
 unsigned char PicoVideoRead8DataH(int is_from_z80)

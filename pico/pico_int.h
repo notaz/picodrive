@@ -740,6 +740,7 @@ void PicoDrawSetOutputSMS(pdso_t which);
 
 // memory.c
 PICO_INTERNAL void PicoMemSetup(void);
+PICO_INTERNAL u32 PicoRead16_floating(u32 a);
 u32 PicoRead8_io(u32 a);
 u32 PicoRead16_io(u32 a);
 void PicoWrite8_io(u32 a, u32 d);

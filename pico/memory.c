@@ -199,16 +199,25 @@ void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r1
     r8map[i] = ar8, r16map[i] = ar16, w8map[i] = aw8, w16map[i] = aw16;
 }
 
+u32 PicoRead16_floating(u32 a)
+{
+  // faking open bus
+  u32 d = (Pico.m.rotate += 0x41);
+  d ^= (d << 5) ^ (d << 8);
+  if ((a & 0xff0000) == 0xa10000) d = 0; // MegaCD pulldowns don't work here curiously
+  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : d; // pulldown if MegaCD2 attached
+}
+
 static u32 m68k_unmapped_read8(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
-  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xff; // pulldown if MegaCD2 attached
+  return (u8)PicoRead16_floating(a);
 }
 
 static u32 m68k_unmapped_read16(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
-  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xffff;
+  return PicoRead16_floating(a);
 }
 
 static void m68k_unmapped_write8(u32 a, u32 d)
@@ -680,12 +689,11 @@ static void PicoWrite16_sram(u32 a, u32 d)
 // TODO: verify mirrors VDP and bank reg (bank area mirroring verified)
 static u32 PicoRead8_z80(u32 a)
 {
-  u32 d = 0xff;
+  u32 d;
   if ((Pico.m.z80Run | Pico.m.z80_reset | (z80_cycles_from_68k() < Pico.t.z80c_cnt)) &&
       !(PicoIn.quirks & PQUIRK_NO_Z80_BUS_LOCK)) {
     elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
-    // open bus. Pulled down if MegaCD2 is attached.
-    return (PicoIn.AHW & PAHW_MCD ? 0 : d);
+    return (u8)PicoRead16_floating(a);
   }
   SekCyclesBurnRun(1);
 
@@ -693,8 +701,10 @@ static u32 PicoRead8_z80(u32 a)
     d = PicoMem.zram[a & 0x1fff];
   } else if ((a & 0x6000) == 0x4000) // 0x4000-0x5fff
     d = ym2612_read_local_68k(); 
-  else
+  else {
     elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
+    d = (u8)PicoRead16_floating(a);
+  }
   return d;
 }
 
@@ -757,9 +767,7 @@ u32 PicoRead8_io(u32 a)
     goto end;
   }
 
-  // faking open bus (MegaCD pulldowns don't work here curiously)
-  d = Pico.m.rotate++;
-  d ^= d << 6;
+  d = PicoRead16_floating(a);
 
   if ((a & 0xfc00) == 0x1000) {
     if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
@@ -791,9 +799,7 @@ u32 PicoRead16_io(u32 a)
     goto end;
   }
 
-  // faking open bus
-  d = (Pico.m.rotate += 0x41);
-  d ^= (d << 5) ^ (d << 8);
+  d = PicoRead16_floating(a);
 
   // bit8 seems to be readable in this range
   if ((a & 0xfc00) == 0x1000) {
@@ -864,7 +870,7 @@ void PicoWrite16_io(u32 a, u32 d)
 // TODO: verify if lower byte goes to PSG on word writes
 u32 PicoRead8_vdp(u32 a)
 {
-  u32 d = 0;
+  u32 d;
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
@@ -876,9 +882,12 @@ u32 PicoRead8_vdp(u32 a)
       case 0x0c: d = PicoVideoRead8HV_H(0); break;
       case 0x09:
       case 0x0d: d = PicoVideoRead8HV_L(0); break;
+      default:   d = (u8)PicoRead16_floating(a); break;
     }
-  } else
+  } else {
     elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
+    d = (u8)PicoRead16_floating(a);
+  }
   return d;
 }
 
