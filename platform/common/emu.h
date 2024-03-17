@@ -107,8 +107,8 @@ extern unsigned char *movie_data;
 extern int reset_timing;
 extern int flip_after_sync;
 
-#define PICO_PEN_ADJUST_X 2
-#define PICO_PEN_ADJUST_Y 2
+#define PICO_PEN_ADJUST_X 1
+#define PICO_PEN_ADJUST_Y 1
 extern int pico_pen_x, pico_pen_y;
 extern int pico_inp_mode;
 

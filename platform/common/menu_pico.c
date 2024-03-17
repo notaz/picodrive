@@ -362,7 +362,8 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Next page   ", PEV_PICO_PNEXT },
 	{ "Pico Prev page   ", PEV_PICO_PPREV },
 	{ "Pico Switch input", PEV_PICO_SWINP },
-	{ "Pico Display pen ", PEV_PICO_PEN },
+	{ "Pico Pen sensor  ", PEV_PICO_PPOSV },
+	{ "Pico Show pen    ", PEV_PICO_SHPEN },
 	{ NULL,                0 }
 };
 

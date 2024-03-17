@@ -1050,10 +1050,9 @@ void run_events_pico(unsigned int events)
 		switch (pico_inp_mode) {
 			case 2: emu_status_msg("Input: Pen on Pad"); break;
 			case 1: emu_status_msg("Input: Pen on Storyware"); break;
-			case 0: emu_status_msg("Input: Joystick");
-				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
-				break;
+			case 0: emu_status_msg("Input: Joystick"); break;
 		}
+		PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 	}
 	if (events & PEV_PICO_PPREV) {
 		PicoPicohw.page--;
@@ -1067,9 +1066,14 @@ void run_events_pico(unsigned int events)
 			PicoPicohw.page = 6;
 		emu_status_msg("Page %i", PicoPicohw.page);
 	}
-	if (events & PEV_PICO_PEN) {
+	if (events & PEV_PICO_SHPEN) {
 		currentConfig.EmuOpt ^= EOPT_PICO_PEN;
 		emu_status_msg("%s Pen", currentConfig.EmuOpt & EOPT_PICO_PEN ? "Show" : "Hide");
+	}
+	if (events & PEV_PICO_PPOSV) {
+		PicoPicohw.pen_pos[0] ^= 0x8000;
+		PicoPicohw.pen_pos[1] ^= 0x8000;
+		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
 	}
 
 	if (pico_inp_mode == 0)
@@ -1084,15 +1088,17 @@ void run_events_pico(unsigned int events)
 
 	if (pico_pen_y < PICO_PEN_ADJUST_Y)
 		pico_pen_y = PICO_PEN_ADJUST_Y;
-	if (pico_pen_y > 224 - PICO_PEN_ADJUST_Y)
-		pico_pen_y = 224 - PICO_PEN_ADJUST_Y;
+	if (pico_pen_y > 224-1 - PICO_PEN_ADJUST_Y)
+		pico_pen_y = 224-1 - PICO_PEN_ADJUST_Y;
 	if (pico_pen_x < PICO_PEN_ADJUST_X)
 		pico_pen_x = PICO_PEN_ADJUST_X;
-	if (pico_pen_x > 320 - PICO_PEN_ADJUST_X)
-		pico_pen_x = 320 - PICO_PEN_ADJUST_X;
+	if (pico_pen_x > 320-1 - PICO_PEN_ADJUST_X)
+		pico_pen_x = 320-1 - PICO_PEN_ADJUST_X;
 
-	PicoPicohw.pen_pos[0] = 0x03c + pico_pen_x;
-	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+	PicoPicohw.pen_pos[0] &= 0x8000;
+	PicoPicohw.pen_pos[1] &= 0x8000;
+	PicoPicohw.pen_pos[0] |= 0x03c + pico_pen_x;
+	PicoPicohw.pen_pos[1] |= (pico_inp_mode == 1 ? 0x2f8 : 0x1fc) + pico_pen_y;
 }
 
 static void do_turbo(unsigned short *pad, int acts)

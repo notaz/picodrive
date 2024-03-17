@@ -370,25 +370,29 @@ void blitscreen_clut(void)
 
 static void draw_pico_ptr(void)
 {
+	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
 	int x = pico_pen_x, y = pico_pen_y, offs;
+	int pitch = g_screen_ppitch;
 
-	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
-	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
+	x = (x * out_w * ((1ULL<<32) / 320 + 1)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224 + 1)) >> 32;
 
 	offs = 512 * (out_y+y) + (out_x+x);
 
 	if (is_16bit_mode()) {
 		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+		int o = (up ? 0x0000 : 0xffff), _ = (up ? 0xffff : 0x0000);
 
-		p[  -1] = 0x0000; p[   0] = 0x001f; p[   1] = 0x0000;
-		p[ 511] = 0x001f; p[ 512] = 0x001f; p[ 513] = 0x001f;
-		p[1023] = 0x0000; p[1024] = 0x001f; p[1025] = 0x0000;
+		p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+		p[1]        ^= o; p[0]      ^= o; p[1]        ^= o;
+		p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
 	} else {
 		unsigned char *p = (unsigned char *)g_screen_ptr + offs + 8;
+		int o = (up ? 0xe0 : 0xf0), _ = (up ? 0xf0 : 0xe0);
 
-		p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
-		p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
-		p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
+		p[-pitch-1]  = _; p[-pitch]  = o; p[-pitch+1]  = _;
+		p[-1]        = o; p[0]       = o; p[1]         = o;
+		p[pitch-1]   = _; p[pitch]   = o; p[pitch+1]   = _;
 	}
 }
 

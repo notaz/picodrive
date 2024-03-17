@@ -194,10 +194,11 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
+	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
 	int x, y, pitch = 320, offs;
 
-	x = ((pico_pen_x * colcount * ((1ULL<<32) / 320)) >> 32) + firstcol;
-	y = ((pico_pen_y * linecount * ((1ULL<<32) / 224)) >> 32) + firstline;
+	x = ((pico_pen_x * colcount  * ((1ULL<<32)/320 + 1)) >> 32) + firstcol;
+	y = ((pico_pen_y * linecount * ((1ULL<<32)/224 + 1)) >> 32) + firstline;
 
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		pitch = 240;
@@ -207,16 +208,18 @@ static void draw_pico_ptr(void)
 
 	if (is_16bit_mode()) {
 		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+		int o = (up ? 0x0000 : 0xffff), _ = (up ? 0xffff : 0x0000);
 
-					p[0]       ^= 0xffff;
-		p[pitch-1] ^= 0xffff;	p[pitch]   ^= 0xffff;	p[pitch+1] ^= 0xffff;
-					p[pitch*2] ^= 0xffff;
+		p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+		p[1]        ^= o; p[0]      ^= o; p[1]        ^= o;
+		p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
 	} else {
 		unsigned char *p = (unsigned char *)g_screen_ptr + offs;
+		int o = (up ? 0xe0 : 0xf0), _ = (up ? 0xf0 : 0xe0);
 
-		p[-1]        = 0xe0;	p[0]       = 0xf0;	p[1]         = 0xe0;
-		p[pitch-1]   = 0xf0;	p[pitch]   = 0xf0;	p[pitch+1]   = 0xf0;
-		p[2*pitch-1] = 0xe0;	p[2*pitch] = 0xf0;	p[2*pitch+1] = 0xe0;
+		p[-pitch-1]  = _; p[-pitch]  = o; p[-pitch+1]  = _;
+		p[-1]        = o; p[0]       = o; p[1]         = o;
+		p[pitch-1]   = _; p[pitch]   = o; p[pitch+1]   = _;
 	}
 }
 

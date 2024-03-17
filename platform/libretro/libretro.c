@@ -154,7 +154,7 @@ static bool retro_audio_buff_underrun      = false;
 static unsigned audio_latency              = 0;
 static bool update_audio_latency           = false;
 static uint16_t pico_events;
-int pico_inp_mode;
+int pico_inp_mode, pico_pen_visible;
 int pico_pen_x = 320/2, pico_pen_y = 240/2;
 
 static void retro_audio_buff_status_cb(
@@ -1455,6 +1455,8 @@ bool retro_load_game(const struct retro_game_info *info)
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,     "Red Button" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,     "Pen Button" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT,"Switch input" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Pen sensor" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X,     "Pen visibility" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L,     "Previous page" },
       { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R,     "Next page" },
 
@@ -2055,6 +2057,22 @@ void emu_status_msg(const char *format, ...)
     environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &rmsg);
 }
 
+static void draw_pico_ptr(void)
+{
+   int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
+   int x, y, pitch = vout_width, offs;
+   unsigned short *p = (unsigned short *)((char *)vout_buf + vout_offset);
+   int o = (up ? 0x0000 : 0xffff), _ = (up ? 0xffff : 0x0000);
+
+   x = ((pico_pen_x * vout_width  * ((1ULL<<32) / 320 + 1)) >> 32);
+   y = ((pico_pen_y * vout_height * ((1ULL<<32) / 224 + 1)) >> 32);
+   p += x + y * pitch;
+
+   p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+   p[-1]       ^= o; p[0]      ^= o; p[1]        ^= o;
+   p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
+}
+
 void run_events_pico(unsigned int events)
 {
     int lim_x;
@@ -2066,10 +2084,9 @@ void run_events_pico(unsigned int events)
 	switch (pico_inp_mode) {
 	case 2: emu_status_msg("Input: Pen on Pad"); break;
 	case 1: emu_status_msg("Input: Pen on Storyware"); break;
-	case 0: emu_status_msg("Input: Joystick");
-	    PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
-	    break;
+	case 0: emu_status_msg("Input: Joystick"); break;
 	}
+	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
     }
     if (events & (1 << RETRO_DEVICE_ID_JOYPAD_L)) {
 	PicoPicohw.page--;
@@ -2083,6 +2100,15 @@ void run_events_pico(unsigned int events)
 	    PicoPicohw.page = 6;
 	emu_status_msg("Page %i", PicoPicohw.page);
     }
+    if (events & (1 << RETRO_DEVICE_ID_JOYPAD_X)) {
+        pico_pen_visible = !pico_pen_visible;
+        emu_status_msg("%s Pen", pico_pen_visible ? "Show" : "Hide");
+    }
+    if (events & (1 << RETRO_DEVICE_ID_JOYPAD_START)) {
+        PicoPicohw.pen_pos[0] ^= 0x8000;
+        PicoPicohw.pen_pos[1] ^= 0x8000;
+        emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
+    }
 
     if (pico_inp_mode == 0)
 	return;
@@ -2094,21 +2120,19 @@ void run_events_pico(unsigned int events)
     if (PicoIn.pad[0] & 8) pico_pen_x++;
     PicoIn.pad[0] &= ~0x0f; // release UDLR
 
-    lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
     if (pico_pen_y < PICO_PEN_ADJUST_Y)
 	pico_pen_y = PICO_PEN_ADJUST_Y;
-    if (pico_pen_y > 224 - PICO_PEN_ADJUST_Y)
-	pico_pen_y = 224 - PICO_PEN_ADJUST_Y;
+    if (pico_pen_y > 224-1 - PICO_PEN_ADJUST_Y)
+	pico_pen_y = 224-1 - PICO_PEN_ADJUST_Y;
     if (pico_pen_x < PICO_PEN_ADJUST_X)
 	pico_pen_x = PICO_PEN_ADJUST_X;
-    if (pico_pen_x > lim_x - PICO_PEN_ADJUST_X)
-	pico_pen_x = lim_x - PICO_PEN_ADJUST_X;
+    if (pico_pen_x > 320-1 - PICO_PEN_ADJUST_X)
+	pico_pen_x = 320-1 - PICO_PEN_ADJUST_X;
 
-    PicoPicohw.pen_pos[0] = pico_pen_x;
-    if (!(Pico.video.reg[12] & 1))
-	PicoPicohw.pen_pos[0] += pico_pen_x / 4;
-    PicoPicohw.pen_pos[0] += 0x3c;
-    PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+    PicoPicohw.pen_pos[0] &= 0x8000;
+    PicoPicohw.pen_pos[1] &= 0x8000;
+    PicoPicohw.pen_pos[0] |= 0x3c + pico_pen_x;
+    PicoPicohw.pen_pos[1] |= (pico_inp_mode == 1 ? 0x2f8 : 0x1fc) + pico_pen_y;
 }
 
 void retro_run(void)
@@ -2158,7 +2182,10 @@ void retro_run(void)
 	     PicoIn.pad[pad] |= retro_pico_map[i];
 
    if (PicoIn.AHW == PAHW_PICO) {
-       uint16_t ev = input[0] & ((1 << RETRO_DEVICE_ID_JOYPAD_L) | (1 << RETRO_DEVICE_ID_JOYPAD_R) | (1 << RETRO_DEVICE_ID_JOYPAD_SELECT));
+       uint16_t ev = input[0] &
+             ((1 << RETRO_DEVICE_ID_JOYPAD_L) | (1 << RETRO_DEVICE_ID_JOYPAD_R) |
+              (1 << RETRO_DEVICE_ID_JOYPAD_X) | (1 << RETRO_DEVICE_ID_JOYPAD_SELECT) |
+              (1 << RETRO_DEVICE_ID_JOYPAD_START));
        uint16_t new_ev = ev & ~pico_events;
        pico_events = ev;
        run_events_pico(new_ev);
@@ -2304,6 +2331,9 @@ void retro_run(void)
          ps += vout_width;
       }
    }
+
+   if ((PicoIn.AHW & PAHW_PICO) && pico_pen_visible)
+      if (pico_inp_mode) draw_pico_ptr();
 
    buff = (char*)vout_buf + vout_offset;
 #endif

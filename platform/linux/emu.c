@@ -87,17 +87,19 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
+	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
+	int o = (up ? 0x0000 : 0xffff), _ = (up ? 0xffff : 0x0000);
 	int pitch = g_screen_ppitch;
 	u16 *p = g_screen_ptr;
 	int x = pico_pen_x, y = pico_pen_y;
 
-	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
-	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
+	x = (x * out_w * ((1ULL<<32) / 320 + 1)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224 + 1)) >> 32;
 	p += (screen_y+y)*pitch + (screen_x+x);
 
-				p[-pitch] ^= 0xffff;
-	p[-1] ^= 0xffff;	p[0]      ^= 0xffff;	p[1] ^= 0xffff;
-				p[pitch]  ^= 0xffff;
+	p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+	p[-1]       ^= o; p[0]      ^= o; p[1]        ^= o;
+	p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
 }
 
 /* render/screen buffer handling:

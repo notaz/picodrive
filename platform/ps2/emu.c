@@ -710,26 +710,29 @@ static void blit_cdleds(void)
 
 static void draw_pico_ptr(void)
 {
+	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
 	int x = pico_pen_x, y = pico_pen_y, offs;
-	int pp = g_screen_ppitch;
+	int pitch = g_screen_ppitch;
 
-	x = (x * out_w * ((1ULL<<32) / 320)) >> 32;
-	y = (y * out_h * ((1ULL<<32) / 224)) >> 32;
+	x = (x * out_w * ((1ULL<<32) / 320 + 1)) >> 32;
+	y = (y * out_h * ((1ULL<<32) / 224 + 1)) >> 32;
 
-	offs = g_screen_ppitch * (out_y+y) + (out_x+x);
+	offs = pitch * (out_y+y) + (out_x+x);
 
 	if (is_16bit_mode()) {
 		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
+		int o = (up ? 0x0000 : 0x7fff), _ = (up ? 0x7fff : 0x0000);
 
-		p[    -1] = 0x0000; p[   0] = 0x001f; p[     1] = 0x0000;
-		p[  pp-1] = 0x001f; p[  pp] = 0x001f; p[  pp+1] = 0x001f;
-		p[2*pp-1] = 0x0000; p[2*pp] = 0x001f; p[2*pp+1] = 0x0000;
+		p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+		p[1]        ^= o; p[0]      ^= o; p[1]        ^= o;
+		p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
 	} else {
 		unsigned char *p = (unsigned char *)g_screen_ptr + offs + 8;
+		int o = (up ? 0xe0 : 0xf0), _ = (up ? 0xf0 : 0xe0);
 
-		p[    -1] = 0xe0; p[   0] = 0xf0; p[     1] = 0xe0;
-		p[  pp-1] = 0xf0; p[  pp] = 0xf0; p[  pp+1] = 0xf0;
-		p[2*pp-1] = 0xe0; p[2*pp] = 0xf0; p[2*pp+1] = 0xe0;
+		p[-pitch-1]  = _; p[-pitch]  = o; p[-pitch+1]  = _;
+		p[-1]        = o; p[0]       = o; p[1]         = o;
+		p[pitch-1]   = _; p[pitch]   = o; p[pitch+1]   = _;
 	}
 }
 

@@ -76,7 +76,8 @@ static struct in_default_bind in_evdev_defbinds[] =
 	{ KEY_5,	IN_BINDTYPE_EMU, PEVB_PICO_PPREV },
 	{ KEY_6,	IN_BINDTYPE_EMU, PEVB_PICO_PNEXT },
 	{ KEY_7,	IN_BINDTYPE_EMU, PEVB_PICO_SWINP },
-	{ KEY_8,	IN_BINDTYPE_EMU, PEVB_PICO_PEN },
+	{ KEY_8,	IN_BINDTYPE_EMU, PEVB_PICO_SHPEN },
+	{ KEY_9,	IN_BINDTYPE_EMU, PEVB_PICO_PPOSV },
 	{ 0, 0, 0 }
 };
 
@@ -138,16 +139,18 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
+	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
+	int o = (up ? 0x0000 : 0xffff), _ = (up ? 0xffff : 0x0000);
 	int x = pico_pen_x, y = pico_pen_y, pitch = g_screen_ppitch;
 	unsigned short *p = (unsigned short *)g_screen_ptr;
 
-	x = (x * saved_col_count * ((1ULL<<32) / 320)) >> 32;
-	y = (y * saved_line_count * ((1ULL<<32) / 224)) >> 32;
+	x = (x * saved_col_count  * ((1ULL<<32) / 320 + 1)) >> 32;
+	y = (y * saved_line_count * ((1ULL<<32) / 224 + 1)) >> 32;
 	p += (saved_start_col+x) + (saved_start_line+y) * pitch;
 
-				p[-pitch] ^= 0xffff;
-	p[-1] ^= 0xffff;	p[0]      ^= 0xffff;	p[1] ^= 0xffff;
-				p[pitch]  ^= 0xffff;
+	p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
+	p[-1]       ^= o; p[0]      ^= o; p[1]        ^= o;
+	p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
 }
 
 void pemu_finalize_frame(const char *fps, const char *notice)
