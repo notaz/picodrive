@@ -10,7 +10,7 @@
 #include <pico/pico_int.h>
 #include "cmn.h"
 
-#if defined(__aarch64__) || defined(__VFP_FP__)
+#if defined(__linux__) && (defined(__aarch64__) || defined(__VFP_FP__))
 // might be running on a 64k-page kernel
 #define PICO_PAGE_ALIGN 65536
 #else
