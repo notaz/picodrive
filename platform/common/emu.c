@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2007-2010
+ * (C) irixxxx, 2019-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -19,6 +20,7 @@
 #include "../libpicofe/fonts.h"
 #include "../libpicofe/sndout.h"
 #include "../libpicofe/lprintf.h"
+#include "../libpicofe/readpng.h"
 #include "../libpicofe/plat.h"
 #include "emu.h"
 #include "input_pico.h"
@@ -618,7 +620,7 @@ void emu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = EOPT_EN_SRAM | EOPT_EN_SOUND | EOPT_16BPP |
-				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | 0x10/*?*/;
+				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | EOPT_PICO_PEN;
 	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|POPT_EN_GG_LCD|POPT_EN_YM2413 |
 				  POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
@@ -1041,19 +1043,76 @@ void emu_reset_game(void)
 	reset_timing = 1;
 }
 
+static int pico_page;
+static int pico_w, pico_h;
+static u16 *pico_overlay;
+
+static u16 *load_pico_overlay(int page, int w, int h)
+{
+	static const char *pic_exts[] = { "png", "PNG" };
+	char *ext, *fname = NULL;
+	int extpos, i;
+
+	if (pico_page == page && pico_w == w && pico_h == h)
+		return pico_overlay;
+	pico_page = page;
+	pico_w = w, pico_h = h;
+
+	ext = strrchr(rom_fname_loaded, '.');
+	extpos = ext ? ext-rom_fname_loaded : strlen(rom_fname_loaded);
+	strcpy(static_buff, rom_fname_loaded);
+	static_buff[extpos++] = '_';
+	if (page < 0) {
+		static_buff[extpos++] = 'p';
+		static_buff[extpos++] = 'a';
+		static_buff[extpos++] = 'd';
+	} else
+		static_buff[extpos++] = '0'+PicoPicohw.page;
+	static_buff[extpos++] = '.';
+
+	for (i = 0; i < ARRAY_SIZE(pic_exts); i++) {
+		strcpy(static_buff+extpos, pic_exts[i]);
+		if (access(static_buff, R_OK) == 0) {
+			printf("found Pico file: %s\n", static_buff);
+			fname = static_buff;
+			break;
+		}
+	}
+
+	pico_overlay = realloc(pico_overlay, w*h*2);
+	memset(pico_overlay, 0, w*h*2);
+	if (!fname || !pico_overlay || readpng(pico_overlay, fname, READPNG_SCALE, w, h)) {
+		if (pico_overlay)
+			free(pico_overlay);
+		pico_overlay = NULL;
+	}
+
+	return pico_overlay;
+}
+
+void emu_pico_overlay(u16 *pd, int w, int h, int pitch)
+{
+	u16 *overlay = NULL;
+	int y, oh = h;
+
+	// get overlay
+	if (pico_inp_mode == 1) {
+		oh = (w/2 < h ? w/2 : h); // storyware has squished h
+		overlay = load_pico_overlay(PicoPicohw.page, w, oh);
+	} else if (pico_inp_mode == 2)
+		overlay = load_pico_overlay(-1, w, oh);
+
+	// copy overlay onto buffer
+	if (overlay) {
+		for (y = 0; y < oh; y++)
+			memcpy(pd + y*pitch, overlay + y*w, w*2);
+		if (y < h)
+			memset(pd + y*pitch, 0, w*2);
+	}
+}
+
 void run_events_pico(unsigned int events)
 {
-	if (events & PEV_PICO_SWINP) {
-		pico_inp_mode++;
-		if (pico_inp_mode > 2)
-			pico_inp_mode = 0;
-		switch (pico_inp_mode) {
-			case 2: emu_status_msg("Input: Pen on Pad"); break;
-			case 1: emu_status_msg("Input: Pen on Storyware"); break;
-			case 0: emu_status_msg("Input: Joystick"); break;
-		}
-		PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
-	}
 	if (events & PEV_PICO_PPREV) {
 		PicoPicohw.page--;
 		if (PicoPicohw.page < 0)
@@ -1066,16 +1125,35 @@ void run_events_pico(unsigned int events)
 			PicoPicohw.page = 6;
 		emu_status_msg("Page %i", PicoPicohw.page);
 	}
-	if (events & PEV_PICO_SHPEN) {
-		currentConfig.EmuOpt ^= EOPT_PICO_PEN;
-		emu_status_msg("%s Pen", currentConfig.EmuOpt & EOPT_PICO_PEN ? "Show" : "Hide");
+	if (events & PEV_PICO_STORY) {
+		if (pico_inp_mode == 1) {
+			pico_inp_mode = 0;
+			emu_status_msg("Input: D-Pad");
+		} else {
+			pico_inp_mode = 1;
+			emu_status_msg("Input: Pen on Storyware");
+		}
 	}
-	if (events & PEV_PICO_PPOSV) {
+	if (events & PEV_PICO_PAD) {
+		if (pico_inp_mode == 2) {
+			pico_inp_mode = 0;
+			emu_status_msg("Input: D-Pad");
+		} else {
+			pico_inp_mode = 2;
+			emu_status_msg("Input: Pen on Pad");
+		}
+	}
+	if (events & PEV_PICO_PENST) {
 		PicoPicohw.pen_pos[0] ^= 0x8000;
 		PicoPicohw.pen_pos[1] ^= 0x8000;
 		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
 	}
 
+	if ((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
+			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) {
+		pico_inp_mode = 0;
+		emu_status_msg("Input: D-Pad");
+	}
 	if (pico_inp_mode == 0)
 		return;
 
@@ -1086,14 +1164,15 @@ void run_events_pico(unsigned int events)
 	if (PicoIn.pad[0] & 8) pico_pen_x++;
 	PicoIn.pad[0] &= ~0x0f; // release UDLR
 
+	/* cursor position, cursor drawing must not cross screen borders */
 	if (pico_pen_y < PICO_PEN_ADJUST_Y)
 		pico_pen_y = PICO_PEN_ADJUST_Y;
-	if (pico_pen_y > 224-1 - PICO_PEN_ADJUST_Y)
-		pico_pen_y = 224-1 - PICO_PEN_ADJUST_Y;
+	if (pico_pen_y > 223-1 - PICO_PEN_ADJUST_Y)
+		pico_pen_y = 223-1 - PICO_PEN_ADJUST_Y;
 	if (pico_pen_x < PICO_PEN_ADJUST_X)
 		pico_pen_x = PICO_PEN_ADJUST_X;
-	if (pico_pen_x > 320-1 - PICO_PEN_ADJUST_X)
-		pico_pen_x = 320-1 - PICO_PEN_ADJUST_X;
+	if (pico_pen_x > 319-1 - PICO_PEN_ADJUST_X)
+		pico_pen_x = 319-1 - PICO_PEN_ADJUST_X;
 
 	PicoPicohw.pen_pos[0] &= 0x8000;
 	PicoPicohw.pen_pos[1] &= 0x8000;

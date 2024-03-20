@@ -246,18 +246,24 @@ endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
 ifneq ($(STATIC_LINKING), 1)
-OBJS += platform/libretro/libretro-common/compat/compat_strcasestr.o
-ifeq "$(USE_LIBRETRO_VFS)" "1"
-OBJS += platform/libretro/libretro-common/compat/compat_posix_string.o
-OBJS += platform/libretro/libretro-common/compat/compat_strl.o
-OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
-OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
-OBJS += platform/libretro/libretro-common/string/stdstring.o
-OBJS += platform/libretro/libretro-common/time/rtime.o
-OBJS += platform/libretro/libretro-common/streams/file_stream.o
-OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
+CFLAGS += -DHAVE_ZLIB
+OBJS += platform/libretro/libretro-common/formats/png/rpng.o
+OBJS += platform/libretro/libretro-common/streams/trans_stream.o
+OBJS += platform/libretro/libretro-common/streams/trans_stream_pipe.o
+OBJS += platform/libretro/libretro-common/streams/trans_stream_zlib.o
+OBJS += platform/libretro/libretro-common/file/file_path_io.o
 OBJS += platform/libretro/libretro-common/file/file_path.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
+OBJS += platform/libretro/libretro-common/time/rtime.o
+OBJS += platform/libretro/libretro-common/string/stdstring.o
+OBJS += platform/libretro/libretro-common/compat/compat_strcasestr.o
+OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
+OBJS += platform/libretro/libretro-common/compat/compat_strl.o
+ifeq "$(USE_LIBRETRO_VFS)" "1"
+OBJS += platform/libretro/libretro-common/compat/compat_posix_string.o
+OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
+OBJS += platform/libretro/libretro-common/streams/file_stream.o
+OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 endif
 endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"

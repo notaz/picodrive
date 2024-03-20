@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2006,2009
+ * (C) irixxxx, 2022
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

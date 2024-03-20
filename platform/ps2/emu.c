@@ -713,9 +713,12 @@ static void draw_pico_ptr(void)
 	int up = (PicoPicohw.pen_pos[0]|PicoPicohw.pen_pos[1]) & 0x8000;
 	int x = pico_pen_x, y = pico_pen_y, offs;
 	int pitch = g_screen_ppitch;
+	// storyware pages are actually squished, 2:1
+	int h = (pico_inp_mode == 1 ? 160 : out_h);
+	if (h < 224) y++;
 
 	x = (x * out_w * ((1ULL<<32) / 320 + 1)) >> 32;
-	y = (y * out_h * ((1ULL<<32) / 224 + 1)) >> 32;
+	y = (y *     h * ((1ULL<<32) / 224 + 1)) >> 32;
 
 	offs = pitch * (out_y+y) + (out_x+x);
 
@@ -723,16 +726,18 @@ static void draw_pico_ptr(void)
 		unsigned short *p = (unsigned short *)g_screen_ptr + offs;
 		int o = (up ? 0x0000 : 0x7fff), _ = (up ? 0x7fff : 0x0000);
 
-		p[-pitch-1] ^= _; p[-pitch] ^= o; p[-pitch+1] ^= _;
-		p[1]        ^= o; p[0]      ^= o; p[1]        ^= o;
-		p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= _;
+		p[-pitch-1] ^= o; p[-pitch] ^= _; p[-pitch+1] ^= _; p[-pitch+2] ^= o;
+		p[-1]       ^= _; p[0]      ^= o; p[1]        ^= o; p[2]        ^= _;
+		p[pitch-1]  ^= _; p[pitch]  ^= o; p[pitch+1]  ^= o; p[pitch+2]  ^= _;
+		p[2*pitch-1]^= o; p[2*pitch]^= _; p[2*pitch+1]^= _; p[2*pitch+2]^= o;
 	} else {
 		unsigned char *p = (unsigned char *)g_screen_ptr + offs + 8;
 		int o = (up ? 0xe0 : 0xf0), _ = (up ? 0xf0 : 0xe0);
 
-		p[-pitch-1]  = _; p[-pitch]  = o; p[-pitch+1]  = _;
-		p[-1]        = o; p[0]       = o; p[1]         = o;
-		p[pitch-1]   = _; p[pitch]   = o; p[pitch+1]   = _;
+		p[-pitch-1] = o; p[-pitch] = _; p[-pitch+1] = _; p[-pitch+2] = o;
+		p[-1]       = _; p[0]      = o; p[1]        = o; p[2]        = _;
+		p[pitch-1]  = _; p[pitch]  = o; p[pitch+1]  = o; p[pitch+2]  = _;
+		p[2*pitch-1]= o; p[2*pitch]= _; p[2*pitch+1]= _; p[2*pitch+2]= o;
 	}
 }
 
@@ -748,8 +753,15 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if ((PicoIn.AHW & PAHW_PICO) && (currentConfig.EmuOpt & EOPT_PICO_PEN))
-		if (pico_inp_mode) draw_pico_ptr();
+	if (PicoIn.AHW & PAHW_PICO) {
+		int h = out_h, w = out_w;
+		u16 *pd = g_screen_ptr + out_y*g_screen_ppitch + out_x;
+
+		if (pico_inp_mode && is_16bit_mode())
+			emu_pico_overlay(pd, w, h, g_screen_ppitch);
+		if (pico_inp_mode /*== 2 || overlay*/)
+			draw_pico_ptr();
+	}
 
 	osd_buf_cnt = 0;
 	if (notice)      osd_text(4, notice);

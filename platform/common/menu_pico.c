@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2010,2011
+ * (C) irixxxx, 2023,2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -349,21 +350,21 @@ me_bind_action me_ctrl_actions[] =
 
 me_bind_action emuctrl_actions[] =
 {
-	{ "Load State       ", PEV_STATE_LOAD },
-	{ "Save State       ", PEV_STATE_SAVE },
-	{ "Prev Save Slot   ", PEV_SSLOT_PREV },
-	{ "Next Save Slot   ", PEV_SSLOT_NEXT },
-	{ "Switch Renderer  ", PEV_SWITCH_RND },
-	{ "Volume Down      ", PEV_VOL_DOWN },
-	{ "Volume Up        ", PEV_VOL_UP },
-	{ "Fast forward     ", PEV_FF },
-	{ "Reset Game       ", PEV_RESET },
-	{ "Enter Menu       ", PEV_MENU },
-	{ "Pico Next page   ", PEV_PICO_PNEXT },
-	{ "Pico Prev page   ", PEV_PICO_PPREV },
-	{ "Pico Switch input", PEV_PICO_SWINP },
-	{ "Pico Pen sensor  ", PEV_PICO_PPOSV },
-	{ "Pico Show pen    ", PEV_PICO_SHPEN },
+	{ "Load State     ", PEV_STATE_LOAD },
+	{ "Save State     ", PEV_STATE_SAVE },
+	{ "Prev Save Slot ", PEV_SSLOT_PREV },
+	{ "Next Save Slot ", PEV_SSLOT_NEXT },
+	{ "Switch Renderer", PEV_SWITCH_RND },
+	{ "Volume Down    ", PEV_VOL_DOWN },
+	{ "Volume Up      ", PEV_VOL_UP },
+	{ "Fast forward   ", PEV_FF },
+	{ "Reset Game     ", PEV_RESET },
+	{ "Enter Menu     ", PEV_MENU },
+	{ "Pico Next page ", PEV_PICO_PNEXT },
+	{ "Pico Prev page ", PEV_PICO_PPREV },
+	{ "Pico Storyware ", PEV_PICO_STORY },
+	{ "Pico Pad       ", PEV_PICO_PAD },
+	{ "Pico Pen state ", PEV_PICO_PENST },
 	{ NULL,                0 }
 };
 
@@ -463,15 +464,17 @@ static const char h_fmsound[]  = "Disabling improves performance, but breaks sou
 static const char h_dacnoise[] = "FM chips in the 1st Mega Drive model have DAC noise,\n"
 				"newer models used different chips without this";
 static const char h_fmfilter[] = "Improves sound accuracy but is noticeably slower,\n"
-				"best´quality if native rate isn't working";
+				"best quality if native rate isn't working";
+static const char h_picopen[]  = "Enabling resets Pico display and d-pad input back to\n"
+				"screen if the Pico pen button is pressed";
 
 static menu_entry e_menu_md_options[] =
 {
-	mee_enum_h    ("Renderer",        MA_OPT_RENDERER, currentConfig.renderer, renderer_names, h_renderer),
-	mee_onoff_h   ("FM audio",        MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM, h_fmsound),
-	mee_onoff_h   ("FM filter",       MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
-	mee_onoff_h   ("FM DAC noise",    MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
-	mee_onoff     ("Show Pico pen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN),
+	mee_enum_h    ("Renderer",                  MA_OPT_RENDERER, currentConfig.renderer, renderer_names, h_renderer),
+	mee_onoff_h   ("FM audio",                  MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM, h_fmsound),
+	mee_onoff_h   ("FM filter",                 MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
+	mee_onoff_h   ("FM DAC noise",              MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
+	mee_onoff_h   ("Pen button shows screen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN, h_picopen),
 	mee_end,
 };
 
@@ -1295,8 +1298,6 @@ static const char *mgn_picopage(int id, int *offs)
 
 static int mh_picopage(int id, int keys)
 {
-	int ret;
-
 	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
 		PicoPicohw.page += (keys & PBTN_LEFT) ? -1 : 1;
 		if (PicoPicohw.page < 0) PicoPicohw.page = 6;
