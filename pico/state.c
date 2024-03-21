@@ -187,7 +187,7 @@ static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "32X events",
 };
 
-static int write_chunk(chunk_name_e name, int len, void *data, void *file)
+static int write_chunk(unsigned char name, int len, void *data, void *file)
 {
   size_t bwritten = 0;
   bwritten += areaWrite(&name, 1, 1, file);
