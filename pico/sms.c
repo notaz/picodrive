@@ -795,6 +795,9 @@ void PicoMemSetupMS(void)
 void PicoStateLoadedMS(void)
 {
   u8 mapper = Pico.ms.mapper;
+  u8 zram_dff0[16]; // TODO xwrite also writes to zram :-/
+
+  memcpy(zram_dff0, PicoMem.zram+0x1ff0, 16);
   if (mapper == PMS_MAP_8KBRAM || mapper == PMS_MAP_32KBRAM) {
     u16 a = Pico.ms.carthw[0] << 12;
     xwrite(a, *(unsigned char *)(PicoMem.vram+0x4000));
@@ -828,6 +831,7 @@ void PicoStateLoadedMS(void)
     xwrite(0xfffe, Pico.ms.carthw[0x0e]);
     xwrite(0xffff, Pico.ms.carthw[0x0f]);
   }
+  memcpy(PicoMem.zram+0x1ff0, zram_dff0, 16);
 }
 
 void PicoFrameMS(void)
@@ -868,6 +872,7 @@ void PicoFrameMS(void)
     switch (is_pal ? -lines_vis : lines_vis) {
     case  192: if (y > 218) pv->v_counter = y - (lines-256); break;
     case  224: if (y > 234) pv->v_counter = y - (lines-256); break;
+/*  case  240: if (y > 252) pv->v_counter = y - (lines-256); break; ? */
     case -192: if (y > 242) pv->v_counter = y - (lines-256); break;
     case -224: if (y > 258) pv->v_counter = y - (lines-256); break;
     case -240: if (y > 266) pv->v_counter = y - (lines-256); break;

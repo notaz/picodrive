@@ -209,7 +209,7 @@ void z80_pack(void *data)
     s->iff1 = !!zIFF1;
     s->iff2 = !!zIFF2;
     s->im = zIM;
-    s->irq_pending = (Cz80_Get_Reg(&CZ80, CZ80_IRQ) == HOLD_LINE);
+    s->irq_pending = (Cz80_Get_Reg(&CZ80, CZ80_IRQ) != CLEAR_LINE);
     s->irq_vector[0] = 0xff;
   }
 #endif
@@ -276,7 +276,8 @@ int z80_unpack(const void *data)
     Cz80_Set_Reg(&CZ80, CZ80_IFF1, s->iff1);
     Cz80_Set_Reg(&CZ80, CZ80_IFF2, s->iff2);
     zIM = s->im;
-    Cz80_Set_Reg(&CZ80, CZ80_IRQ, s->irq_pending ? HOLD_LINE : CLEAR_LINE);
+    Cz80_Set_Reg(&CZ80, CZ80_IRQ, s->irq_pending ? ASSERT_LINE : CLEAR_LINE);
+    Cz80_Set_IRQ(&CZ80, 0, Cz80_Get_Reg(&CZ80, CZ80_IRQ));
     return 0;
   }
 #else

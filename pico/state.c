@@ -605,12 +605,13 @@ readend:
     Pico32xStateLoaded(0);
   if (PicoIn.AHW & PAHW_MCD)
     pcd_state_loaded();
+  if (!(PicoIn.AHW & PAHW_SMS)) {
+    Pico.video.status &= ~(SR_VB | SR_F);
+    Pico.video.status |= ((Pico.video.reg[1] >> 3) ^ SR_VB) & SR_VB;
+    Pico.video.status |= (Pico.video.pending_ints << 2) & SR_F;
+  }
 
   Pico.m.dirtyPal = 1;
-  Pico.video.status &= ~(SR_VB | SR_F);
-  Pico.video.status |= ((Pico.video.reg[1] >> 3) ^ SR_VB) & SR_VB;
-  Pico.video.status |= (Pico.video.pending_ints << 2) & SR_F;
-
   retval = 0;
 
 out:
