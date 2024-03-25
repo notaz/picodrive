@@ -72,7 +72,9 @@ CFLAGS += $(call chkCCflag, -fno-caller-saves -fno-guess-branch-probability -fno
 CFLAGS += $(call chkCCflag, -fno-tree-loop-if-convert -fipa-pta -fno-ipa-cp)
 endif
 else
+ifneq ($(STATIC_LINKING), 1)
 CFLAGS += $(call chkCCflag, -flto)
+endif
 endif
 
 # revision info from repository if this not a tagged release

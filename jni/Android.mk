@@ -54,7 +54,18 @@ endif
 include $(COMMON_DIR)/common.mak
 
 SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
+             $(LIBRETRO_COMM_DIR)/formats/png/rpng.c \
+             $(LIBRETRO_COMM_DIR)/streams/trans_stream.c \
+             $(LIBRETRO_COMM_DIR)/streams/trans_stream_pipe.c \
+             $(LIBRETRO_COMM_DIR)/streams/trans_stream_zlib.c \
+             $(LIBRETRO_COMM_DIR)/file/file_path_io.c \
+             $(LIBRETRO_COMM_DIR)/file/file_path.c \
+             $(LIBRETRO_COMM_DIR)/vfs/vfs_implementation.c \
+             $(LIBRETRO_COMM_DIR)/time/rtime.c \
+             $(LIBRETRO_COMM_DIR)/string/stdstring.c \
+             $(LIBRETRO_COMM_DIR)/encodings/encoding_utf.c \
              $(LIBRETRO_COMM_DIR)/compat/compat_strcasestr.c \
+             $(LIBRETRO_COMM_DIR)/compat/compat_strl.c \
              $(COMMON_DIR)/mp3.c \
              $(COMMON_DIR)/mp3_sync.c \
              $(COMMON_DIR)/mp3_dummy.c \

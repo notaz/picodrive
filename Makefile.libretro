@@ -30,6 +30,7 @@ CFLAGS ?=
 CFLAGS += -I platform/libretro/libretro-common/include
 CFLAGS += -I platform/libretro/libretro-common/include/compat
 CFLAGS += -I platform/libretro/libretro-common/include/encodings
+CFLAGS += -I platform/libretro/libretro-common/include/formats
 CFLAGS += -I platform/libretro/libretro-common/include/streams
 CFLAGS += -I platform/libretro/libretro-common/include/string
 CFLAGS += -I platform/libretro/libretro-common/include/vfs
