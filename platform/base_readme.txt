@@ -72,6 +72,33 @@ When using CUE/BIN, you must load .cue file from the menu, or else the emu will
 not find audio tracks.
 
 
+How to run Sega Pico games
+--------------------------
+
+The Pico was special in that it had a large touchpad with an associated pen, and
+so-called storyware, a combination of a cartridge with a book with up to 6 pages
+on which the pen could also be used.
+
+Most storywares used the touchpad with the pen as a pointer device, showing a
+pointer icon on the screen when the pen was on the touchpad which could be moved
+around. The pen has a dedicated button which was often used to select something
+under the pointer icon, much like a mouse button.
+However, a few games also had an overlay for the touchpad.
+
+PicoDrive supports displaying both the storyware pages as well as a pad overlay.
+They must be in png format and named like the storyware ROM without the
+extension, plus "_<n>.png" for the storyware page <n>, and "_pad.png" for a pad
+overlay. Storyware page images should have an aspect ration of 2:1, pad images
+should have 4:3. All images can have arbitrary resolution and are automatically
+scaled to fit the screen.
+
+There are 2 menu actions for switching to pages or pad which will automatically
+display the images if they are available. To allow for proper pen positioning
+there is also an action for having the pen on the page/touchpad or not. Pen
+positioning is done through the D-pad if the screen has been switched to either
+pages or pad.
+
+
 Other important stuff
 ---------------------
 
@@ -528,8 +555,9 @@ main 68k @ 7.6MHz: yes, Cyclone (on 32 bit ARM CPUs) or FAME/C core
 VDP: yes, except some quirks and mode 4, not used by games
 SN76489 PSG: yes, MAME core
 ADPCM: yes, MAME core
-Pico Pen: yes, to some extend
-Pico Storyware pages: no
+Pico Pen: yes
+Pico Storyware pages: yes
+Pico pad overlays: yes
 
 
 Problems / limitations
