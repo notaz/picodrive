@@ -24,7 +24,7 @@
 #define FAMEC_CHECK_BRANCHES
 #define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
-// #define FAMEC_NO_GOTOS
+#define FAMEC_NO_GOTOS
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
@@ -228,25 +228,29 @@
 #define ROR_33(A, C)    (LSR_32(A, C) | LSL_32(A, 33-(C)))
 
 #ifndef FAMEC_NO_GOTOS
-#define NEXT                    \
+#define NEXT do {               \
     FETCH_WORD(Opcode);         \
-    goto *JumpTable[Opcode];
+    goto *JumpTable[Opcode];    \
+}
 
 #ifdef FAMEC_ROLL_INLINE
-#define RET(A)                                      \
+#define RET(A) {                                    \
     ctx->io_cycle_counter -= (A);                        \
     if (ctx->io_cycle_counter <= 0) goto famec_Exec_End;	\
-    NEXT
+    NEXT \
+}
 #else
-#define RET(A)                                      \
+#define RET(A) {                                    \
     ctx->io_cycle_counter -= (A);                        \
     if (ctx->io_cycle_counter <= 0) goto famec_Exec_End;	\
-    goto famec_Exec;
+    goto famec_Exec; \
+}
 #endif
 
-#define RET0() \
+#define RET0() { \
     ctx->io_cycle_counter = -6; \
-    goto famec_End;
+    goto famec_End; \
+}
 
 #else
 
@@ -256,13 +260,15 @@
         JumpTable[Opcode](ctx); \
     } while (ctx->io_cycle_counter > 0);
 
-#define RET(A) \
+#define RET(A) { \
     ctx->io_cycle_counter -= (A);  \
-    return;
+    return; \
+}
 
-#define RET0() \
+#define RET0() { \
     ctx->io_cycle_counter = -6; \
-    return;
+    return; \
+}
 
 #endif
 
