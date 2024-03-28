@@ -958,6 +958,7 @@ int PicoVideoFIFOHint(void);
 void PicoVideoFIFOMode(int active, int h40);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 void PicoVideoInit(void);
+void PicoVideoReset(void);
 void PicoVideoSync(int skip);
 void PicoVideoSave(void);
 void PicoVideoLoad(void);

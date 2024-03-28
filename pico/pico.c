@@ -72,17 +72,10 @@ void PicoPower(void)
   memset(&Pico.m,0,sizeof(Pico.m));
   memset(&Pico.t,0,sizeof(Pico.t));
 
-  Pico.video.pending_ints=0;
   z80_reset();
 
   // my MD1 VA6 console has this in IO
   PicoMem.ioports[1] = PicoMem.ioports[2] = PicoMem.ioports[3] = 0xff;
-
-  // default VDP register values (based on Fusion)
-  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
-  Pico.video.reg[0xc] = 0x81;
-  Pico.video.reg[0xf] = 0x02;
-  PicoVideoFIFOMode(0, 1);
 
   if (PicoIn.AHW & PAHW_MCD)
     PicoPowerMCD();
@@ -178,20 +171,17 @@ int PicoReset(void)
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoIn.AHW & PAHW_MCD);
 
-  Pico.m.dirtyPal = 1;
-
   Pico.m.z80_bank68k = 0;
   Pico.m.z80_reset = 1;
 
   PicoDetectRegion();
-  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
-  Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
+
+  PicoVideoReset();
 
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
-  PicoDrawBgcDMA(NULL, 0, 0, 0, 0);
   PicoVideoFIFOWrite(rand() & 0x1fff, 0, 0, PVS_CPURD);
 
   SekFinishIdleDet();

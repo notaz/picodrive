@@ -986,11 +986,13 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
           default:
             return;
         }
-        SATaddr = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
-        SATmask = ~0x1ff;
-        if (pvid->reg[12]&1)
-          SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
-        //elprintf(EL_STATUS, "spritep moved to %04x", SATaddr);
+        if (Pico.est.rendstatus & PDRAW_DIRTY_SPRITES) {
+          SATaddr = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
+          SATmask = ~0x1ff;
+          if (pvid->reg[12]&1)
+            SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
+          //elprintf(EL_STATUS, "spritep moved to %04x", SATaddr);
+        }
         return;
 
 update_irq:
@@ -1158,6 +1160,28 @@ unsigned char PicoVideoRead8HV_L(int is_from_z80)
   else d = VdpFIFO.fifo_hcounts[d/clkdiv];
   elprintf(EL_HVCNT, "hcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
   return d;
+}
+
+void PicoVideoReset(void)
+{
+  Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
+  Pico.video.pending_ints=0;
+
+  // default VDP register values (based on Fusion)
+  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
+  Pico.video.reg[0xc] = 0x81;
+  Pico.video.reg[0xf] = 0x02;
+  SATaddr = 0x0000;
+  SATmask = ~0x1ff;
+
+  memset(VdpSATCache, 0, sizeof(VdpSATCache));
+  memset(&VdpFIFO, 0, sizeof(VdpFIFO));
+  Pico.m.dirtyPal = 1;
+
+  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
+
+  PicoDrawBgcDMA(NULL, 0, 0, 0, 0);
+  PicoVideoFIFOMode(0, 1);
 }
 
 void PicoVideoCacheSAT(int load)
