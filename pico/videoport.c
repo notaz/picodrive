@@ -982,6 +982,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
           case 0x0c:
             // renderers should update their palettes if sh/hi mode is changed
             if ((d^dold)&8) Pico.m.dirtyPal = 1;
+            if ((d^dold)&1) Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
             break;
           default:
             return;
@@ -1164,21 +1165,13 @@ unsigned char PicoVideoRead8HV_L(int is_from_z80)
 
 void PicoVideoReset(void)
 {
-  Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
   Pico.video.pending_ints=0;
+  Pico.video.reg[1] &= ~0x40; // TODO verify display disabled after reset
+  Pico.video.reg[10] = 0xff; // HINT is turned off after reset
+  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
 
-  // default VDP register values (based on Fusion)
-  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
-  Pico.video.reg[0xc] = 0x81;
-  Pico.video.reg[0xf] = 0x02;
-  SATaddr = 0x0000;
-  SATmask = ~0x1ff;
-
-  memset(VdpSATCache, 0, sizeof(VdpSATCache));
   memset(&VdpFIFO, 0, sizeof(VdpFIFO));
   Pico.m.dirtyPal = 1;
-
-  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
 
   PicoDrawBgcDMA(NULL, 0, 0, 0, 0);
   PicoVideoFIFOMode(0, 1);
