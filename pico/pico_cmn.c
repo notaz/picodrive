@@ -141,8 +141,8 @@ static int PicoFrameHints(void)
 
   skip = PicoIn.skipFrame;
 
+  z80_resetCycles(cycles_68k_to_z80(Pico.t.m68c_aim - Pico.t.m68c_frame_start));
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
-  z80_resetCycles();
   PsndStartFrame();
 
   hint = pv->hint_cnt;

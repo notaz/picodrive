@@ -72,8 +72,6 @@ void PicoPower(void)
   memset(&Pico.m,0,sizeof(Pico.m));
   memset(&Pico.t,0,sizeof(Pico.t));
 
-  z80_reset();
-
   // my MD1 VA6 console has this in IO
   PicoMem.ioports[1] = PicoMem.ioports[2] = PicoMem.ioports[3] = 0xff;
 
@@ -169,6 +167,7 @@ int PicoReset(void)
 
   memset(&PicoIn.padInt, 0, sizeof(PicoIn.padInt));
 
+  z80_reset();
   if (PicoIn.AHW & PAHW_SMS) {
     PicoResetMS();
     return 0;
