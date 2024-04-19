@@ -66,6 +66,7 @@
 
 /* PicoDrive: doing DMA at once, not using callbacks */
 //#define DMA_BYTES_PER_LINE 512
+#define DMA_CYCLES_PER_BYTE 4   // or 6?
 
 enum dma_type {
   word_ram_0_dma_w = 1,
@@ -354,7 +355,7 @@ void cdc_dma_update(void)
     do_dma(cdc.dma_w, cdc.dbc + 1);
 
     /* reset data byte counter (DBCH bits 4-7 should be set to 1) */
-    cdc.dbc = 0xf000;
+    cdc.dbc = 0xffff;
 
     /* clear !DTEN and !DTBSY */
     cdc.ifstat |= (BIT_DTBSY | BIT_DTEN);
@@ -404,6 +405,9 @@ int cdc_decoder_update(uint8 header[4])
 
     /* set !VALST */
     cdc.stat[3] = 0x00;
+
+    /* set CRCOK bit */
+    cdc.stat[0] = BIT_DECEN;
 
     /* pending decoder interrupt */
     cdc.ifstat &= ~BIT_DECI;
@@ -602,7 +606,7 @@ void cdc_reg_w(unsigned char data)
         }
 
         if (cdc.dma_w)
-          pcd_event_schedule_s68k(PCD_EVENT_DMA, cdc.dbc / 2);
+          pcd_event_schedule_s68k(PCD_EVENT_DMA, cdc.dbc * DMA_CYCLES_PER_BYTE);
       }
 
       Pico_mcd->s68k_regs[0x04+1] = 0x07;
@@ -643,11 +647,8 @@ void cdc_reg_w(unsigned char data)
 
     case 0x0a:  /* CTRL0 */
     {
-      /* set CRCOK bit only if decoding is enabled */
-      cdc.stat[0] = data & BIT_DECEN;
-
       /* reset DECI if decoder turned off */
-      if (!cdc.stat[0])
+      if (!(data & BIT_DECEN))
         cdc.ifstat |= BIT_DECI;
 
       /* update decoding mode */
@@ -827,7 +828,7 @@ unsigned short cdc_host_r(void)
     if ((int16)cdc.dbc <= 0)
     {
       /* reset data byte counter (DBCH bits 4-7 should be set to 1) */
-      cdc.dbc = 0xf000;
+      cdc.dbc = 0xffff;
 
       /* clear !DTEN and !DTBSY */
       cdc.ifstat |= (BIT_DTBSY | BIT_DTEN);

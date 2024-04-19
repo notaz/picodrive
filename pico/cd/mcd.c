@@ -149,7 +149,7 @@ static void pcd_cdc_event(unsigned int now)
     /* reset CDD command wait flag */
     Pico_mcd->s68k_regs[0x4b] = 0xf0;
 
-    if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
+    if ((Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) && (Pico_mcd->s68k_regs[0x37] & 4)) {
       elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
       pcd_irq_s68k(4, 1);
     }
@@ -209,8 +209,7 @@ void pcd_event_schedule(unsigned int now, enum pcd_event event, int after)
 
 void pcd_event_schedule_s68k(enum pcd_event event, int after)
 {
-  if (SekCyclesLeftS68k > after)
-    SekEndRunS68k(after);
+  SekEndRunS68k(after);
 
   pcd_event_schedule(SekCyclesDoneS68k(), event, after);
 }

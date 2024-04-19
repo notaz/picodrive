@@ -142,7 +142,7 @@ static u32 m68k_reg_read16(u32 a)
     // comm flag/cmd/status (0xE-0x2F)
     m68k_comm_check(a);
     d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
-    goto end;
+    return d;
   }
 
   elprintf(EL_UIO, "m68k_regs FIXME invalid read @ %02x", a);
@@ -172,7 +172,8 @@ void m68k_reg_write8(u32 a, u32 d)
         elprintf(EL_INTS, "m68k: s68k irq 2");
         pcd_sync_s68k(SekCyclesDone(), 0);
         pcd_irq_s68k(2, 1);
-      }
+      } else
+        pcd_irq_s68k(2, 0);
       return;
     case 1:
       d &= 3;
@@ -456,9 +457,9 @@ void s68k_reg_write8(u32 a, u32 d)
     case 0x33: // IRQ mask
       elprintf(EL_CDREGS|EL_CD, "s68k irq mask: %02x", d);
       d &= 0x7e;
-      if ((d ^ Pico_mcd->s68k_regs[0x33]) & d & PCDS_IEN4) {
+      if ((d ^ Pico_mcd->s68k_regs[0x33]) & PCDS_IEN4) {
         // XXX: emulate pending irq instead?
-        if (Pico_mcd->s68k_regs[0x37] & 4) {
+        if ((d & PCDS_IEN4) && (Pico_mcd->s68k_regs[0x37] & 4)) {
           elprintf(EL_INTS, "cdd export irq 4 (unmask)");
           pcd_irq_s68k(4, 1);
         }
@@ -474,11 +475,12 @@ void s68k_reg_write8(u32 a, u32 d)
     case 0x37: {
       u32 d_old = Pico_mcd->s68k_regs[0x37];
       Pico_mcd->s68k_regs[0x37] = d & 7;
-      if ((d&4) && !(d_old&4)) {
+      if ((d ^ d_old) & 4) {
         // ??
-        pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
+	if (d & 4)
+          pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
 
-        if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
+        if ((d & 4) && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4)) {
           elprintf(EL_INTS, "cdd export irq 4");
           pcd_irq_s68k(4, 1);
         }
@@ -1223,9 +1225,10 @@ static void m68k_mem_setup_cd(void);
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
-  if (!Pico_mcd)
+  if (!Pico_mcd) {
     Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
-  memset(Pico_mcd, 0, sizeof(mcd_state));
+    memset(Pico_mcd, 0, sizeof(mcd_state));
+  }
   pcd_base_address = (Pico.romsize > 0x20000 ? 0x400000 : 0x000000);
 
   // setup default main68k map
