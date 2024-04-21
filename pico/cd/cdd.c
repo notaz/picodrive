@@ -829,6 +829,12 @@ void cdd_update(void)
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
     }
   }
+
+  if (Pico_mcd->s68k_regs[0x4b] & 0x1) {
+    /* pending delayed command */
+    cdd_process();
+    Pico_mcd->s68k_regs[0x4b] &= ~0x1;
+  }
 }
 
 #define set_reg16(r, v) { \
@@ -844,7 +850,7 @@ void cdd_process(void)
   {
     case 0x00:  /* Drive Status */
     {
-      if (cdd.latency <= 3) {
+      if (cdd.latency == 0) {
         /* RS1-RS8 normally unchanged */
         Pico_mcd->s68k_regs[0x38+0] = cdd.status;
 
@@ -999,6 +1005,12 @@ void cdd_process(void)
                  (Pico_mcd->s68k_regs[0x46+0] * 10 + Pico_mcd->s68k_regs[0x46+1])) * 75 +
                  (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
 
+      /* if drive is currently reading, another block or 2 are decoded before the seek starts */
+      if (cdd.status == CD_PLAY && !(Pico_mcd->s68k_regs[0x4b] & 0x1)) {
+        Pico_mcd->s68k_regs[0x4b] |= 0x1;
+        return;
+      }
+
       /* CD drive latency */
       if (!cdd.latency)
       {
@@ -1024,9 +1036,14 @@ void cdd_process(void)
         cdd.latency += (((cdd.lba - lba) * 120) / 270000);
       }
 
+      /* block transfer always starts 3 blocks earlier */
+      cdd.latency -= 3;
+      lba -= 3;
+
       /* get track index */
       while ((cdd.toc.tracks[index].end <= lba) && (index < cdd.toc.last)) index++;
 
+      /* seek to block */
       cdd_seek(index, lba);
 
       /* no audio track playing (yet) */
@@ -1041,7 +1058,7 @@ void cdd_process(void)
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
       set_reg16(0x40, ~(CD_SEEK + 0xf) & 0x0f);
-      break;
+      return;
     }
 
     case 0x04:  /* Seek */
@@ -1053,6 +1070,12 @@ void cdd_process(void)
       int lba = ((Pico_mcd->s68k_regs[0x44+0] * 10 + Pico_mcd->s68k_regs[0x44+1]) * 60 + 
                  (Pico_mcd->s68k_regs[0x46+0] * 10 + Pico_mcd->s68k_regs[0x46+1])) * 75 +
                  (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
+
+      /* if drive is currently reading, another block or 2 are decoded before the seek starts */
+      if (cdd.status == CD_PLAY && !(Pico_mcd->s68k_regs[0x4b] & 0x1)) {
+        Pico_mcd->s68k_regs[0x4b] |= 0x1;
+        return;
+      }
 
       /* CD drive seek time  */
       /* We are using similar linear model as above, although still not exactly accurate, */
@@ -1067,10 +1090,10 @@ void cdd_process(void)
         cdd.latency = ((cdd.lba - lba) * 120) / 270000;
       }
 
-      /* get current track index */
+      /* get track index */
       while ((cdd.toc.tracks[index].end <= lba) && (index < cdd.toc.last)) index++;
 
-      /* seek to current block */
+      /* seek to block */
       cdd_seek(index, lba);
 
       /* no audio track playing */
@@ -1090,6 +1113,8 @@ void cdd_process(void)
 
     case 0x06:  /* Pause */
     {
+      /* TODO another block is decoded before pausing? */
+
       /* no audio track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
@@ -1100,6 +1125,17 @@ void cdd_process(void)
 
     case 0x07:  /* Resume */
     {
+      int lba = (cdd.lba < 0 ? 0 : cdd.lba);
+
+      /* CD drive latency */
+      if (!cdd.latency)
+      {
+        cdd.latency = 11;
+      }
+
+      /* always restart 4 blocks earlier */
+      cdd_seek(cdd.index, lba  - 4);
+
       /* update status (RS1-RS8 unchanged) */
       cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_PLAY;
       break;
