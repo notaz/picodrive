@@ -284,7 +284,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory16(u32 a, u32 d, SH2 *sh2)
     d = (s16)sh2_poll_read(a, d, cycles, sh2);
   }
 
-  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
+  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 7);
 
   DRC_RESTORE_SR(sh2);
   return d;
@@ -305,7 +305,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory32(u32 a, u32 d, SH2 *sh2)
         ((u16)sh2_poll_read(a+2, d, cycles, sh2));
   }
 
-  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
+  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 7);
 
   DRC_RESTORE_SR(sh2);
   return d;
