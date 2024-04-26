@@ -162,7 +162,7 @@ void cdd_reset(void)
   cdd.latency = 0;
   
   /* reset track index */
-  cdd.index = 0;
+  cdd.index = -1;
   
   /* reset logical block address */
   cdd.lba = 0;
@@ -830,10 +830,10 @@ void cdd_update(void)
     }
   }
 
-  if (Pico_mcd->s68k_regs[0x4b] & 0x1) {
+  if (Pico_mcd->m.state_flags & PCD_ST_CDD_CMD) {
     /* pending delayed command */
     cdd_process();
-    Pico_mcd->s68k_regs[0x4b] &= ~0x1;
+    Pico_mcd->m.state_flags &= ~PCD_ST_CDD_CMD;
   }
 }
 
@@ -1006,8 +1006,8 @@ void cdd_process(void)
                  (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
 
       /* if drive is currently reading, another block or 2 are decoded before the seek starts */
-      if (cdd.status == CD_PLAY && !(Pico_mcd->s68k_regs[0x4b] & 0x1)) {
-        Pico_mcd->s68k_regs[0x4b] |= 0x1;
+      if (cdd.status == CD_PLAY && !(Pico_mcd->m.state_flags & PCD_ST_CDD_CMD)) {
+        Pico_mcd->m.state_flags |= PCD_ST_CDD_CMD;
         return;
       }
 
@@ -1037,7 +1037,6 @@ void cdd_process(void)
       }
 
       /* block transfer always starts 3 blocks earlier */
-      cdd.latency -= 3;
       lba -= 3;
 
       /* get track index */
@@ -1072,8 +1071,8 @@ void cdd_process(void)
                  (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
 
       /* if drive is currently reading, another block or 2 are decoded before the seek starts */
-      if (cdd.status == CD_PLAY && !(Pico_mcd->s68k_regs[0x4b] & 0x1)) {
-        Pico_mcd->s68k_regs[0x4b] |= 0x1;
+      if (cdd.status == CD_PLAY && !(Pico_mcd->m.state_flags & PCD_ST_CDD_CMD)) {
+        Pico_mcd->m.state_flags |= PCD_ST_CDD_CMD;
         return;
       }
 
@@ -1113,7 +1112,11 @@ void cdd_process(void)
 
     case 0x06:  /* Pause */
     {
-      /* TODO another block is decoded before pausing? */
+      /* if drive is currently reading, another block or 2 are decoded before the seek starts */
+      if (cdd.status == CD_PLAY && !(Pico_mcd->m.state_flags & PCD_ST_CDD_CMD)) {
+        Pico_mcd->m.state_flags |= PCD_ST_CDD_CMD;
+        return;
+      }
 
       /* no audio track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
