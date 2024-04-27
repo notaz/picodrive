@@ -166,14 +166,15 @@ void m68k_reg_write8(u32 a, u32 d)
   switch (a) {
     case 0:
       d &= 1;
-      Pico_mcd->m.state_flags &= ~PCD_ST_S68K_IFL2;
-      if (d) Pico_mcd->m.state_flags |= PCD_ST_S68K_IFL2;
+      pcd_sync_s68k(SekCyclesDone(), 0);
       if (d && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN2)) {
         elprintf(EL_INTS, "m68k: s68k irq 2");
-        pcd_sync_s68k(SekCyclesDone(), 0);
+        Pico_mcd->m.state_flags |= PCD_ST_S68K_IFL2;
         pcd_irq_s68k(2, 1);
-      } else
+      } else {
+        Pico_mcd->m.state_flags &= ~PCD_ST_S68K_IFL2;
         pcd_irq_s68k(2, 0);
+      }
       return;
     case 1:
       d &= 3;
@@ -193,6 +194,7 @@ void m68k_reg_write8(u32 a, u32 d)
         Pico_mcd->m.state_flags &= ~(PCD_ST_S68K_RST|PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP);
         elprintf(EL_CDREGS, "m68k: resetting s68k");
         SekResetS68k();
+        SekCycleCntS68k += 40;
       }
       if (((dold & 3) == 1) != ((d & 3) == 1)) {
         elprintf(EL_INTSW, "m68k: s68k brq %i", d >> 1);
