@@ -366,8 +366,8 @@ u32 s68k_reg_read16(u32 a)
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
 
-  if (a >= 0x0e && a < 0x30)
-    return s68k_poll_detect(a, d);
+  if ((a >= 0x0e && a < 0x30) || a == 0x58)
+    d = s68k_poll_detect(a, d);
 
 end:
   return d;
@@ -995,7 +995,7 @@ static u32 PicoReadS68k8_pr(u32 a)
     a &= 0x1ff;
     if (a >= 0x0e && a < 0x30) {
       d = Pico_mcd->s68k_regs[a];
-      s68k_poll_detect(a & ~1, d);
+      d = s68k_poll_detect(a & ~1, d);
       goto regs_done;
     }
     d = s68k_reg_read16(a & ~1);

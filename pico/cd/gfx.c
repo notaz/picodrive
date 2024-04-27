@@ -409,6 +409,8 @@ void gfx_start(uint32 base)
 
     /* start graphics operation */
     Pico_mcd->s68k_regs[0x58] = 0x80;
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
+    Pico_mcd->m.s68k_poll_cnt = 0;
 
     gfx_schedule();
   }
@@ -451,6 +453,8 @@ void gfx_update(unsigned int cycles)
     Pico_mcd->s68k_regs[0x64] =
     Pico_mcd->s68k_regs[0x65] = 0;
 
+    Pico_mcd->m.state_flags &= ~PCD_ST_S68K_POLL;
+    Pico_mcd->m.s68k_poll_cnt = 0;
     if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
       elprintf(EL_INTS|EL_CD, "s68k: gfx_cd irq 1");
       pcd_irq_s68k(1, 1);
