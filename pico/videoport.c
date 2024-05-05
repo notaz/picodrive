@@ -998,22 +998,24 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
 
 update_irq:
 #ifndef EMU_CORE_DEBUG
-        // update IRQ level
+        // update IRQ level; TODO hack, still fire irq if disabling now
+        if (!SekShouldInterrupt() || SekIrqLevel < pvid->hint_irq)
         {
           int lines, pints, irq = 0;
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
           pints = pvid->pending_ints & lines;
                if (pints & 0x20) irq = 6;
           else if (pints & 0x10) irq = pvid->hint_irq;
+
           if (irq) {
-            // VDP irqs have highest prio, overwrite old level
+            // VDP irqs have highest prio, just overwrite old level
             SekInterrupt(irq); // update line
 
-            // this is broken because cost of current insn isn't known here
+            // TODO this is broken because cost of current insn isn't known here
             SekEndRun(21); // make it delayed
           } else if (SekIrqLevel >= pvid->hint_irq) {
             // no VDP irq, query lower irqs
-            SekInterrupt(PicoPicoIrqAck(0));
+            SekInterrupt(PicoIn.AHW & PAHW_PICO ? PicoPicoIrqAck(0) : 0);
           }
         }
 #endif
