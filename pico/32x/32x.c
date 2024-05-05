@@ -35,6 +35,9 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   int irqs, mlvl = 0, slvl = 0;
   int mrun, srun;
 
+  if ((Pico32x.regs[0] & (P32XS_nRES|P32XS_ADEN)) != (P32XS_nRES|P32XS_ADEN))
+    return;
+
   if (active_sh2 != NULL)
     m68k_cycles = sh2_cycles_done_m68k(active_sh2);
 
@@ -100,13 +103,21 @@ void Pico32xStartup(void)
 {
   elprintf(EL_STATUS|EL_32X, "32X startup");
 
-  // TODO: OOM handling
   PicoIn.AHW |= PAHW_32X;
-  sh2_init(&msh2, 0, &ssh2);
-  msh2.irq_callback = sh2_irq_cb;
-  sh2_init(&ssh2, 1, &msh2);
-  ssh2.irq_callback = sh2_irq_cb;
+  // TODO: OOM handling
+  if (Pico32xMem == NULL) {
+    Pico32xMem = plat_mmap(0x06000000, sizeof(*Pico32xMem), 0, 0);
+    if (Pico32xMem == NULL) {
+      elprintf(EL_STATUS, "OOM");
+      return;
+    }
+    memset(Pico32xMem, 0, sizeof(struct Pico32xMem));
 
+    sh2_init(&msh2, 0, &ssh2);
+    msh2.irq_callback = sh2_irq_cb;
+    sh2_init(&ssh2, 1, &msh2);
+    ssh2.irq_callback = sh2_irq_cb;
+  }
   PicoMemSetup32x();
   p32x_pwm_ctl_changed();
   p32x_timers_recalc();
@@ -117,6 +128,8 @@ void Pico32xStartup(void)
 
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
+  else
+    Pico32x.vdp_regs[0] &= ~P32XV_nPAL;
 
   rendstatus_old = -1;
 
@@ -126,11 +139,8 @@ void Pico32xStartup(void)
 
 void Pico32xShutdown(void)
 {
-  sh2_finish(&msh2);
-  sh2_finish(&ssh2);
-
-  Pico32x.vdp_regs[0] |= P32XS_nRES;
-  Pico32x.vdp_regs[6] |= P32XS_RV;
+  Pico32x.sh2_regs[0] &= ~P32XS2_ADEN;
+  Pico32x.regs[6] |= P32XS_RV;
 
   rendstatus_old = -1;
 
@@ -212,6 +222,9 @@ void PicoUnload32x(void)
   if (PicoIn.AHW & PAHW_32X)
     Pico32xShutdown();
 
+  sh2_finish(&msh2);
+  sh2_finish(&ssh2);
+
   if (Pico32xMem != NULL)
     plat_munmap(Pico32xMem, sizeof(*Pico32xMem));
   Pico32xMem = NULL;
@@ -226,6 +239,7 @@ void PicoReset32x(void)
     p32x_pwm_ctl_changed();
     p32x_timers_recalc();
     Pico32x.vdp_regs[0] &= ~P32XV_Mx; // 32X graphics disabled
+    Pico32x.pending_fb = Pico32x.vdp_regs[0x0a/2] & P32XV_FS;
   }
 }
 
@@ -264,9 +278,8 @@ static void p32x_start_blank(void)
 
   // FB swap waits until vblank
   if ((Pico32x.vdp_regs[0x0a/2] ^ Pico32x.pending_fb) & P32XV_FS) {
-    Pico32x.vdp_regs[0x0a/2] &= ~P32XV_FS;
-    Pico32x.vdp_regs[0x0a/2] |= Pico32x.pending_fb;
-    Pico32xSwapDRAM(Pico32x.pending_fb ^ 1);
+    Pico32x.vdp_regs[0x0a/2] ^= P32XV_FS;
+    Pico32xSwapDRAM(Pico32x.pending_fb ^ P32XV_FS);
   }
 
   p32x_trigger_irq(NULL, Pico.t.m68c_aim, P32XI_VINT);

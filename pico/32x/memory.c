@@ -695,12 +695,12 @@ static void p32x_vdp_write8(u32 a, u32 d)
       r[4 / 2] = d & 0xff;
       break;
     case 0x0b:
-      d &= 1;
+      d &= P32XV_FS;
       Pico32x.pending_fb = d;
       // if we are blanking and FS bit is changing
       if (((r[0x0a/2] & P32XV_VBLK) || (r[0] & P32XV_Mx) == 0) && ((r[0x0a/2] ^ d) & P32XV_FS)) {
         r[0x0a/2] ^= P32XV_FS;
-        Pico32xSwapDRAM(d ^ 1);
+        Pico32xSwapDRAM(d ^ P32XV_FS);
         elprintf(EL_32X, "VDP FS: %d", r[0x0a/2] & P32XV_FS);
       }
       break;
@@ -2303,14 +2303,6 @@ void PicoMemSetup32x(void)
   unsigned int rs;
   int i;
 
-  if (Pico32xMem == NULL)
-    Pico32xMem = plat_mmap(0x06000000, sizeof(*Pico32xMem), 0, 0);
-  if (Pico32xMem == NULL) {
-    elprintf(EL_STATUS, "OOM");
-    return;
-  }
-  memset(Pico32xMem, 0, sizeof(struct Pico32xMem));
-
   get_bios();
 
   // cartridge area becomes unmapped
@@ -2446,7 +2438,7 @@ void PicoMemSetup32x(void)
   ssh2_read32_map[0xc0/2].addr = MAP_MEMORY(ssh2.data_array);
 
   // map DRAM area, both 68k and SH2
-  Pico32xSwapDRAM(1);
+  Pico32xSwapDRAM((Pico32x.vdp_regs[0x0a / 2] & P32XV_FS) ^ P32XV_FS);
 
   msh2.read8_map   = msh2_read8_map;  ssh2.read8_map   = ssh2_read8_map;
   msh2.read16_map  = msh2_read16_map; ssh2.read16_map  = ssh2_read16_map;
