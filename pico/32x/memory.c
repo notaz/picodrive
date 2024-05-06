@@ -1234,28 +1234,46 @@ void PicoWrite8_32x(u32 a, u32 d)
   if ((PicoIn.opt & POPT_EN_32X) && (a & 0xffc0) == 0x5100) // a15100
   {
     u16 *r = Pico32x.regs;
+    u8 *r8 = (u8 *)r;
 
     elprintf(EL_32X, "m68k 32x w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
     a &= 0x3f;
-    if (a == 1) {
-      if ((d ^ r[0]) & d & P32XS_ADEN) {
-        Pico32xStartup();
-        r[0] &= ~P32XS_nRES; // causes reset if specified by this write
-        r[0] |= P32XS_ADEN;
-        p32x_reg_write8(a, d); // forward for reset processing
-      }
-      return;
+    switch (a) {
+      case 0x00:
+        r8[MEM_BE2(a)] = d & (P32XS_FM>>8);
+        return;
+      case 0x01:
+        if ((d ^ r[0]) & d & P32XS_ADEN) {
+          Pico32xStartup();
+          r[0] &= ~P32XS_nRES; // causes reset if specified by this write
+          r[0] |= P32XS_ADEN;
+          p32x_reg_write8(a, d); // forward for reset processing
+        }
+        else {
+          r[0] &= ~(P32XS_nRES|P32XS_ADEN);
+          r[0] |= d & (P32XS_nRES|P32XS_ADEN);
+        }
+        return;
+      case 0x03: r8[MEM_BE2(a)] = d &    3; return;
+      case 0x05: r8[MEM_BE2(a)] = d &    3; return;
+      case 0x07: r8[MEM_BE2(a)] = d &    7; return;
+      case 0x09: r8[MEM_BE2(a)] = d       ; return;
+      case 0x0a: r8[MEM_BE2(a)] = d       ; return;
+      case 0x0b: r8[MEM_BE2(a)] = d & 0xfe; return;
+      case 0x0d: r8[MEM_BE2(a)] = d       ; return;
+      case 0x0e: r8[MEM_BE2(a)] = d       ; return;
+      case 0x0f: r8[MEM_BE2(a)] = d       ; return;
+      case 0x10: r8[MEM_BE2(a)] = d       ; return;
+      case 0x11: r8[MEM_BE2(a)] = d & 0xfc; return;
+      case 0x1a: r8[MEM_BE2(a)] = d &    1; return;
+      case 0x1b: r8[MEM_BE2(a)] = d &    1; return;
+      case 0x20: case 0x21: case 0x22: case 0x23: // COMM
+      case 0x24: case 0x25: case 0x26: case 0x27:
+      case 0x28: case 0x29: case 0x2a: case 0x2b:
+      case 0x2c: case 0x2d: case 0x2e: case 0x2f:
+        r8[MEM_BE2(a)] = d;
+        return;
     }
-    if (a == 7) {
-      r[0x06/2] &= ~P32XS_RV;
-      r[0x06/2] |= d & P32XS_RV;
-    }
-    // allow only COMM for now
-    if ((a & 0x30) == 0x20) {
-      u8 *r8 = (u8 *)r;
-      r8[MEM_BE2(a)] = d;
-    }
-    return;
   }
 
   elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
@@ -1267,26 +1285,38 @@ void PicoWrite16_32x(u32 a, u32 d)
   {
     u16 *r = Pico32x.regs;
 
-    elprintf(EL_UIO, "m68k 32x w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+    elprintf(EL_32X, "m68k 32x w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
     a &= 0x3e;
-    if (a == 0) {
-      if ((d ^ r[0]) & d & P32XS_ADEN) {
-        Pico32xStartup();
-        r[0] &= ~P32XS_nRES; // causes reset if specified by this write
-        r[0] |= P32XS_ADEN;
-        p32x_reg_write16(a, d); // forward for reset processing
-      }
-      return;
+    switch (a) {
+      case 0x00:
+        if ((d ^ r[0]) & d & P32XS_ADEN) {
+          Pico32xStartup();
+          r[0] &= ~(P32XS_FM|P32XS_nRES|P32XS_ADEN);
+          // causes reset if specified by this write
+          r[0] |= d & (P32XS_FM|P32XS_ADEN);
+          p32x_reg_write16(a, d); // forward for reset processing
+        }
+        else {
+          r[0] &= ~(P32XS_FM|P32XS_nRES|P32XS_ADEN);
+          r[0] |= d & (P32XS_FM|P32XS_nRES|P32XS_ADEN);
+        }
+        return;
+      case 0x02: r[a / 2] = d &      3; return;
+      case 0x04: r[a / 2] = d &      3; return;
+      case 0x06: r[a / 2] = d &      7; return;
+      case 0x08: r[a / 2] = d & 0x00ff; return;
+      case 0x0a: r[a / 2] = d & 0xfffe; return;
+      case 0x0c: r[a / 2] = d & 0x00ff; return;
+      case 0x0e: r[a / 2] = d         ; return;
+      case 0x10: r[a / 2] = d & 0xfffc; return;
+      case 0x1a: r[a / 2] = d & 0x0101; return;
+      case 0x20: case 0x22: // COMM
+      case 0x24: case 0x26:
+      case 0x28: case 0x2a:
+      case 0x2c: case 0x2e:
+        r[a / 2] = d;
+        return;
     }
-    if (a == 6) {
-      r[0x06/2] &= ~P32XS_RV;
-      r[0x06/2] |= d & P32XS_RV;
-    }
-
-    // allow only COMM for now
-    if ((a & 0x30) == 0x20)
-      r[a / 2] = d;
-    return;
   }
 
   elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
@@ -2328,7 +2358,7 @@ void PicoMemSetup32x(void)
     cpu68k_map_set(m68k_write16_map, 0x880000, 0x880000 + rs - 1, PicoWrite16_cart, 1);
 
     // 32X ROM (banked)
-    bank_switch_rom_68k(0);
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
     cpu68k_map_set(m68k_write8_map,  0x900000, 0x9fffff, PicoWrite8_bank, 1);
     cpu68k_map_set(m68k_write16_map, 0x900000, 0x9fffff, PicoWrite16_bank, 1);
   }

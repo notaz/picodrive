@@ -140,7 +140,6 @@ void Pico32xStartup(void)
 void Pico32xShutdown(void)
 {
   Pico32x.sh2_regs[0] &= ~P32XS2_ADEN;
-  Pico32x.regs[6] |= P32XS_RV;
 
   rendstatus_old = -1;
 
@@ -214,6 +213,7 @@ void PicoPower32x(void)
   memset(&Pico32x, 0, sizeof(Pico32x));
 
   Pico32x.regs[0] = P32XS_REN|P32XS_nRES; // verified
+  Pico32x.regs[0x10/2] = 0xffff;
   Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_PEN;
 }
 
