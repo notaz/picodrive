@@ -2238,10 +2238,16 @@ static void get_bios(void)
   }
   else {
     pl = (u32 *)&Pico32xMem->sh2_rom_m;
+    ps = (u16 *)pl;
 
     // fill exception vector table to our trap address
-    for (i = 0; i < 128; i++)
+    for (i = 0; i < 80; i++)
       pl[i] = CPU_BE2(0x200);
+    // CD titles by Digital Pictures jump to 0x140 for resetting ...
+    for (i = 0x140/2; i < 0x1fc/2; i++)
+      ps[i] = 0x0009; // nop         // ... so fill the remainder with nops
+    ps[i++] = 0xa002; // bra 0x204   // ... and jump over the trap
+    ps[i++] = 0x0009; // nop
 
     // start
     pl[0] = pl[2] = CPU_BE2(0x204);
