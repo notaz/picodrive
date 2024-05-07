@@ -201,8 +201,8 @@ extern struct DrZ80 drZ80;
 
 #define Z80_STATE_SIZE 0x60
 
-#define z80_resetCycles(aim) \
-  Pico.t.z80c_cnt -= (aim < Pico.t.z80c_cnt ? aim : Pico.t.z80c_cnt), Pico.t.z80c_aim = Pico.t.z80_scanline = 0
+#define z80_resetCycles() \
+  Pico.t.z80c_cnt -= Pico.t.z80c_aim, Pico.t.z80c_aim = Pico.t.z80_scanline = 0
 
 #define z80_cyclesDone() \
   (Pico.t.z80c_aim - z80_cyclesLeft)

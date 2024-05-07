@@ -312,7 +312,7 @@ static int SekSyncM68k(int once);
 void pcd_run_cpus_normal(int m68k_cycles)
 {
   // TODO this is suspicious. ~1 cycle refresh delay every 256 cycles?
-  SekAimM68k(m68k_cycles, 0x43); // Fhey area
+  SekAimM68k(m68k_cycles, 0x42); // Fhey area
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
     if (SekShouldInterrupt()) {

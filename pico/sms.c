@@ -846,7 +846,6 @@ void PicoFrameMS(void)
   int nmi;
   int y;
 
-  z80_resetCycles(Pico.t.z80c_aim);
   PsndStartFrame();
 
   // for SMS the pause button generates an NMI, for GG ths is not the case
@@ -923,6 +922,7 @@ void PicoFrameMS(void)
     z80_exec(Pico.t.z80c_line_start + cycles_line);
   }
 
+  z80_resetCycles();
   PsndGetSamplesMS(lines);
 }
 

@@ -389,7 +389,6 @@ void PDebugZ80Frame(void)
   else
     lines = 262;
 
-  z80_resetCycles(Pico.t.z80c_aim);
   PsndStartFrame();
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
@@ -407,6 +406,7 @@ void PDebugZ80Frame(void)
     PsndGetSamples(lines);
 
   timers_cycle(Pico.t.z80c_aim);
+  z80_resetCycles();
   Pico.t.m68c_aim = Pico.t.m68c_cnt;
 }
 

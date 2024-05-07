@@ -530,20 +530,21 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + (Pico.t.z80_busdelay >> 8);
+      Pico.t.z80c_aim = Pico.t.z80c_cnt = z80_cycles_from_68k() + (Pico.t.z80_busdelay >> 8) + 2;
       Pico.t.z80_busdelay &= 0xff;
     }
     else
     {
       if ((PicoIn.opt & POPT_EN_Z80) && !Pico.m.z80_reset) {
-        // Z80 grants bus 2 cycles after the next M cycle, even within an insn
+        // Z80 grants bus after the current M cycle, even within an insn
         // simulate this by accumulating the last insn overhang in busdelay
-        unsigned granted = z80_cycles_from_68k() + 6;
+        unsigned granted;
         pprof_start(m68k);
         PicoSyncZ80(SekCyclesDone());
+        pprof_end_sub(m68k);
+        granted = Pico.t.z80c_aim + 6; // M cycle is 3-6 cycles 
         Pico.t.z80_busdelay += (Pico.t.z80c_cnt - granted) << 8;
         Pico.t.z80c_cnt = granted;
-        pprof_end_sub(m68k);
       }
     }
     Pico.m.z80Run = d;
@@ -563,12 +564,13 @@ void NOINLINE ctl_write_z80reset(u32 d)
         PicoSyncZ80(SekCyclesDone());
         pprof_end_sub(m68k);
       }
+      Pico.t.z80_busdelay &= 0xff; // also resets bus request
       YM2612ResetChip();
       timers_reset();
     }
     else
     {
-      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_aim = Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
       z80_reset();
     }
     Pico.m.z80_reset = d;

@@ -81,7 +81,7 @@ static __inline void SekAimM68k(int cyc, int mult)
 static __inline void SekRunM68k(int cyc)
 {
   // TODO 0x100 would be 2 cycles/128, moreover far too sensitive
-  SekAimM68k(cyc, 0x10c); // OutRunners, testpico, VDPFIFOTesting
+  SekAimM68k(cyc, 0x108); // OutRunners, testpico, VDPFIFOTesting
   SekSyncM68k(0);
 }
 
@@ -141,7 +141,6 @@ static int PicoFrameHints(void)
 
   skip = PicoIn.skipFrame;
 
-  z80_resetCycles(cycles_68k_to_z80(Pico.t.m68c_aim - Pico.t.m68c_frame_start));
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   PsndStartFrame();
 
@@ -340,6 +339,7 @@ static int PicoFrameHints(void)
   PsndGetSamples(y);
 
   timers_cycle(cycles_68k_to_z80(Pico.t.m68c_aim - Pico.t.m68c_frame_start));
+  z80_resetCycles();
 
   pv->hint_cnt = hint;
 
