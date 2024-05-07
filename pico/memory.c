@@ -565,6 +565,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
         pprof_end_sub(m68k);
       }
       Pico.t.z80_busdelay &= 0xff; // also resets bus request
+      Pico.video.status &= ~PVS_Z80WAIT;
       YM2612ResetChip();
       timers_reset();
     }
@@ -1369,8 +1370,10 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 static void access_68k_bus(int delay) // bus delay as Q8
 {
   // TODO: if the 68K is in DMA wait, Z80 has to wait until DMA ends
-  if (Pico.video.status & (PVS_CPUWR|PVS_CPURD))
+  if (Pico.video.status & (PVS_CPUWR|PVS_CPURD)) {
     z80_subCLeft(z80_cyclesLeft); // rather rough on both condition and action
+    Pico.video.status |= PVS_Z80WAIT;
+  }
 
   // 68k bus access delay for z80. The fractional part needs to be accumulated
   // until an additional cycle is full. That is then added to the integer part.
