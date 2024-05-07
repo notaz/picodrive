@@ -599,8 +599,6 @@ readend:
 
   z80_unpack(buff_z80);
 
-  // due to dep from 68k cycles..
-  Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   if (PicoIn.AHW & PAHW_32X)
     Pico32xStateLoaded(0);
   if (PicoIn.AHW & PAHW_MCD)

@@ -157,7 +157,8 @@ struct z80_state {
   u8 im;            // irq mode
   u8 irq_pending;   // irq line level, 1 if active
   u8 irq_vector[3]; // up to 3 byte vector for irq mode0 handling
-  u8 reserved[8];
+  u16 cyc;
+  u8 reserved[6];
 };
 
 void z80_pack(void *data)
@@ -165,6 +166,7 @@ void z80_pack(void *data)
   struct z80_state *s = data;
   memset(data, 0, Z80_STATE_SIZE);
   memcpy(s->magic, "Z80a", 4);
+  s->cyc = Pico.t.z80c_cnt;
 #if defined(_USE_DRZ80)
   #define DRR8(n)   (drZ80.Z80##n >> 24)
   #define DRR16(n)  (drZ80.Z80##n >> 16)
@@ -222,6 +224,7 @@ int z80_unpack(const void *data)
     elprintf(EL_STATUS, "legacy z80 state - ignored");
     return 0;
   }
+  Pico.t.z80c_cnt = s->cyc;
 
 #if defined(_USE_DRZ80)
   #define DRW8(n, v)       drZ80.Z80##n = (u32)(v) << 24
