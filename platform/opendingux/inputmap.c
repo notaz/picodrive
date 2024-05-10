@@ -78,6 +78,9 @@ const char * _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_KP_DIVIDE] = "L3",
 	[SDLK_KP_PERIOD] = "R3",
 	[SDLK_HOME] = "POWER",
+	/* gkd (mini) */
+	/*[SDLK_HOME] = "MENU",*/
+	[SDLK_END] = "EXIT",
 	/* gcw0 */
 	[SDLK_POWER] = "POWER",
 	[SDLK_PAUSE] = "LOCK",
@@ -85,6 +88,9 @@ const char * _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_RALT] = "L2",
 	[SDLK_RSHIFT] = "R2",
 	[SDLK_RCTRL] = "RESET",
+	/* retrofw */
+	[SDLK_LEFTBRACKET] = "SETUP",   /* actually brightness setting */
+	/*[SDLK_END] = "POWER",*/
 };
 const char * const *in_sdl_key_names = _in_sdl_key_names;
 
@@ -130,5 +136,6 @@ void plat_target_setup_input(void)
 	} else if (strcmp(plat_device, "retrofw") == 0 || strcmp(plat_device, "dingux") == 0) {
 		/* single L/R keys */
 		nameset(SDLK_TAB, "L"); nameset(SDLK_BACKSPACE, "R");
+		nameset(SDLK_END, "POWER");
 	}
 }
