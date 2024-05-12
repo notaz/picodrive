@@ -10,7 +10,7 @@
 
 // NB: 32X officially doesn't support H32 mode. However, it does work since the
 // cartridge slot carries the EDCLK signal which is always H40 clock and is used
-// as video clock by the 32X. The H32 MD image is overlayed with the 320 px 32X
+// as video clock by the 32X. The H32 MD image is overlaid with the 320 px 32X
 // image which has the same on-screen width. How the /YS signal on the cartridge
 // slot (signalling the display of background color) is processed in this case
 // is however unclear and might lead to glitches due to race conditions by the

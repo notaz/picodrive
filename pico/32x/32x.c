@@ -44,13 +44,13 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   // find top bit = highest irq number (0 <= irl <= 14/2) by binary search
 
   // msh2
-  irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[0];
+  irqs = Pico32x.sh2irqi[0];
   if (irqs >= 0x10)     mlvl += 8, irqs >>= 4;
   if (irqs >= 0x04)     mlvl += 4, irqs >>= 2;
   if (irqs >= 0x02)     mlvl += 2, irqs >>= 1;
 
   // ssh2
-  irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[1];
+  irqs = Pico32x.sh2irqi[1];
   if (irqs >= 0x10)     slvl += 8, irqs >>= 4;
   if (irqs >= 0x04)     slvl += 4, irqs >>= 2;
   if (irqs >= 0x02)     slvl += 2, irqs >>= 1;
@@ -77,7 +77,8 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
 // TODO: test on hw..
 void p32x_trigger_irq(SH2 *sh2, unsigned int m68k_cycles, unsigned int mask)
 {
-  Pico32x.sh2irqs |= mask & P32XI_VRES;
+  Pico32x.sh2irqi[0] |= mask & P32XI_VRES;
+  Pico32x.sh2irqi[1] |= mask & P32XI_VRES;
   Pico32x.sh2irqi[0] |= mask & (Pico32x.sh2irq_mask[0] << 3);
   Pico32x.sh2irqi[1] |= mask & (Pico32x.sh2irq_mask[1] << 3);
 
@@ -238,8 +239,6 @@ void PicoReset32x(void)
     p32x_sh2_poll_event(ssh2.poll_addr, &ssh2, SH2_IDLE_STATES, SekCyclesDone());
     p32x_pwm_ctl_changed();
     p32x_timers_recalc();
-    Pico32x.vdp_regs[0] &= ~P32XV_Mx; // 32X graphics disabled
-    Pico32x.pending_fb = Pico32x.vdp_regs[0x0a/2] & P32XV_FS;
   }
 }
 

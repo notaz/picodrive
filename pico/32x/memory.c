@@ -930,7 +930,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
       Pico32x.regs[0] |= d & P32XS_FM;
       break;
     case 0x14/2:
-      Pico32x.sh2irqs &= ~P32XI_VRES;
+      Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_VRES;
       goto irls;
     case 0x16/2:
       Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_VINT;

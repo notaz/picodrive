@@ -641,7 +641,7 @@ struct Pico32x
   unsigned int emu_flags;
   unsigned char sh2irq_mask[2];
   unsigned char sh2irqi[2];      // individual
-  unsigned int sh2irqs;          // common irqs
+  unsigned int pad4;             // was sh2irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
   unsigned int pad[4];
   unsigned int dmac0_fifo_ptr;

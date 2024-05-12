@@ -77,7 +77,7 @@ char *PDebug32x(void)
   }
   r = Pico32x.sh2_regs;
   sprintf(dstrp, "SH: %04x %04x %04x      IRQs: %02x  eflags: %02x\n",
-    r[0], r[1], r[2], Pico32x.sh2irqs, Pico32x.emu_flags); MVP;
+    r[0], r[1], r[2], Pico32x.sh2irqi[0]|Pico32x.sh2irqi[1], Pico32x.emu_flags); MVP;
 
   i = 0;
   r = Pico32x.vdp_regs;
