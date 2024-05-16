@@ -1,5 +1,5 @@
 $(LD) ?= $(CC)
-TARGET ?= PicoDrive
+TARGET ?= picodrive
 ASAN ?= 0
 DEBUG ?= 0
 CFLAGS += -I$(PWD)
@@ -111,7 +111,7 @@ endif
 
 # TODO this should somehow go to the platform directory?
 ifeq "$(PLATFORM)" "generic"
-$(TARGET).zip: $(TARGET)
+PicoDrive.zip: $(TARGET)
 	$(RM) -rf .od_data
 	mkdir .od_data
 	cp -r platform/linux/skin .od_data
@@ -119,7 +119,7 @@ $(TARGET).zip: $(TARGET)
 	cp $< .od_data/PicoDrive
 	$(STRIP) .od_data/PicoDrive
 	cd .od_data && zip -9 -r ../$@ *
-all: $(TARGET).zip
+all: PicoDrive.zip
 endif
 
 ifeq "$(PLATFORM)" "opendingux"
@@ -134,22 +134,22 @@ ifeq "$(PLATFORM)" "opendingux"
 
 ifneq (,$(filter %__DINGUX__, $(CFLAGS)))
 # "legacy" dingux without opk support
-$(TARGET)-dge.zip: .od_data
+PicoDrive-dge.zip: .od_data
 	rm -f .od_data/default.*.desktop
 	cd .od_data && zip -9 -r ../$@ *
-all: $(TARGET)-dge.zip
+all: PicoDrive-dge.zip
 CFLAGS += -DSDL_SURFACE_SW # some legacy dinguces had bugs in HWSURFACE
 else
 ifneq (,$(filter %__MIYOO__, $(CFLAGS)))
-$(TARGET)-miyoo.zip: .od_data
+PicoDrive-miyoo.zip: .od_data
 	rm -f .od_data/default.*.desktop .od_data/PicoDrive.dge
 	cd .od_data && zip -9 -r ../$@ *
-all: $(TARGET)-miyoo.zip
+all: PicoDrive-miyoo.zip
 else
-$(TARGET).opk: .od_data
+PicoDrive.opk: .od_data
 	rm -f .od_data/PicoDrive.dge
 	mksquashfs .od_data $@ -all-root -noappend -no-exports -no-xattrs
-all: $(TARGET).opk
+all: PicoDrive.opk
 endif
 endif
 

@@ -20,7 +20,7 @@ readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
 
 CODE940 = code940/pico940_v3.bin
 
-PicoDrive: ../../PicoDrive
+PicoDrive: ../../picodrive
 	$(STRIP) $^ -o $@
 
 rel: PicoDrive PicoDrive.gpe $(CODE940) readme.txt ../game_def.cfg \

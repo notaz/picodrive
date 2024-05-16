@@ -8,6 +8,8 @@ ifneq "$(BUILD)" ""
 VER := $(VER)_$(BUILD)
 endif
 
+include ../../config.mak
+
 PND_MAKE ?= pnd_make
 
 all: rel
@@ -21,7 +23,10 @@ all: rel
 /tmp/PicoDrive.pxml: PicoDrive.pxml.template FORCE
 	./make_pxml.sh $< $@
 
-rel: ../../PicoDrive PicoDrive.sh picorestore \
+PicoDrive: ../../picodrive
+	$(STRIP) $^ -o $@
+
+rel: PicoDrive PicoDrive.sh picorestore \
 	PicoDrive.png PicoDrive_p.png \
 	../../pico/carthw.cfg skin \
 	../../README.md /tmp/PicoDrive.pxml

@@ -14,7 +14,7 @@ include ../../config.mak
 readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
 	../../tools/textfilter ../base_readme.txt $@ PS2
 
-PicoDrive: ../../PicoDrive
+PicoDrive: ../../picodrive
 	$(STRIP) $^ -o $@
 
 PicoDrive.elf: PicoDrive
