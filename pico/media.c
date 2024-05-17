@@ -358,7 +358,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
         ext = NULL;
       }
     }
-    if (ext && !strcasecmp(ext,"gg") && !PicoIn.hwSelect) {
+    if (ext && !strcasecmp(ext,"gg")) {
       PicoIn.AHW |= PAHW_GG;
       lprintf("detected GG ROM\n");
     } else if (ext && !strcasecmp(ext,"sg")) {

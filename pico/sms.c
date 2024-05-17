@@ -357,7 +357,7 @@ static void write_bank_codem(unsigned short a, unsigned char d)
 // MSX mapper. 4 selectable 8KB banks at the top
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
-  if (a > 0x0003 || !(Pico.m.hardware & PMS_HW_JAP)) return;
+  if (a > 0x0003) return;
   // don't detect linear mapping to avoid confusing with Codemasters
   if (Pico.ms.mapper != PMS_MAP_MSX && (Pico.ms.mapper || (a|d) == 0 || d >= 0x80)) return;
   elprintf(EL_Z80BNK, "bank msx %04x %02x @ %04x", a, d, z80_pc());
@@ -471,7 +471,7 @@ static void write_bank_jang(unsigned short a, unsigned char d)
 static void write_bank_xor(unsigned short a, unsigned char d)
 {
   // 4x8KB bank select @0x2000
-  if ((a&0x6000) != 0x2000) return;
+  if ((a&0x6800) != 0x2000) return;
   if (Pico.ms.mapper != PMS_MAP_XOR && Pico.ms.mapper) return;
 
   elprintf(EL_Z80BNK, "bank xor %04x %02x @ %04x", a, d, z80_pc());
@@ -559,7 +559,7 @@ static void xwrite(unsigned int a, unsigned char d)
 
   case PMS_MAP_AUTO:
         // disable autodetection after some time
-        if ((a >= 0xc000 && a < 0xfff8) || Pico.ms.mapcnt > 20) break;
+        if ((a >= 0xc000 && a < 0xfff8) || Pico.ms.mapcnt > 30) break;
         // NB the sequence of mappers is crucial for the auto detection
         if (PicoIn.AHW & PAHW_SC) {
           write_bank_x32k(a,d);
@@ -590,31 +590,33 @@ static void xwrite(unsigned int a, unsigned char d)
 static u32 region_pal[] = { // cf Meka, meka/meka.nam
   0x40207067 /* Addams Family */, 0x40207020 /* Back.Future 3 */,
   0x40207058 /* Battlemaniacs */, 0x40007105 /* Cal.Games 2 */,
-  0x40207065 /* Dracula */      , 0x40007109 /* Home Alone */,
+  0x402f7065 /* Dracula */      , 0x40007109 /* Home Alone */,
   0x40009024 /* Pwr.Strike 2 */ , 0x40207047 /* Predator 2 EU */,
   0x40002519 /* Quest.Yak */    , 0x40207064 /* Robocop 3 */,
-  0x40205014 /* Sens.Soccer */  , 0x40002573 /* Sonic Blast */,
+  0x4f205014 /* Sens.Soccer */  , 0x40002573 /* Sonic Blast */,
   0x40007080 /* S.Harrier EU */ , 0x40007038 /* Taito Chase */,
-  0x40009015 /* Sonic 2 EU */   , /* NBA Jam: no valid id/cksum in TMR */
+  0x40009015 /* Sonic 2 EU */   , /* NBA Jam: no valid id/cksum */
   0x4fff8872 /* Excell.Dizzy */ , 0x4ffffac4 /* Fantast.Dizzy */,
   0x4fff4a89 /* Csm.Spacehead */, 0x4fffe352 /* Micr.Machines */,
+  0x4fffa203 /* Bad Apple */
 };
 
 // TMR product codes and hardware type for known non-FM games
 static u32 no_fmsound[] = { // cf Meka, meka/meka.pat
-  0x40002070 /* Walter Payton */, 0x40007020 /* American Pro */,
+  0x40002070 /* Walter Payton */, 0x40017020 /* American Pro */,
   0x4fffe890 /* Wanted */
 };
 
 // TMR product codes and hardware type for known GG carts running in SMS mode
 // NB GG carts having the system type set to 4 (eg. HTH games) run as SMS anyway
 static u32 gg_smsmode[] = { // cf https://www.smspower.org/Tags/SMS-GG
-  0x60002401 /* Castl.Ilusion */, 0x60101018 /* Taito Chase */,
-  0x70709018 /* Olympic Gold */ , 0x70009038 /* Outrun EU */,
+  0x60002401 /* Castl.Ilusion */, 0x6f101018 /* Taito Chase */,
+  0x70709018 /* Olympic Gold */ , 0x70079038 /* Outrun EU */,
   0x60801068 /* Predator 2 */   , 0x70408098 /* Prince.Persia */,
-  0x50101037 /* Rastan Saga */  , 0x70006018 /* RC Grandprix */,
+  0x50101037 /* Rastan Saga */  , 0x7f086018 /* RC Grandprix */,
   0x60002415 /* Super Kickoff */, 0x60801108 /* WWF.Steelcage */,
   /* Excell.Dizzy, Fantast.Dizzy, Super Tetris: no valid id/cksum in TMR */
+  0x4f813028 /* Tesserae */
 };
 
 void PicoResetMS(void)
@@ -645,7 +647,10 @@ void PicoResetMS(void)
   for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
     if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
       hw = Pico.rom[tmr-1] >> 4;
-      if (!PicoIn.hwSelect) {
+      id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]);
+      ck = *(u16 *)&Pico.rom[tmr-6] | (id&0xf0000000) | 0xfff0000;
+
+      if (!PicoIn.hwSelect && hw && ((id+1)&0xfffe) != 0) {
         PicoIn.AHW &= ~(PAHW_GG|PAHW_SG|PAHW_SC);
         if (hw >= 0x5 && hw < 0x8)
           PicoIn.AHW |= PAHW_GG; // GG cartridge detected
@@ -655,8 +660,6 @@ void PicoResetMS(void)
         if (hw == 0x5 || hw == 0x3)
           Pico.m.hardware |= PMS_HW_JAP; // region Japan
       }
-      id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]) & 0xf0f0ffff;
-      ck = (CPU_LE4(*(u32 *)&Pico.rom[tmr-8])>>16) | (id&0xf0000000) | 0xfff0000;
       for (i = 0; i < sizeof(region_pal)/sizeof(*region_pal); i++)
         if ((id == region_pal[i] || ck == region_pal[i]) && !PicoIn.regionOverride)
         {
@@ -666,6 +669,7 @@ void PicoResetMS(void)
       for (i = 0; i < sizeof(gg_smsmode)/sizeof(*gg_smsmode); i++)
         if ((id == gg_smsmode[i] || ck == gg_smsmode[i]) && !PicoIn.hwSelect) {
           PicoIn.AHW &= ~PAHW_GG; // requires SMS mode
+          if (hw < 0x5) PicoIn.AHW |= PAHW_GG;
           break;
         }
       for (i = 0; i < sizeof(no_fmsound)/sizeof(*no_fmsound); i++)
@@ -871,7 +875,7 @@ void PicoFrameMS(void)
     switch (is_pal ? -lines_vis : lines_vis) {
     case  192: if (y > 218) pv->v_counter = y - (lines-256); break;
     case  224: if (y > 234) pv->v_counter = y - (lines-256); break;
-/*  case  240: if (y > 252) pv->v_counter = y - (lines-256); break; ? */
+/*  case  240: if (y > 242) pv->v_counter = y - (lines-256); break; ? */
     case -192: if (y > 242) pv->v_counter = y - (lines-256); break;
     case -224: if (y > 258) pv->v_counter = y - (lines-256); break;
     case -240: if (y > 266) pv->v_counter = y - (lines-256); break;
