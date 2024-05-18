@@ -1144,7 +1144,7 @@ static void draw_frame_credits(void)
 
 static const char credits[] =
 	"PicoDrive v" VERSION "\n"
-	"(c) notaz, 2006-2013; irixxxx, 2018-2023\n\n"
+	"(c) notaz, 2006-2013; irixxxx, 2018-2024\n\n"
 	"Credits:\n"
 	"fDave: initial code\n"
 #ifdef EMU_C68K
