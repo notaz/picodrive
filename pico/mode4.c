@@ -174,7 +174,7 @@ static void ParseSpritesM4(int scanline)
   if (zoomed) h *= 2;
   sprite_base = (pv->reg[6] & 4) << (13-2-1);
 
-  m = 0;
+  m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
   for (i = s = 0; i < 64; i++)
   {
@@ -448,7 +448,7 @@ static void ParseSpritesTMS(int scanline)
   if (zoomed) h *= 2;
   sprite_base = (pv->reg[6] & 0x7) << 11;
 
-  m = 0;
+  m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
   /* find sprites on this scanline */
   for (i = s = 0; i < 32; i++)
