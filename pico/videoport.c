@@ -1180,7 +1180,7 @@ void PicoVideoReset(void)
   Pico.m.dirtyPal = 1;
 
   PicoDrawBgcDMA(NULL, 0, 0, 0, 0);
-  PicoVideoFIFOMode(0, 1);
+  PicoVideoFIFOMode(Pico.video.reg[1]&0x40, Pico.video.reg[12]&1);
 }
 
 void PicoVideoCacheSAT(int load)

@@ -75,13 +75,6 @@ void PicoPower(void)
   // my MD1 VA6 console has this in IO
   PicoMem.ioports[1] = PicoMem.ioports[2] = PicoMem.ioports[3] = 0xff;
 
-  // powerup default VDP register values from TMSS BIOS
-  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
-  Pico.video.reg[0xc] = 0x81;
-  Pico.video.reg[0xf] = 0x02;
-  SATaddr = 0x0000;
-  SATmask = ~0x3ff;
-
   Pico.video.hint_irq = (PicoIn.AHW & PAHW_PICO ? 5 : 4);
 
   if (PicoIn.AHW & PAHW_MCD)
@@ -91,6 +84,13 @@ void PicoPower(void)
     PicoPower32x();
 
   PicoReset();
+
+  // powerup default VDP register values from TMSS BIOS
+  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
+  Pico.video.reg[0xc] = 0x81;
+  Pico.video.reg[0xf] = 0x02;
+  SATaddr = 0x0000;
+  SATmask = ~0x3ff;
 }
 
 PICO_INTERNAL void PicoDetectRegion(void)
