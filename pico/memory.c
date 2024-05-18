@@ -204,7 +204,7 @@ u32 PicoRead16_floating(u32 a)
   // faking open bus
   u32 d = (Pico.m.rotate += 0x41);
   d ^= (d << 5) ^ (d << 8);
-  if ((a & 0xff0000) == 0xa10000) d = 0; // MegaCD pulldowns don't work here curiously
+  if ((a & 0xff0000) == 0xa10000) return d; // MegaCD pulldowns don't work here curiously
   return (PicoIn.AHW & PAHW_MCD) ? 0x00 : d; // pulldown if MegaCD2 attached
 }
 
