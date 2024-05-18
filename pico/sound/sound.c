@@ -33,7 +33,6 @@ static int (*PsndFMUpdate)(s32 *buffer, int length, int stereo, int is_buf_empty
 
 // ym2413
 static OPLL *opll = NULL;
-static OPLL old_opll;
 static struct {
   uint32_t adr;
   uint8_t reg[sizeof(opll->reg)];
@@ -152,6 +151,10 @@ static int YM2612UpdateONE(s32 *buffer, int length, int stereo, int is_buf_empty
   return YM2612UpdateOne(buffer, length, stereo, is_buf_empty);
 }
 
+static int ymclock;
+static int ymrate;
+static int ymopts;
+
 // to be called after changing sound rate or chips
 void PsndRerate(int preserve_state)
 {
@@ -159,54 +162,58 @@ void PsndRerate(int preserve_state)
   int target_fps = Pico.m.pal ? 50 : 60;
   int target_lines = Pico.m.pal ? 313 : 262;
   int sms_clock = Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15;
+  int ym2413_rate = (sms_clock + 36) / 72;
   int ym2612_clock = Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7;
   int ym2612_rate = YM2612_NATIVE_RATE();
-  int ym2413_rate = (sms_clock + 36) / 72;
+  int ym2612_init = !preserve_state;
 
-  if (preserve_state) {
+  // don't init YM2612 if preserve_state and no parameter changes
+  ym2612_init |= ymclock != ym2612_clock || ymopts != (PicoIn.opt & (POPT_DIS_FM_SSGEG|POPT_EN_FM_DAC));
+  ym2612_init |= ymrate != (PicoIn.opt & POPT_EN_FM_FILTER ? ym2612_rate : PicoIn.sndRate);
+  ymclock = ym2612_clock;
+  ymrate = (PicoIn.opt & POPT_EN_FM_FILTER ? ym2612_rate : PicoIn.sndRate);
+  ymopts = PicoIn.opt & (POPT_DIS_FM_SSGEG|POPT_EN_FM_DAC);
+
+  if (preserve_state && ym2612_init) {
     state = malloc(0x204);
     if (state == NULL) return;
     ym2612_pack_state();
     memcpy(state, YM2612GetRegs(), 0x204);
-
-    if (opll != NULL)
-       memcpy(&old_opll, opll, sizeof(OPLL)); // remember old state
   }
+
   if (PicoIn.AHW & PAHW_SMS) {
     OPLL_setRate(opll, ym2413_rate);
-    OPLL_reset(opll);
+    if (!preserve_state)
+      OPLL_reset(opll);
     YMFM_setup_FIR(ym2413_rate, PicoIn.sndRate, 0);
     PsndFMUpdate = YM2413UpdateFIR;
   } else if ((PicoIn.opt & POPT_EN_FM_FILTER) && ym2612_rate != PicoIn.sndRate) {
     // polyphase FIR resampler, resampling directly from native to output rate
-    YM2612Init(ym2612_clock, ym2612_rate,
+    if (ym2612_init)
+      YM2612Init(ym2612_clock, ym2612_rate,
         ((PicoIn.opt&POPT_DIS_FM_SSGEG) ? 0 : ST_SSG) |
         ((PicoIn.opt&POPT_EN_FM_DAC)    ? ST_DAC : 0));
     YMFM_setup_FIR(ym2612_rate, PicoIn.sndRate, PicoIn.opt & POPT_EN_STEREO);
     PsndFMUpdate = YM2612UpdateFIR;
   } else {
-    YM2612Init(ym2612_clock, PicoIn.sndRate,
+    if (ym2612_init)
+      YM2612Init(ym2612_clock, PicoIn.sndRate,
         ((PicoIn.opt&POPT_DIS_FM_SSGEG) ? 0 : ST_SSG) |
         ((PicoIn.opt&POPT_EN_FM_DAC)    ? ST_DAC : 0));
     PsndFMUpdate = YM2612UpdateONE;
   }
-  if (preserve_state) {
+
+  if (preserve_state && ym2612_init) {
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x204);
     ym2612_unpack_state();
-
-    if (opll != NULL) {
-      memcpy(&opll->adr, &old_opll.adr, sizeof(OPLL)-20); // restore old state
-      OPLL_forceRefresh(opll);
-    }
+    free(state);
   }
 
-  if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
-  SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PicoIn.sndRate);
-  if (preserve_state) memcpy(sn76496_regs, state, 28*4); // restore old state
-
-  if (state)
-    free(state);
+  if (preserve_state)
+    SN76496_set_clockrate(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PicoIn.sndRate);
+  else
+    SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PicoIn.sndRate);
 
   // calculate Pico.snd.len
   Pico.snd.len = PicoIn.sndRate / target_fps;

@@ -193,6 +193,8 @@ UINT16 ym_tl_tab2[13*TL_RES_LEN];
 /* sin waveform table in 'decibel' scale (use only period/4 values) */
 static UINT16 ym_sin_tab[256];
 
+static int ym_init_tab;
+
 /* sustain level table (3dB per step) */
 /* bit0, bit1, bit2, bit3, bit4, bit5, bit6 */
 /* 1,    2,    4,    8,    16,   32,   64   (value)*/
@@ -1466,6 +1468,9 @@ static void init_tables(void)
 	signed int i,x,y,p;
 	signed int n;
 	double o,m;
+
+	if (ym_init_tab) return;
+	ym_init_tab = 1;
 
 	for (i=0; i < 256; i++)
 	{

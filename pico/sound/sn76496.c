@@ -280,6 +280,15 @@ static void SN76496_set_gain(struct SN76496 *R,int gain)
 
 
 //static
+void SN76496_set_clockrate(int clock,int sample_rate)
+{
+	struct SN76496 *R = &ono_sn;
+
+	R->SampleRate = sample_rate;
+	SN76496_set_clock(R,clock);
+}
+
+//static
 int SN76496_init(int clock,int sample_rate)
 {
 	struct SN76496 *R = &ono_sn;
@@ -287,8 +296,7 @@ int SN76496_init(int clock,int sample_rate)
 
 	//R->Channel = stream_create(0,1, sample_rate,R,SN76496Update);
 
-	R->SampleRate = sample_rate;
-	SN76496_set_clock(R,clock);
+	SN76496_set_clockrate(clock,sample_rate);
 
 	for (i = 0;i < 4;i++) R->Volume[i] = 0;
 
