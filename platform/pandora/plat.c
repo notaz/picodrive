@@ -171,8 +171,13 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	}
 	if (notice && notice[0])
 		emu_osd_text16(2 + g_osd_start_x, g_osd_y, notice);
-	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))
-		emu_osd_text16(g_osd_fps_x, g_osd_y, fps);
+	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
+		const char *p;
+		// avoid wrapping when fps is very high
+		if (fps[5] != ' ' && (p = strchr(fps, '/')))
+			fps = p;
+ 		emu_osd_text16(g_osd_fps_x, g_osd_y, fps);
+	}
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 }
@@ -186,8 +191,12 @@ void plat_video_flip(void)
 	xenv_update(NULL, NULL, NULL, NULL);
 }
 
+// pnd doesn't use multiple renderers, but we have to handle this since it's
+// called on 32x enable and PicoDrawSetOutFormat() sets up the 32x layers
 void plat_video_toggle_renderer(int change, int is_menu)
 {
+	if (!is_menu)
+		PicoDrawSetOutFormat(PDF_RGB555, 0);
 }
 
 void plat_video_menu_enter(int is_rom_loaded)
