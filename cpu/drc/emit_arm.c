@@ -425,11 +425,11 @@ static void emith_flush(void)
 #define EOP_MSR_IMM(ror2,imm) EOP_C_MSR_IMM(A_COND_AL,ror2,imm)
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
-#define EOP_MOVW(rd,imm) \
-	EMIT(0xe3000000 | ((rd)<<12) | ((imm)&0xfff) | (((imm)<<4)&0xf0000), M1(rd), NO)
+#define EOP_MOVW(cond,rd,imm) \
+	EMIT(((cond)<<28) | 0x03000000 | ((rd)<<12) | ((imm)&0xfff) | (((imm)<<4)&0xf0000), M1(rd), NO)
 
-#define EOP_MOVT(rd,imm) \
-	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000), M1(rd), NO)
+#define EOP_MOVT(cond,rd,imm) \
+	EMIT(((cond)<<28) | 0x03400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000), M1(rd), NO)
 
 // host literal pool; must be significantly smaller than 1024 (max LDR offset = 4096)
 #define MAX_HOST_LITERALS	128
@@ -486,9 +486,9 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				if (op == A_OP_MVN)
 					imm = ~imm;
 				// ...prefer movw/movt
-				EOP_MOVW(rd, imm);
+				EOP_MOVW(cond,rd, imm);
 				if (imm & 0xffff0000)
-					EOP_MOVT(rd, imm);
+					EOP_MOVT(cond,rd, imm);
 				return;
 			}
 #else
@@ -512,7 +512,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				    EOP_C_DOP_IMM(cond, A_OP_ADD, 0,rd,rd,0,o);
 				else if (o < 0)
 				    EOP_C_DOP_IMM(cond, A_OP_SUB, 0,rd,rd,0,-o);
-			return;
+				return;
 			}
 #endif
 			break;
