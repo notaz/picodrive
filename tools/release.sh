@@ -5,7 +5,7 @@
 # creates builds for the supported platforms in the release directory
 #
 # usage: release.sh <version> [platform...]
-#	platforms:	gph dingux retrofw gcw0 opendingux miyoo psp pandora odbeta-gcw0 odbeta-lepus odbeta-rg99
+#	platforms:	gph dingux retrofw gcw0 opendingux miyoo psp ps2 pandora odbeta-gcw0 odbeta-lepus odbeta-rg99
 #
 # expects toolchains to be installed in these docker containers:
 #	gph:		ghcr.io/irixxxx/toolchain-gp2x
@@ -14,6 +14,7 @@
 #	gcw0,opendingux:ghcr.io/irixxxx/toolchain-opendingux
 #	miyoo:		ghcr.io/irixxxx/toolchain-miyoo
 #	psp:		docker.io/pspdev/pspdev
+#	psp:		docker.io/ps2dev/ps2dev
 #	pandora:	ghcr.io/irixxxx/toolchain-pandora
 #	odbeta-gcw0:	ghcr.io/irixxxx/toolchain-odbeta-gcw0
 #	odbeta-lepus:	ghcr.io/irixxxx/toolchain-odbeta-lepus
@@ -25,7 +26,7 @@ rel=$1
 mkdir -p release-$rel
 
 shift; plat=" $* "
-[ -z "$(echo $plat|tr -d ' ')" ] && plat=" gph dingux retrofw gcw0 opendingux miyoo psp pandora odbeta-gcw0 odbeta-lepus odbeta-rg99 "
+[ -z "$(echo $plat|tr -d ' ')" ] && plat=" gph dingux retrofw gcw0 opendingux miyoo psp ps2 pandora odbeta-gcw0 odbeta-lepus odbeta-rg99 "
 
 
 [ -z "${plat##* gph *}" ] && {
@@ -100,6 +101,18 @@ echo "	apk add git gcc g++ zip && export CROSS_COMPILE=psp- &&\
 	make -C platform/psp rel VER=$rel "\
   | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm pspdev/pspdev sh &&
 mv PicoDrive_psp_$rel.zip release-$rel/PicoDrive-psp_$rel.zip
+}
+
+[ -z "${plat##* ps2 *}" ] && {
+# ps2 (experimental), ps2dev SDK toolchain
+docker pull --platform=linux/amd64 ps2dev/ps2dev
+echo "	apk add build-base cmake git zip make && export CROSS_COMPILE=mips64r5900el-ps2-elf- &&\
+	git config --global --add safe.directory /home/picodrive &&\
+	./configure --platform=ps2 &&\
+	make clean && make -j2 all &&\
+	make -C platform/ps2 rel VER=$rel "\
+  | docker run -i -v$PWD:/home/picodrive -w/home/picodrive --rm ps2dev/ps2dev sh &&
+mv PicoDrive_ps2_$rel.zip release-$rel/PicoDrive-ps2_$rel.zip
 }
 
 [ -z "${plat##* pandora *}" ] && {
