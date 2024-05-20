@@ -64,7 +64,7 @@ static GSTEXTURE *g_screens[2];
 static int g_screen_index;
 static GSTEXTURE *g_screen;
 static GSPRIMUVPOINT *g_screen_vertices;
-static u16 *g_screen_palette;
+static void *g_screen_palette;
 
 static GSTEXTURE *osd;
 static uint32_t osd_vertices_count;
@@ -386,7 +386,7 @@ void set_g_screen_values() {
 	g_screen_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
 	for (i = 0; i < 2; i++) {
 		g_screens[i] = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-		g_screens[i]->Mem = (uint32_t *)malloc(g_screenSize);
+		g_screens[i]->Mem = malloc(g_screenSize);
 
 		g_screens[i]->Width = 328;
 		g_screens[i]->Height = 256;
@@ -414,7 +414,7 @@ void set_cdleds_values() {
 	size_t cdledsSize = gsKit_texture_size_ee(14, 5, GS_PSM_CT16);
 
 	cdleds = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-	cdleds->Mem = (uint32_t *)malloc(cdledsSize);
+	cdleds->Mem = malloc(cdledsSize);
 	cdleds_vertices = (GSPRIMUVPOINT *)calloc(2, sizeof(GSPRIMUVPOINT));
 
 	cdleds->Width = 14;
@@ -435,7 +435,7 @@ void set_osd_values() {
 	int num_osds = 4, i;
 
 	osd = (GSTEXTURE *)calloc(1, sizeof(GSTEXTURE));
-	osd->Mem = (uint32_t *)malloc(osdSize);
+	osd->Mem = malloc(osdSize);
 
 	osd_vertices_count = 2*num_osds;
 	osd_vertices = (GSPRIMUVPOINT *)calloc(osd_vertices_count, sizeof(GSPRIMUVPOINT));
@@ -488,7 +488,7 @@ static void video_init(void)
 	set_osd_values();
 	set_cdleds_values();
 
-	g_menubg_ptr = (uint8_t *)malloc(2 * g_menuscreen_pp * g_menuscreen_h);
+	g_menubg_ptr = malloc(2 * g_menuscreen_pp * g_menuscreen_h);
 	g_menubg_src_w = g_screen->Width;
 	g_menubg_src_h = g_screen->Height;
 	g_menubg_src_pp = g_screen->Width;
@@ -654,7 +654,7 @@ static void osd_text(int x, const char *text)
 	int old_pitch = g_screen_ppitch;
 
 	int len = strlen(text) * 8;
-	u16 *osd_buf = osd->Mem;
+	u16 *osd_buf = (u16 *)osd->Mem;
 	int *p, h;
 
 	g_screen_ptr = osd_buf;

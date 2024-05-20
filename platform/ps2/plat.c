@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <stdlib.h>
+#include <malloc.h>
 #include <errno.h>
 
 #include <kernel.h>

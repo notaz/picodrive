@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <malloc.h>
 
 #include "libpad.h"
 #include "libmtap.h"
@@ -21,7 +22,7 @@
 static int in_ps2_combo_keys = 0;
 static int in_ps2_combo_acts = 0;
 
-static uintptr_t padBuf[2][4];
+static void *padBuf[2][4];
 static uint32_t padConnected[2][4]; // 2 ports, 4 slots
 static uint32_t padOpen[2][4];
 static uint32_t maxslot[2];

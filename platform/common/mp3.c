@@ -131,7 +131,7 @@ void mp3_start_play(void *f_, int pos1024)
 void mp3_update(s32 *buffer, int length, int stereo)
 {
 	int length_mp3;
-	void (*mix_samples)(int *dest_buf, short *mp3_buf, int count, int fac16) = mix_16h_to_32_resample_stereo;
+	void (*mix_samples)(s32 *dest_buf, short *mp3_buf, int count, int fac16) = mix_16h_to_32_resample_stereo;
 
 	if (mp3_current_file == NULL || mp3_file_pos >= mp3_file_len)
 		return; /* no file / EOF */

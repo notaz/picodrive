@@ -969,6 +969,7 @@ void PicoVideoCacheSAT(int load);
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
 PICO_INTERNAL_ASM void memset32(void *dest, int c, int count);
+PICO_INTERNAL_ASM void memset32_uncached(int *dest, int c, int count);
 
 // eeprom.c
 void EEPROM_write8(unsigned int a, unsigned int d);
