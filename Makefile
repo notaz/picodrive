@@ -328,16 +328,26 @@ CHDR_OBJS += $(CHDR)/src/libchdr_chd.o $(CHDR)/src/libchdr_cdrom.o
 CHDR_OBJS += $(CHDR)/src/libchdr_flac.o
 CHDR_OBJS += $(CHDR)/src/libchdr_bitstream.o $(CHDR)/src/libchdr_huffman.o
 
-# lzma - use 19.00 as newer versions have compile problems with libretro platforms
-LZMA = $(CHDR)/deps/lzma-19.00
+LZMA = $(CHDR)/deps/lzma-24.05
 LZMA_OBJS += $(LZMA)/src/CpuArch.o $(LZMA)/src/Alloc.o $(LZMA)/src/LzmaEnc.o
 LZMA_OBJS += $(LZMA)/src/Sort.o $(LZMA)/src/LzmaDec.o $(LZMA)/src/LzFind.o
 LZMA_OBJS += $(LZMA)/src/Delta.o
-$(LZMA_OBJS): CFLAGS += -D_7ZIP_ST
+$(LZMA_OBJS): CFLAGS += -DZ7_ST -Wno-unused
+
+ZSTD = $(CHDR)/deps/zstd-1.5.6/lib
+ZSTD_OBJS += $(ZSTD)/common/entropy_common.o $(ZSTD)/common/error_private.o
+ZSTD_OBJS += $(ZSTD)/common/fse_decompress.o $(ZSTD)/common/xxhash.o
+ZSTD_OBJS += $(ZSTD)/common/zstd_common.o
+ZSTD_OBJS += $(ZSTD)/decompress/huf_decompress.o
+ZSTD_OBJS += $(ZSTD)/decompress/huf_decompress_amd64.o
+ZSTD_OBJS += $(ZSTD)/decompress/zstd_ddict.o
+ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress_block.o
+ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress.o
+$(ZSTD_OBJS) $(CHDR_OBJS): CFLAGS += -I$(ZSTD) -Wno-unused
 
 OBJS += $(CHDR_OBJS)
 ifneq ($(STATIC_LINKING), 1)
-OBJS += $(LZMA_OBJS)
+OBJS += $(LZMA_OBJS) $(ZSTD_OBJS)
 endif
 # ouf... prepend includes to overload headers available in the toolchain
 CFLAGS := -I$(LZMA)/include -I$(CHDR)/include $(CFLAGS)

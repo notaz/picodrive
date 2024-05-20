@@ -53,6 +53,10 @@ endif
 
 include $(COMMON_DIR)/common.mak
 
+LCHDR = $(CORE_DIR)/pico/cd/libchdr
+LCHDR_LZMA = $(LCHDR)/deps/lzma-24.05
+LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.6/lib
+
 SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
              $(LIBRETRO_COMM_DIR)/formats/png/rpng.c \
              $(LIBRETRO_COMM_DIR)/streams/trans_stream.c \
@@ -70,16 +74,36 @@ SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
              $(COMMON_DIR)/mp3_sync.c \
              $(COMMON_DIR)/mp3_dummy.c \
              $(UNZIP_DIR)/unzip.c \
-             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_bitstream.c \
-             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_cdrom.c \
-             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_chd.c \
-             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_flac.c \
-             $(CORE_DIR)/pico/cd/libchdr/src/libchdr_huffman.c \
-             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzFind.c \
-             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzmaDec.c \
-             $(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/src/LzmaEnc.c
+             $(LCHDR)/src/libchdr_bitstream.c \
+             $(LCHDR)/src/libchdr_cdrom.c \
+             $(LCHDR)/src/libchdr_chd.c \
+             $(LCHDR)/src/libchdr_flac.c \
+             $(LCHDR)/src/libchdr_huffman.c \
+             $(LCHDR_LZMA)/src/Alloc.c \
+             $(LCHDR_LZMA)/src/CpuArch.c \
+             $(LCHDR_LZMA)/src/Delta.c \
+             $(LCHDR_LZMA)/src/LzFind.c \
+             $(LCHDR_LZMA)/src/LzmaDec.c \
+             $(LCHDR_LZMA)/src/LzmaEnc.c \
+             $(LCHDR_LZMA)/src/Sort.c \
+             $(LCHDR_ZSTD)/common/entropy_common.c \
+             $(LCHDR_ZSTD)/common/error_private.c \
+             $(LCHDR_ZSTD)/common/fse_decompress.c \
+             $(LCHDR_ZSTD)/common/xxhash.c \
+             $(LCHDR_ZSTD)/common/zstd_common.c \
+             $(LCHDR_ZSTD)/decompress/huf_decompress.c \
+             $(LCHDR_ZSTD)/decompress/zstd_ddict.c \
+             $(LCHDR_ZSTD)/decompress/zstd_decompress_block.c \
+             $(LCHDR_ZSTD)/decompress/zstd_decompress.c
 
-COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing -DUSE_LIBCHDR=1 -D_7ZIP_ST -I$(CORE_DIR)/pico/cd/libchdr/include -I$(CORE_DIR)/pico/cd/libchdr/deps/lzma-19.00/include
+COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing -DUSE_LIBCHDR=1 -DZ7_ST -DZSTD_DISABLE_ASM
+COREFLAGS += -I$(LCHDR)/include -I$(LCHDR_LZMA)/include -I$(LCHDR_ZSTD)
+ifeq (,$(call gte,$(APP_PLATFORM_LEVEL),18))
+ifneq ($(TARGET_ARCH_ABI),arm64-v8a)
+# HACK
+COREFLAGS += -Dgetauxval=0*
+endif
+endif
 
 GIT_REVISION := $(shell git rev-parse --short HEAD || echo unknown)
 COREFLAGS += -DREVISION=\"$(GIT_REVISION)\"
