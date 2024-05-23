@@ -442,7 +442,7 @@ static unsigned char read_flipped_jang(unsigned a)
 static void write_bank_jang(unsigned short a, unsigned char d)
 {
   // address is 0xfffe, 0xffff, 0x4000, 0x6000, 0x8000, 0xa000
-  if ((a|1) != 0xffff && (!((a^(a<<1)) & 0x8000) || (a & 0x1fff))) return;
+  if ((a|1) != 0xffff && (a < 0x4000 || a > 0xa000 || (a & 0x1fff))) return;
   // never autodetected, selectable only via config
   if (Pico.ms.mapper != PMS_MAP_JANGGUN) return;
   elprintf(EL_Z80BNK, "bank jang %04x %02x @ %04x", a, d, z80_pc());
@@ -471,7 +471,7 @@ static void write_bank_jang(unsigned short a, unsigned char d)
 static void write_bank_xor(unsigned short a, unsigned char d)
 {
   // 4x8KB bank select @0x2000
-  if ((a&0x6800) != 0x2000) return;
+  if ((a&0xff00) != 0x2000) return;
   if (Pico.ms.mapper != PMS_MAP_XOR && Pico.ms.mapper) return;
 
   elprintf(EL_Z80BNK, "bank xor %04x %02x @ %04x", a, d, z80_pc());
@@ -488,7 +488,7 @@ static void write_bank_xor(unsigned short a, unsigned char d)
 static void write_bank_x8k(unsigned short a, unsigned char d)
 {
   // 8KB address range @ 0x2000 (adaptor) or @ 0x8000 (cartridge)
-  if ((a&0xe000) != 0x2000 && (a&0xe000) != 0x8000) return;
+  if (((a&0xe000) != 0x2000 && (a&0xe000) != 0x8000) || (a & 0x0f) == 5) return;
   if (Pico.ms.mapper != PMS_MAP_8KBRAM && Pico.ms.mapper) return;
 
   elprintf(EL_Z80BNK, "bank x8k %04x %02x @ %04x", a, d, z80_pc());
@@ -538,7 +538,7 @@ char *mappers[] = {
 // Before adding more mappers this should be revised.
 static void xwrite(unsigned int a, unsigned char d)
 {
-  int sz = (PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 : 8) * 1024;
+  int sz = (/*PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 :*/ 8) * 1024;
 
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
@@ -559,7 +559,7 @@ static void xwrite(unsigned int a, unsigned char d)
 
   case PMS_MAP_AUTO:
         // disable autodetection after some time
-        if ((a >= 0xc000 && a < 0xfff8) || Pico.ms.mapcnt > 30) break;
+        if ((a >= 0xc000 && a < 0xfff8) || Pico.ms.mapcnt > 50) break;
         // NB the sequence of mappers is crucial for the auto detection
         if (PicoIn.AHW & PAHW_SC) {
           write_bank_x32k(a,d);
@@ -733,7 +733,7 @@ void PicoPowerMS(void)
 void PicoMemSetupMS(void)
 {
   u8 mapper = Pico.ms.mapper;
-  int sz = (PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 : 8) * 1024;
+  int sz = (/*PicoIn.AHW & (PAHW_SG|PAHW_SC) ? 2 :*/ 8) * 1024;
   u32 a;
 
   // RAM and its mirrors
@@ -741,8 +741,8 @@ void PicoMemSetupMS(void)
     z80_map_set(z80_read_map, a, a + sz-1, PicoMem.zram, 0);
     z80_map_set(z80_write_map, a, a + sz-1, PicoMem.zram, 0);
   }
-  a = 0x10000 - (1<<Z80_MEM_SHIFT);
-  z80_map_set(z80_write_map, a, 0xffff, xwrite, 1); // mapper detection
+  a = 0xffff - (1<<Z80_MEM_SHIFT);
+  z80_map_set(z80_write_map, a+1, 0xffff, xwrite, 1); // mapper detection
 
   // ROM
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
