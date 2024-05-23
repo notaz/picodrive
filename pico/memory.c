@@ -211,13 +211,13 @@ u32 PicoRead16_floating(u32 a)
 static u32 m68k_unmapped_read8(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
-  return (u8)PicoRead16_floating(a);
+  return a < 0x400000 ? 0 : (u8)PicoRead16_floating(a);
 }
 
 static u32 m68k_unmapped_read16(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
-  return PicoRead16_floating(a);
+  return a < 0x400000 ? 0 : PicoRead16_floating(a);
 }
 
 static void m68k_unmapped_write8(u32 a, u32 d)
