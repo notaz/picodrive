@@ -1797,7 +1797,6 @@ void *ssp_translate_block(int pc)
 
 	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
-		fflush(stdout);
 		exit(1);
 	}
 
