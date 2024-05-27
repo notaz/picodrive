@@ -207,6 +207,15 @@ static int data_processing(unsigned int pc, unsigned int insn, char *buf, size_t
 			snprintf(buf, buf_len, "%s%s%s %s,%s,%s%s", name, condition(insn), s, register_name(rd), register_name(rn), register_name(rm), shift(insn, tmp_buf, sizeof(tmp_buf)));
 		}
 	}
+	else if ((insn & 0x0fb00000) == 0x03000000)
+	{
+		unsigned int imm;
+		char *half = (insn & 0x00400000) ? "t" : "w";
+
+		imm = (insn & 0x00000fff) | ((insn & 0x000f0000) >> 4);
+
+		snprintf(buf, buf_len, "mov%s%s %s%s", half, condition(insn), register_name(rd), immediate(imm, 0, 1, tmp_buf, sizeof(tmp_buf)));
+	}
 	else
 	{
 		unsigned int imm;

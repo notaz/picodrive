@@ -260,7 +260,7 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
         printf("trace eof at %08lx\n",ftell(trace[idx]));
         exit(1);
       }
-      fsh2.sr = (fsh2.sr & 0xbff) | (sh2->sr & ~0xbff);
+      fsh2.sr = (fsh2.sr & 0x3ff) | (sh2->sr & ~0x3ff);
       fsh2.is_slave = idx;
       if (memcmp(&fsh2, sh2, offsetof(SH2, read8_map)) ||
           0)//memcmp(&fsh2.pdb_io_csum, &sh2->pdb_io_csum, sizeof(sh2->pdb_io_csum)))
@@ -3250,6 +3250,7 @@ static void emit_branch_linkage_code(SH2 *sh2, struct block_desc *block, int tca
   }
 
 static void *dr_get_pc_base(u32 pc, SH2 *sh2);
+static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free);
 
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
@@ -3318,6 +3319,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   // if there is already a translated but inactive block, reuse it
   block = dr_find_inactive_block(tcache_id, crc, base_pc, end_pc - base_pc,
     base_literals, end_literals - base_literals);
+
+#if (DRC_DEBUG & (256|512))
+  // remove any (partial) old blocks which might get in the way, to make sure
+  // the same branch targets are used in the recording/playback code. Not needed
+  // normally since the SH2 code wasn't overwritten and should be the same.
+  sh2_smc_rm_blocks(base_pc, end_pc - base_pc, tcache_id, 0);
+#endif
 
   if (block) {
     dbg(2, "== %csh2 reuse block %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
@@ -3539,7 +3547,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // if exiting a pinned loop pinned regs must be written back to ctx
         // since they are reloaded in the loop entry code
         emith_cmp_r_imm(sr, 0);
-        EMITH_JMP_START(DCOND_GT);
+        EMITH_JMP_START(DCOND_GE);
         rcache_save_pinned();
 
         if (blx_target_count < ARRAY_SIZE(blx_targets)) {
@@ -3554,7 +3562,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_jump(sh2_drc_exit);
           rcache_free_tmp(tmp);
         }
-        EMITH_JMP_END(DCOND_GT);
+        EMITH_JMP_END(DCOND_GE);
       } else
 #endif
       {
@@ -3568,10 +3576,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           // blx table full, must inline exit code
           tmp = rcache_get_tmp_arg(0);
           emith_cmp_r_imm(sr, 0);
-          EMITH_SJMP_START(DCOND_GT);
-          emith_move_r_imm_c(DCOND_LE, tmp, pc);
-          emith_jump_cond(DCOND_LE, sh2_drc_exit);
-          EMITH_SJMP_END(DCOND_GT);
+          EMITH_SJMP_START(DCOND_GE);
+          emith_move_r_imm_c(DCOND_LT, tmp, pc);
+          emith_jump_cond(DCOND_LT, sh2_drc_exit);
+          EMITH_SJMP_END(DCOND_GE);
           rcache_free_tmp(tmp);
         }
       }
@@ -5627,7 +5635,7 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
+static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free)
 {
   struct block_list **blist, *entry, *next;
   u32 mask = RAM_SIZE(tcache_id) - 1;
@@ -5635,40 +5643,43 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
   u32 start_addr, end_addr;
   u32 start_lit, end_lit;
   struct block_desc *block;
-#if (DRC_DEBUG & 2)
-  int removed = 0;
-#endif
+  int removed = 0, rest;
+  u32 _a = a;
 
   // ignore cache-through
   a &= wtmask;
 
-  blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
-  entry = *blist;
-  // go through the block list for this range
-  while (entry != NULL) {
-    next = entry->next;
-    block = entry->block;
-    start_addr = block->addr & wtmask;
-    end_addr = start_addr + block->size;
-    start_lit = block->addr_lit & wtmask;
-    end_lit = start_lit + block->size_lit;
-    // disable/delete block if it covers the modified address
-    if ((start_addr < a+len && a < end_addr) ||
-        (start_lit < a+len && a < end_lit))
-    {
-      dbg(2, "smc remove @%08x", a);
-      end_addr = (start_lit < a+len && block->size_lit ? a : 0);
-      dr_rm_block_entry(block, tcache_id, end_addr, 0);
-#if (DRC_DEBUG & 2)
-      removed = 1;
-#endif
+  do {
+    blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
+    entry = *blist;
+    // go through the block list for this range
+    while (entry != NULL) {
+      next = entry->next;
+      block = entry->block;
+      start_addr = block->addr & wtmask;
+      end_addr = start_addr + block->size;
+      start_lit = block->addr_lit & wtmask;
+      end_lit = start_lit + block->size_lit;
+      // disable/delete block if it covers the modified address
+      if ((start_addr < a+len && a < end_addr) ||
+          (start_lit < a+len && a < end_lit))
+      {
+        dbg(2, "smc remove @%08x", a);
+        end_addr = (start_lit < a+len && block->size_lit ? a : 0);
+        dr_rm_block_entry(block, tcache_id, end_addr, free);
+        removed = 1;
+      }
+      entry = next;
     }
-    entry = next;
+    rest = INVAL_PAGE_SIZE - (a & (INVAL_PAGE_SIZE-1));
+    a += rest, len -= rest;
+  } while (len > 0);
+
+  if (!removed && len <= 4) {
+    dbg(2, "rm_blocks called @%08x, no work?", _a);
+    return;
   }
-#if (DRC_DEBUG & 2)
-  if (!removed)
-    dbg(2, "rm_blocks called @%08x, no work?", a);
-#endif
+
 #if BRANCH_CACHE
   if (tcache_id)
     memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
@@ -5691,12 +5702,12 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
 
 void sh2_drc_wcheck_ram(u32 a, unsigned len, SH2 *sh2)
 {
-  sh2_smc_rm_blocks(a, len, 0, SH2_DRCBLK_RAM_SHIFT);
+  sh2_smc_rm_blocks(a, len, 0, 0);
 }
 
 void sh2_drc_wcheck_da(u32 a, unsigned len, SH2 *sh2)
 {
-  sh2_smc_rm_blocks(a, len, 1 + sh2->is_slave, SH2_DRCBLK_DA_SHIFT);
+  sh2_smc_rm_blocks(a, len, 1 + sh2->is_slave, 0);
 }
 
 int sh2_execute_drc(SH2 *sh2c, int cycles)

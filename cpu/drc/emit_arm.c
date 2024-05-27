@@ -1329,9 +1329,10 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 	int t2 = rcache_get_tmp();				\
 	int t3 = rcache_get_tmp();				\
 	/* if (sr < 0) return */				\
-	emith_asrf(t2, sr, 12);					\
+	emith_cmp_r_imm(sr, 0);					\
 	EMITH_JMP_START(DCOND_LE);				\
 	/* turns = sr.cycles / cycles */			\
+	emith_asr(t2, sr, 12);					\
 	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)) + 1);	\
 	emith_mul_u64(t1, t2, t2, t3); /* multiply by 1/x */	\
 	rcache_free_tmp(t3);					\
@@ -1362,13 +1363,11 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 } while (0)
 
 #define emith_carry_to_t(srr, is_sub) do { \
-	if (is_sub) { /* has inverted C on ARM */ \
+	emith_bic_r_imm(srr, 1); \
+	if (is_sub) /* has inverted C on ARM */ \
 		emith_or_r_imm_c(A_COND_CC, srr, 1); \
-		emith_bic_r_imm_c(A_COND_CS, srr, 1); \
-	} else { \
+	else \
 		emith_or_r_imm_c(A_COND_CS, srr, 1); \
-		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
-	} \
 } while (0)
 
 #define emith_t_to_carry(srr, is_sub) do { \
@@ -1494,7 +1493,7 @@ static void emith_sync_t(int sr)
 	else if (tcond == A_COND_NV)
 		emith_bic_r_imm(sr, T);
 	else if (tcond >= 0) {
-		emith_bic_r_imm_c(emith_invert_cond(tcond),sr, T);
+		emith_bic_r_imm(sr, T);
 		emith_or_r_imm_c(tcond, sr, T);
 	}
 	tcond = -1;
