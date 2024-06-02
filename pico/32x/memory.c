@@ -72,7 +72,7 @@ static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
   // support polling on 2 addresses - seen in Wolfenstein
   int match = (a - m68k_poll.addr1 <= 3 || a - m68k_poll.addr2 <= 3);
 
-  if (match && cycles - m68k_poll.cycles <= 64 && !SekNotPolling)
+  if (match && CYCLES_GT(64, cycles - m68k_poll.cycles) && !SekNotPolling)
   {
     // detect split 32bit access by same cycle count, and ignore those
     if (cycles != m68k_poll.cycles && ++m68k_poll.cnt >= POLL_THRESHOLD) {
@@ -160,7 +160,7 @@ void NOINLINE p32x_sh2_poll_event(u32 a, SH2 *sh2, u32 flags, u32 m68k_cycles)
     elprintf_sh2(sh2, EL_32X, "state: %02x->%02x", sh2->state,
       sh2->state & ~flags);
 
-    if (sh2->m68krcycles_done < m68k_cycles && !(sh2->state & SH2_STATE_RUN))
+    if (CYCLES_GT(m68k_cycles, sh2->m68krcycles_done) && !(sh2->state & SH2_STATE_RUN))
       sh2->m68krcycles_done = m68k_cycles;
 
     pevt_log_sh2_o(sh2, EVT_POLL_END);

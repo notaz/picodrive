@@ -54,7 +54,7 @@ typedef struct SH2_
 #define SH2_IN_DRC      (1 << 7)	// DRC in use
 	unsigned int	state;
 	uint32_t	poll_addr;
-	int		poll_cycles;
+	unsigned int	poll_cycles;
 	int		poll_cnt;
 // NB MUST be a bit unused in SH2 SR, see also cpu/sh2/compiler.c!
 #define SH2_NO_POLLING	(1 << 10)	// poll detection control

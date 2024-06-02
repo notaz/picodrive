@@ -583,10 +583,10 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
   unsigned int mcycles;
   
   mcycles = msh2.m68krcycles_done;
-  if (ssh2.m68krcycles_done < mcycles)
+  if (CYCLES_GT(mcycles, ssh2.m68krcycles_done))
     mcycles = ssh2.m68krcycles_done;
 
-  while (mcycles < m68k_target) {
+  while (CYCLES_GT(m68k_target, mcycles)) {
     mcycles += STEP_LS;
     sync_sh2s_normal(mcycles);
   }
