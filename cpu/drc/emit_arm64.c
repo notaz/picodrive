@@ -1242,7 +1242,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	EMITH_JMP_START(DCOND_LE);				\
 	/* turns = sr.cycles / cycles */			\
 	emith_asr(t2, sr, 12);					\
-	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)) + 1);	\
+	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)));	\
 	emith_mul_u64(t1, t2, t2, t3); /* multiply by 1/x */	\
 	rcache_free_tmp(t3);					\
 	if (reg >= 0) {						\
@@ -1309,13 +1309,13 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	/* to check: add MACH >> 31 to MACH >> 15. this is 0 if no overflow */ \
 	emith_asr(rn, mh, 15);                    \
 	emith_addf_r_r_r_lsr(rn, rn, mh, 31);     \
-	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> ov */ \
-	emith_move_r_imm_c(DCOND_NE, ml, 0x0000); /* -overflow */ \
-	emith_move_r_imm_c(DCOND_NE, mh, 0x8000); \
-	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> +ovl */ \
-	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0xffffffff */ \
-	emith_sub_r_imm_c(DCOND_GT, mh, 1); /* 0x00007fff */ \
-	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> -ovl */ \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x00000000); \
+	emith_move_r_imm_c(DCOND_NE, mh, 0x00008000); \
+	EMITH_SJMP_START(DCOND_MI); /* sum > 0 -> +ovl */ \
+	emith_sub_r_imm_c(DCOND_PL, ml, 1); /* 0xffffffff */ \
+	emith_sub_r_imm_c(DCOND_PL, mh, 1); /* 0x00007fff */ \
+	EMITH_SJMP_END(DCOND_MI);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
@@ -1336,10 +1336,10 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
 	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
-	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* negative ovrfl */ \
-	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> positive ovrfl */ \
-	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0x7fffffff */ \
-	EMITH_SJMP_END(DCOND_LE);                 \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* -ovrfl */ \
+	EMITH_SJMP_START(DCOND_MI); /* sum > 0 -> +ovrfl */ \
+	emith_sub_r_imm_c(DCOND_PL, ml, 1); /* 0x7fffffff */ \
+	EMITH_SJMP_END(DCOND_MI);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
