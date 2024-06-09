@@ -1,6 +1,6 @@
 /*
  * Basic macros to emit MIPS32/MIPS64 Release 1 or 2 instructions and some utils
- * Copyright (C) 2019 kub
+ * Copyright (C) 2019-2024 kub
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -1671,12 +1671,20 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 	asm volatile(
 	"	rdhwr	%2, $1;"
 	"	bal	0f;"			// needed to allow for jr.hb:
+#if _MIPS_SZPTR == 64
+	"0:	daddiu	$ra, $ra, 3f-0b;"	//   set ra to insn after jr.hb
+#else
 	"0:	addiu	$ra, $ra, 3f-0b;"	//   set ra to insn after jr.hb
+#endif
 	"	beqz	%2, 3f;"
 
 	"1:	synci	0(%0);"
 	"	sltu	%3, %0, %1;"
+#if _MIPS_SZPTR == 64
+	"	daddu	%0, %0, %2;"
+#else
 	"	addu	%0, %0, %2;"
+#endif
 	"	bnez	%3, 1b;"
 
 	"	sync;"

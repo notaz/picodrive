@@ -1,7 +1,7 @@
 /*
  * Basic macros to emit x86 instructions and some utils
  * Copyright (C) 2008,2009,2010 notaz
- * Copyright (C) 2019 kub
+ * Copyright (C) 2019-2024 kub
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -1365,7 +1365,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	/* overflow if top 17 bits of MACH aren't all 1 or 0 */ \
 	/* to check: add MACH >> 31 to MACH >> 15. this is 0 if no overflow */ \
 	emith_asr(rn, mh, 15);                    \
-	emith_addf_r_r_r_lsr(rn, rn, mh, 31);     \
+	emith_lsr(rm, mh, 31);                    \
+	emith_addf_r_r(rn, rm);                   \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> -ovl */ \
 	emith_move_r_imm_c(DCOND_NE, ml, 0x00000000); \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x00008000); \

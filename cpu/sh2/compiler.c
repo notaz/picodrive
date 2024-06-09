@@ -1,7 +1,7 @@
 /*
  * SH2 recompiler
  * (C) notaz, 2009,2010,2013
- * (C) kub, 2018,2019,2020
+ * (C) kub, 2018-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -2610,7 +2610,8 @@ static uptr split_address(uptr la, uptr mask, s32 *offs)
 #ifdef __arm__
   // arm32 offset has an add/sub flag and an unsigned 8 bit value, which only
   // allows values of [-255...255]. the value -256 thus can't be used.
-  if (*offs + sign == 0) {
+  if (*offs < 0) {  // TODO not working at all with negative offsets on ARM?
+  //if (*offs == -sign) {
     la -= sign;
     *offs += sign;
   }
@@ -2631,7 +2632,7 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, s32 *offs)
   // is r constant and points to a memory region?
   if (! gconst_get(r, &a))
     return -1;
-  poffs = dr_ctx_get_mem_ptr(sh2, a, &mask);
+  poffs = dr_ctx_get_mem_ptr(sh2, a + *offs, &mask);
   if (poffs == -1)
     return -1;
 
@@ -3244,10 +3245,11 @@ static void emit_branch_linkage_code(SH2 *sh2, struct block_desc *block, int tca
 }
 
 #define FLUSH_CYCLES(sr) \
-  if (cycles > 0) { \
+  if (cycles > 0) \
     emith_sub_r_imm(sr, cycles << 12); \
-    cycles = 0; \
-  }
+  else if (cycles < 0) /* may happen after a branch not taken */ \
+    emith_add_r_imm(sr, -cycles << 12); \
+  cycles = 0; \
 
 static void *dr_get_pc_base(u32 pc, SH2 *sh2);
 static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free);
@@ -3960,10 +3962,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if DIV_OPTIMIZER
           if (div(opd).div1 == 16 && div(opd).ro == div(opd).rn) {
             // divide 32/16
-            tmp = rcache_get_tmp_arg(1);
-            emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(2, div(opd).rm, NULL);
+            tmp = rcache_get_tmp_arg(1);
+            emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
             rcache_invalidate_tmp();
             emith_abicall(sh2_drc_divu32);
             tmp = rcache_get_tmp_ret();
@@ -3979,16 +3981,17 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             emith_or_r_r_r(sr, sr, tmp3);         // T
             rcache_free_tmp(tmp3);
             skip_op = div(opd).div1 + div(opd).rotcl;
+            cycles += skip_op;
           }
           else if (div(opd).div1 == 32 && div(opd).ro != div(opd).rn) {
             // divide 64/32
             tmp4 = rcache_get_reg(div(opd).ro, RC_GR_READ, NULL);
             emith_ctx_write(tmp4, offsetof(SH2, drc_tmp));
             rcache_free(tmp4);
-            tmp = rcache_get_tmp_arg(1);
-            emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(2, div(opd).rm, NULL);
+            tmp = rcache_get_tmp_arg(1);
+            emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
             rcache_invalidate_tmp();
             emith_abicall(sh2_drc_divu64);
             tmp = rcache_get_tmp_ret();
@@ -4004,6 +4007,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);
             rcache_free_tmp(tmp3);
             skip_op = div(opd).div1 + div(opd).rotcl;
+            cycles += skip_op;
           }
 #endif
           break;
@@ -4085,13 +4089,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if DIV_OPTIMIZER
         if (div(opd).div1 == 16 && div(opd).ro == div(opd).rn) {
           // divide 32/16
-          tmp = rcache_get_tmp_arg(1);
-          emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
-          rcache_get_reg_arg(0, div(opd).rn, NULL);
+          tmp = rcache_get_reg_arg(0, div(opd).rn, NULL);
           tmp2 = rcache_get_reg_arg(2, div(opd).rm, NULL);
-          tmp3 = rcache_get_tmp();
+          tmp3 = rcache_get_tmp_arg(1);
           emith_lsr(tmp3, tmp2, 31);
           emith_or_r_r_lsl(sr, tmp3, M_SHIFT);        // M = Rm[31]
+          emith_add_r_r_ptr_imm(tmp3, CONTEXT_REG, offsetof(SH2, drc_tmp));
           rcache_invalidate_tmp();
           emith_abicall(sh2_drc_divs32);
           tmp = rcache_get_tmp_ret();
@@ -4108,6 +4111,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_or_r_r_r(sr, sr, tmp3);               // T
           rcache_free_tmp(tmp3);
           skip_op = div(opd).div1 + div(opd).rotcl;
+          cycles += skip_op;
         }
         else if (div(opd).div1 == 32 && div(opd).ro != div(opd).rn) {
           // divide 64/32
@@ -4138,6 +4142,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);        // Q = !Ro[0]^M
           rcache_free_tmp(tmp3);
           skip_op = div(opd).div1 + div(opd).rotcl;
+          cycles += skip_op;
         } else
 #endif
         {
@@ -5113,7 +5118,7 @@ end_op:
         emith_move_r_imm_s8_patch(rtsadd, tcache_ptr - (u8 *)rtsret);
 #endif
 
-      // branch not taken, correct cycle count
+      // branch not taken, correct cycle count (now, cycles < 0)
       if (ctaken)
         cycles -= ctaken;
       // set T bit to reflect branch not taken for OP_BRANCH_CT/CF
@@ -5242,10 +5247,6 @@ end_op:
  do_host_disasm(tcache_id);
  printf("~~~\n");
 */
-
-#if (DRC_DEBUG)
-  fflush(stdout);
-#endif
 
   return block_entry_ptr;
 }
@@ -5675,8 +5676,9 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free)
     a += rest, len -= rest;
   } while (len > 0);
 
-  if (!removed && len <= 4) {
-    dbg(2, "rm_blocks called @%08x, no work?", _a);
+  if (!removed) {
+    if (len <= 4)
+      dbg(2, "rm_blocks called @%08x, no work?", _a);
     return;
   }
 
@@ -5984,7 +5986,6 @@ int sh2_drc_init(SH2 *sh2)
     // disasm the utils
     tcache_dsm_ptrs[0] = tcache;
     do_host_disasm(0);
-    fflush(stdout);
 #endif
 #if (DRC_DEBUG & 1)
     hash_collisions = 0;

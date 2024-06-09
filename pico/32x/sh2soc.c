@@ -435,24 +435,25 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
   old = r[a / 4];
   r[a / 4] = d;
 
+  // TODO: DRC doesn't correctly extend 'd' parameter register to 64bit :-/
   switch (a) {
     // division unit (TODO: verify):
     case 0x104: // DVDNT: divident L, starts divide
       elprintf_sh2(sh2, EL_32XP, "divide %08x / %08x",
-        d, r[0x100 / 4]);
+        r[0x104 / 4], r[0x100 / 4]);
       if (r[0x100 / 4]) {
         signed int divisor = r[0x100 / 4];
-                       r[0x118 / 4] = r[0x110 / 4] = (signed int)d % divisor;
-        r[0x104 / 4] = r[0x11c / 4] = r[0x114 / 4] = (signed int)d / divisor;
+                       r[0x118 / 4] = r[0x110 / 4] = (signed int)r[0x104 / 4] % divisor;
+        r[0x104 / 4] = r[0x11c / 4] = r[0x114 / 4] = (signed int)r[0x104 / 4] / divisor;
       }
       else
         r[0x110 / 4] = r[0x114 / 4] = r[0x118 / 4] = r[0x11c / 4] = 0; // ?
       break;
     case 0x114:
       elprintf_sh2(sh2, EL_32XP, "divide %08x%08x / %08x @%08x",
-        r[0x110 / 4], d, r[0x100 / 4], sh2_pc(sh2));
+        r[0x110 / 4], r[0x114 / 4], r[0x100 / 4], sh2_pc(sh2));
       if (r[0x100 / 4]) {
-        signed long long divident = (signed long long)r[0x110 / 4] << 32 | d;
+        signed long long divident = (signed long long)r[0x110 / 4] << 32 | r[0x114 / 4];
         signed int divisor = r[0x100 / 4];
         // XXX: undocumented mirroring to 0x118,0x11c?
         r[0x118 / 4] = r[0x110 / 4] = divident % divisor;

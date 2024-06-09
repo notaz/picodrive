@@ -1,7 +1,7 @@
 #include "../sh2.h"
 
 #ifdef DRC_CMP
-#include "../compiler.c"
+#include "../compiler.h"
 #define BUSY_LOOP_HACKS 0
 #else
 #define BUSY_LOOP_HACKS 1

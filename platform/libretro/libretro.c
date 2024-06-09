@@ -2542,7 +2542,7 @@ void retro_init(void)
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
-#ifdef __arm__
+#ifdef DRC_SH2
 #ifdef _3DS
    if (ctr_svchack_successful)
 #endif

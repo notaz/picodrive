@@ -1,7 +1,7 @@
 /*
  * Basic macros to emit ARM instructions and some utils
  * Copyright (C) 2008,2009,2010 notaz
- * Copyright (C) 2019 kub
+ * Copyright (C) 2019-2024 kub
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -1196,7 +1196,7 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 
 #define emith_jump_at(ptr, target) do { \
 	u32 *ptr_ = (u32 *)ptr; \
-	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \
+	u32 val_ = (u32 *)(target) - ptr_ - 2; \
 	EOP_C_B_PTR(ptr_, A_COND_AL, 0, val_ & 0xffffff); \
 } while (0)
 #define emith_jump_at_size() 4

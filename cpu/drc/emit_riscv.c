@@ -1,6 +1,6 @@
 /*
  * Basic macros to emit RISC-V RV64IM instructions and some utils
- * Copyright (C) 2019 kub
+ * Copyright (C) 2019-2024 kub
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -710,9 +710,9 @@ static void emith_move_imm(int r, uintptr_t imm)
 	if (lui >> 12) {
 		EMIT(R5_MOVT_IMM(r, lui));
 		if (imm & 0xfff)
-			EMIT(R5_ADD_IMM(r, r, imm));
+			EMIT(R5_ADDW_IMM(r, r, imm));
 	} else
-		EMIT(R5_ADD_IMM(r, Z0, imm));
+		EMIT(R5_ADDW_IMM(r, Z0, imm));
 }
 
 static void emith_move_ptr_imm(int r, uintptr_t imm)
