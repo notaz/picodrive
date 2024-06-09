@@ -345,9 +345,9 @@ ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress_block.o
 ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress.o
 $(ZSTD_OBJS) $(CHDR_OBJS): CFLAGS += -I$(ZSTD) -Wno-unused
 
-OBJS += $(CHDR_OBJS)
+OBJS += $(CHDR_OBJS) $(ZSTD_OBJS)
 ifneq ($(STATIC_LINKING), 1)
-OBJS += $(LZMA_OBJS) $(ZSTD_OBJS)
+OBJS += $(LZMA_OBJS)
 endif
 # ouf... prepend includes to overload headers available in the toolchain
 CFLAGS := -I$(LZMA)/include -I$(CHDR)/include $(CFLAGS)
