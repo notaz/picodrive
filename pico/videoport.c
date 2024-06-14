@@ -944,13 +944,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         }
 
         d &= 0xff;
-        if (num == 0 && !(pvid->reg[0]&2) && (d&2))
-          pvid->hv_latch = PicoVideoRead(0x08);
-        if (num == 12 && ((pvid->reg[12]^d)&0x01))
-          PicoVideoFIFOMode(pvid->reg[1]&0x40, d & 1);
 
         if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
-          PicoVideoFIFOMode(d & 0x40, pvid->reg[12]&1);
           // handle line blanking before line rendering. Only the last switch
           // before the 1st sync for other reasons is honoured.
           PicoVideoSync(1);
@@ -965,15 +960,21 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
         switch (num)
         {
           case 0x00:
+            if ((~dold&d)&2) {
+              unsigned c = SekCyclesDone() - Pico.t.m68c_line_start;
+              pvid->hv_latch = VdpFIFO.fifo_hcounts[c/clkdiv] | (pvid->v_counter << 8);
+            }
             elprintf(EL_INTSW, "hint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x10)>>4,
                     (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
             goto update_irq;
           case 0x01:
-            elprintf(EL_INTSW, "vint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x20)>>5,
-                    (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
+            if ((d^dold)&0x40)
+              PicoVideoFIFOMode(d & 0x40, pvid->reg[12]&1);
             if (!(pvid->status & PVS_VB2))
               pvid->status &= ~SR_VB;
             pvid->status |= ((d >> 3) ^ SR_VB) & SR_VB; // forced blanking
+            elprintf(EL_INTSW, "vint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x20)>>5,
+                    (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
             goto update_irq;
           case 0x05:
           case 0x06:
@@ -982,7 +983,10 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
           case 0x0c:
             // renderers should update their palettes if sh/hi mode is changed
             if ((d^dold)&8) Pico.m.dirtyPal = 1;
-            if ((d^dold)&1) Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+            if ((d^dold)&1) {
+              PicoVideoFIFOMode(pvid->reg[1]&0x40, d & 1);
+              Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+            }
             break;
           default:
             return;
@@ -1154,8 +1158,11 @@ unsigned char PicoVideoRead8CtlL(int is_from_z80)
 
 unsigned char PicoVideoRead8HV_H(int is_from_z80)
 {
-  elprintf(EL_HVCNT, "vcounter: %02x [%u] @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
-  return Pico.video.v_counter;
+  u32 d = Pico.video.v_counter;
+  if (Pico.video.reg[0]&2)
+    d = Pico.video.hv_latch >> 8;
+  elprintf(EL_HVCNT, "vcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
+  return d;
 }
 
 // FIXME: broken
