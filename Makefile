@@ -337,9 +337,9 @@ ZSTD_OBJS += $(ZSTD)/common/entropy_common.o $(ZSTD)/common/error_private.o
 ZSTD_OBJS += $(ZSTD)/common/fse_decompress.o $(ZSTD)/common/xxhash.o
 ZSTD_OBJS += $(ZSTD)/common/zstd_common.o
 ZSTD_OBJS += $(ZSTD)/decompress/huf_decompress.o
-#ifneq (,$(filter x86%, $(ARCH)))
+ifneq (,$(filter x86%, $(ARCH)))
 ZSTD_OBJS += $(ZSTD)/decompress/huf_decompress_amd64.o
-#endif
+endif
 ZSTD_OBJS += $(ZSTD)/decompress/zstd_ddict.o
 ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress_block.o
 ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress.o

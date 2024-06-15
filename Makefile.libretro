@@ -64,7 +64,7 @@ endif
 # x86/x86_64 generic
 else ifneq (,$(findstring x86,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
-	ARCH := 86
+	ARCH := x86
         fpic := -fPIC
 	SHARED := -shared
 	CFLAGS += -DFAMEC_NO_GOTOS
