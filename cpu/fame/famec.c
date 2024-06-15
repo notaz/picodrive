@@ -228,7 +228,7 @@
 #define ROR_33(A, C)    (LSR_32(A, C) | LSL_32(A, 33-(C)))
 
 #ifndef FAMEC_NO_GOTOS
-#define NEXT do {               \
+#define NEXT {               \
     FETCH_WORD(Opcode);         \
     goto *JumpTable[Opcode];    \
 }
@@ -799,6 +799,8 @@ int fm68k_emulate(M68K_CONTEXT *ctx, int cycles, fm68k_call_reason reason)
 	case fm68k_reason_emulate:
 		break;
 	}
+	PC = ctx->PC;
+	BasePC = ctx->BasePC;
 #endif // FAMEC_NO_GOTOS
 
 	// won't emulate double fault
@@ -932,6 +934,10 @@ famec_Exec:
 famec_End:
 	ctx->sr = GET_SR;
 	ctx->pc = GET_PC;
+#ifndef FAMEC_NO_GOTOS
+	ctx->PC = PC;
+	ctx->BasePC = BasePC;
+#endif
 
 	ctx->execinfo &= ~M68K_RUNNING;
 
