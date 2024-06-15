@@ -97,15 +97,21 @@ PICO_INTERNAL void PicoDetectRegion(void)
 {
   int support=0, hw=0, i;
   unsigned char pal=0;
+  char *pr = (char *)(Pico.rom + 0x1f0);
 
   if (PicoIn.regionOverride)
   {
     support = PicoIn.regionOverride;
   }
+  else if (strcmp(pr, "EUROPE") == 0 || strcmp(pr, "Europe") == 0)
+  {
+    // Unusual cartridge region 'code'
+    support|=8;
+  }
   else
   {
     // Read cartridge region data:
-    unsigned short *rd = (unsigned short *)(Pico.rom + 0x1f0);
+    unsigned short *rd = (unsigned short *)pr;
     int region = (rd[0] << 16) | rd[1];
 
     for (i = 0; i < 4; i++)

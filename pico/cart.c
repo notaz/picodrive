@@ -1341,10 +1341,6 @@ static void PicoCartDetect(const char *carthw_cfg)
     memset(Pico.sv.data, 0xff, Pico.sv.size);
   }
 
-  // Unusual region 'code'
-  if (rom_strcmp(0x1f0, "EUROPE") == 0 || rom_strcmp(0x1f0, "Europe") == 0)
-    *(u32 *) (Pico.rom + 0x1f0) = CPU_LE4(0x20204520);
-
   // tweak for Blackthorne: master SH2 overwrites stack of slave SH2 being in PWM
   // interrupt. On real hardware, nothing happens since slave fetches the values
   // it has written from its cache, but picodrive doesn't emulate caching.
