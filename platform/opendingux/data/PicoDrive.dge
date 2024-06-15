@@ -1,4 +1,4 @@
 #! /bin/sh
 echo 0 > /proc/sys/kernel/printk
-./PicoDrive "$@"
+./picodrive "$@"
 sync

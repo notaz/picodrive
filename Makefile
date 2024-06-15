@@ -116,8 +116,7 @@ PicoDrive.zip: $(TARGET)
 	mkdir .od_data
 	cp -r platform/linux/skin .od_data
 	cp platform/game_def.cfg .od_data
-	cp $< .od_data/PicoDrive
-	$(STRIP) .od_data/PicoDrive
+	$(STRIP) $< -o .od_data/picodrive
 	cd .od_data && zip -9 -r ../$@ *
 all: PicoDrive.zip
 endif
@@ -128,8 +127,7 @@ ifeq "$(PLATFORM)" "opendingux"
 	mkdir .od_data
 	cp -r platform/opendingux/data/. .od_data
 	cp platform/game_def.cfg .od_data
-	cp $< .od_data/PicoDrive
-	$(STRIP) .od_data/PicoDrive
+	$(STRIP) $< -o .od_data/picodrive
 .PHONY: .od_data
 
 ifneq (,$(filter %__DINGUX__, $(CFLAGS)))

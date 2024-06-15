@@ -14,7 +14,7 @@
 #	gcw0,opendingux:ghcr.io/irixxxx/toolchain-opendingux
 #	miyoo:		ghcr.io/irixxxx/toolchain-miyoo
 #	psp:		docker.io/pspdev/pspdev
-#	psp:		docker.io/ps2dev/ps2dev
+#	ps2:		docker.io/ps2dev/ps2dev
 #	pandora:	ghcr.io/irixxxx/toolchain-pandora
 #	odbeta-gcw0:	ghcr.io/irixxxx/toolchain-odbeta-gcw0
 #	odbeta-lepus:	ghcr.io/irixxxx/toolchain-odbeta-lepus
