@@ -566,7 +566,7 @@ static void DrawLayer(int plane_sh, u32 *hcache, int cellskip, int maxcells,
     ts.nametab+=(ts.line>>4)<<shift[width];
 
     DrawStripInterlace(&ts, plane_sh);
-  } else if( pvid->reg[11]&4) {
+  } else if (pvid->reg[11]&4) {
     // shit, we have 2-cell column based vscroll
     // luckily this doesn't happen too often
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line

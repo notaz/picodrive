@@ -461,7 +461,6 @@ DrawLayer:
     subs    r10,r10, #0x01000000
     bmi     .dsloop_exit
 
-.dsloop_enter:
     and     r7, r5, r8
     add     r7, lr, r7, lsl #1 @ Pico.vram+((tilex&ts->xmask) as halfwords)
     ldrh    r7, [r7, r12]      @ r7=code (int, but from unsigned, no sign extend)
@@ -1385,6 +1384,9 @@ DrawWindow:
     and     r10, r10, #7
     mov     r10, r10, lsl #1      @ r10=ty
 
+    ldr     r6, [r11, #OFS_EST_rendstatus]
+    ldr     lr, [r11, #OFS_EST_PicoMem_vram]
+
     mov     r12, r12, lsl #10
 
     tst     r4, #1                @ 40 cell mode?
@@ -1393,12 +1395,6 @@ DrawWindow:
     addne   r12, r12, r5, lsl #7
     addeq   r12, r12, r5, lsl #6  @ nametab
     add     r12, r12, r0, lsl #2  @ +starttile
-
-    ldr     lr, [r11, #OFS_EST_PicoMem_vram]
-    ldr     r6, [r11, #OFS_EST_rendstatus]
-
-    @ fetch the first code now
-    ldrh    r7, [lr, r12]
 
     ands    r6, r6, #PDRAW_WND_DIFF_PRIO
     cmpeq   r2, #1                @ prio && !(rendstatus & WND_DIFF_PRIO)?
@@ -1412,20 +1408,18 @@ DrawWindow:
     @ cache some stuff to avoid mem access
     ldr     r11, [r11, #OFS_EST_HighCol]
     mov     r8, r8, lsl #1        @ cells
-    add     r11,r11,#8
     mvn     r9, #0                @ r9=prevcode=-1
-    add     r1, r11, r0, lsl #4   @ r1=pdest
+    add     r1, r11, r0, lsl #4   @ r1=pdest=HighCol+starttile (+8 added in loop)
     mov     r0, #0xf
-    b       .dwloop_enter
 
     @ r4,r5 are scratch in this loop
 .dwloop:
     add     r1, r1, #8
 .dwloop_nor1:
-    add     r12, r12, #2    @ halfwords
     ldrh    r7, [lr, r12]   @ r7=code (int, but from unsigned, no sign extend)
+    add     r12, r12, #2    @ halfwords
     subs    r8, r8, #1
-    beq     .dwloop_end     @ done
+    bmi     .dwloop_end     @ done
 
     eor     r5, r6, r7, lsr #15
     tst     r5, #1
@@ -1435,7 +1429,6 @@ DrawWindow:
     cmp     r7, r9
     beq     .dw_samecode    @ we know stuff about this tile already
 
-.dwloop_enter:
     mov     r9, r7          @ remember code
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
