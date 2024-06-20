@@ -223,17 +223,18 @@ void cache_flush_d_inval_i(void *start, void *end)
 {
 #ifdef __arm__
    size_t len = (char *)end - (char *)start;
-   (void)len;
 #if defined(__BLACKBERRY_QNX__)
-   msync(start, end - start, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
+   msync(start, len, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
 #elif defined(__MACH__)
    sys_dcache_flush(start, len);
    sys_icache_invalidate(start, len);
 #elif defined(_3DS)
+   (void)len;
    ctr_flush_invalidate_cache();
 #elif defined(VITA)
    sceKernelSyncVMDomain(sceBlock, start, len);
 #else
+   (void)len;
    __clear_cache(start, end);
 #endif
 #endif
@@ -550,7 +551,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
    vm_current_start_col = start_col;
    vm_current_col_count = col_count;
 
-   // 8bit renderes create a 328x256 CLUT image, while 16bit creates 320x240 RGB
+   // 8bit renderers create a 328x256 CLUT image, 16bit creates 320x240 RGB
 #if defined(RENDER_GSKIT_PS2)
    // calculate the borders of the real image inside the picodrive image
    vout_width = (vout_16bit ? VOUT_MAX_WIDTH : VOUT_8BIT_WIDTH);
@@ -1661,7 +1662,7 @@ unsigned retro_get_region(void)
 
 void *retro_get_memory_data(unsigned type)
 {
-   uint8_t* data;
+   void *data;
 
    switch(type)
    {
@@ -1678,6 +1679,12 @@ void *retro_get_memory_data(unsigned type)
             data = PicoMem.zram;
          else
             data = PicoMem.ram;
+         break;
+      case RETRO_MEMORY_VIDEO_RAM:
+         data = PicoMem.vram;
+         break;
+      case 4:
+         data = PicoMem.cram;
          break;
       default:
          data = NULL;
