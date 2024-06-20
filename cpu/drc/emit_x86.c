@@ -934,11 +934,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_call_reg(r) do { \
 	EMIT_REX_IF(0, 0, r); \
-	EMIT_OP_MODRM(0xff, 3, 2, (r)&7); \
+	EMIT_OP_MODRM64(0xff, 3, 2, r); \
 } while (0)
 
 #define emith_abicall_ctx(offs) do { \
-	EMIT_OP_MODRM(0xff, 2, 2, CONTEXT_REG); \
+	EMIT_REX_IF(0, 0, CONTEXT_REG); \
+	EMIT_OP_MODRM64(0xff, 2, 2, CONTEXT_REG); \
 	EMIT(offs, u32); \
 } while (0)
 
@@ -955,11 +956,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_jump_reg(r) do { \
 	EMIT_REX_IF(0, 0, r); \
-	EMIT_OP_MODRM(0xff, 3, 4, (r)&7); \
+	EMIT_OP_MODRM64(0xff, 3, 4, r); \
 } while (0)
 
 #define emith_jump_ctx(offs) do { \
-	EMIT_OP_MODRM(0xff, 2, 4, CONTEXT_REG); \
+	EMIT_REX_IF(0, 0, CONTEXT_REG); \
+	EMIT_OP_MODRM64(0xff, 2, 4, CONTEXT_REG); \
 	EMIT(offs, u32); \
 } while (0)
 
