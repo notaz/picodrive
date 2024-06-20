@@ -1386,7 +1386,7 @@ static void access_68k_bus(int delay) // bus delay as Q8
   Pico.t.z80_busdelay &= 0xff; // leftover cycle fraction
   // don't use SekCyclesBurn() here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
-  Pico.t.z80_buscycles += 8;
+  Pico.t.z80_buscycles += 8; // TODO <=8.4 for Rick 2, but >=8.9 for misc_test
 }
 
 static unsigned char z80_md_vdp_read(unsigned short a)

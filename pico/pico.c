@@ -239,6 +239,7 @@ void PicoLoopPrepare(void)
     Pico.t.vcnt_wrap = 0xEB;
     Pico.t.vcnt_adj = 6;
   }
+  PicoVideoFIFOMode(Pico.video.reg[1]&0x40, Pico.video.reg[12]&1);
 
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;

@@ -426,6 +426,8 @@ void PicoVideoFIFOMode(int active, int h40)
 
   if (vf->fifo_maxslot)
     PicoVideoFIFOSync(lc);
+  else
+    lc = 0;
 
   vf->fifo_cyc2sl = vdpcyc2sl[active][h40];
   vf->fifo_sl2cyc = vdpsl2cyc[active][h40];
@@ -1243,10 +1245,11 @@ void PicoVideoLoad(void)
   vf->fifo_ql = vf->fifo_qx = vf->fifo_total = 0;
   if (pv->fifo_cnt) {
     int wc = pv->fifo_cnt;
-    pv->status |= PVS_CPUWR;
     vf->fifo_total = (wc+b) >> b;
     vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3) | b | FQ_FGDMA;
     vf->fifo_ql ++;
+    if (vf->fifo_total > 4 && !(pv->status & (PVS_CPUWR|PVS_CPURD)))
+      pv->status |= PVS_CPUWR;
   }
   if (pv->fifo_bgcnt) {
     int wc = pv->fifo_bgcnt;
@@ -1255,8 +1258,7 @@ void PicoVideoLoad(void)
     vf->fifo_queue[vf->fifo_qx + vf->fifo_ql] = (wc << 3)     | FQ_BGDMA;
     vf->fifo_ql ++;
   }
-  if (vf->fifo_ql)
-    pv->status |= SR_DMA;
   PicoVideoCacheSAT(1);
+  vf->fifo_maxslot = 0;
 }
 // vim:shiftwidth=2:ts=2:expandtab

@@ -221,7 +221,8 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
     *(u32 *)(cpu+0x50) = SekCycleCntS68k;
     *(s16 *)(cpu+0x4e) = SekCycleCntS68k - SekCycleAimS68k;
   } else {
-    *(u32 *)(cpu+0x50) = Pico.t.m68c_cnt;
+    *(u32 *)(cpu+0x50) = Pico.t.m68c_cnt + Pico.t.z80_buscycles +
+                          ((Pico.t.refresh_delay + (1<<14)/2) >> 14);
     *(s16 *)(cpu+0x4e) = Pico.t.m68c_cnt - Pico.t.m68c_aim;
   }
 }
@@ -266,6 +267,8 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   } else {
     Pico.t.m68c_cnt = *(u32 *)(cpu+0x50);
     Pico.t.m68c_aim = Pico.t.m68c_cnt - *(s16 *)(cpu+0x4e);
+    Pico.t.z80_buscycles = 0;
+    Pico.t.refresh_delay = 0;
   }
 }
 

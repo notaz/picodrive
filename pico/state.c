@@ -747,7 +747,7 @@ struct PicoTmp
   unsigned short vram[0x8000];
   unsigned short cram[0x40];
   unsigned short vsram[0x40];
-  unsigned int satcache[0x80];
+  unsigned int satcache[2*0x80];
 
   //struct PicoMisc m;
   struct PicoVideo video;
