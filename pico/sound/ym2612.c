@@ -2049,7 +2049,7 @@ typedef struct
 	UINT32  eg_timer;
 	UINT32  lfo_cnt;
 	UINT16  lfo_ampm;
-	UINT16  unused2;
+	INT16   busy_timer;
 	UINT32  keyon_field;	// 20
 	UINT32  kcode_fc_sl3_3;
 	UINT32  reserved[2];
@@ -2063,7 +2063,7 @@ typedef struct
 } ym_save_addon2;
 
 
-void YM2612PicoStateSave2(int tat, int tbt)
+void YM2612PicoStateSave2(int tat, int tbt, int busy)
 {
 	ym_save_addon_slot ss;
 	ym_save_addon2 sa2;
@@ -2121,10 +2121,11 @@ void YM2612PicoStateSave2(int tat, int tbt)
 	sa.eg_timer = ym2612.OPN.eg_timer;
 	sa.lfo_cnt  = ym2612.OPN.lfo_cnt;
 	sa.lfo_ampm = g_lfo_ampm;
+	sa.busy_timer = busy;
 	memcpy(ptr, &sa, sizeof(sa)); // 0x30 max
 }
 
-int YM2612PicoStateLoad2(int *tat, int *tbt)
+int YM2612PicoStateLoad2(int *tat, int *tbt, int *busy)
 {
 	ym_save_addon_slot ss;
 	ym_save_addon2 sa2;
@@ -2150,6 +2151,7 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 	g_lfo_ampm = sa.lfo_ampm;
 	if (tat != NULL) *tat = sa.TAT;
 	if (tbt != NULL) *tbt = sa.TBT;
+	if (busy != NULL) *busy = sa.busy_timer;
 
 	// chans 1,2,3
 	ptr = &ym2612.REGS[0x0b8];

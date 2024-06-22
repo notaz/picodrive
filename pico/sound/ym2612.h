@@ -177,8 +177,8 @@ int  YM2612PicoTick_(int n);
 void YM2612PicoStateLoad_(void);
 
 void *YM2612GetRegs(void);
-void YM2612PicoStateSave2(int tat, int tbt);
-int  YM2612PicoStateLoad2(int *tat, int *tbt);
+void YM2612PicoStateSave2(int tat, int tbt, int busy);
+int  YM2612PicoStateLoad2(int *tat, int *tbt, int *busy);
 
 /* NB must be macros for compiling GP2X 940 code */
 #ifndef __GP2X__

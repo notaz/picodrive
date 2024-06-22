@@ -187,7 +187,7 @@ void Main940(void)
 				break;
 
 			case JOB940_PICOSTATESAVE2:
-				YM2612PicoStateSave2(0, 0);
+				YM2612PicoStateSave2(0, 0, 0);
 				memcpy(shared_ctl->writebuff0, ym2612_940->REGS, 0x200);
 				break;
 
@@ -197,7 +197,7 @@ void Main940(void)
 
 			case JOB940_PICOSTATELOAD2:
 				memcpy(ym2612_940->REGS, shared_ctl->writebuff0, 0x200);
-				YM2612PicoStateLoad2(0, 0);
+				YM2612PicoStateLoad2(0, 0, 0);
 				break;
 
 			case JOB940_YM2612UPDATEONE:

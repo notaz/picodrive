@@ -1174,7 +1174,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
       // the busy flag in the YM2612 status is actually a 32 cycle timer
       // (89.6 Z80 cycles), triggered by any write to the data port.
-      Pico.t.ym2612_busy = (cycles + 90) << 8; // Q8 for convenience
+      Pico.t.ym2612_busy = (cycles << 8) + YMBUSY_ZCYCLES; // Q8 for convenience
 
       switch (addr)
       {
@@ -1284,9 +1284,11 @@ static u32 ym2612_read_local_68k(void)
 void ym2612_pack_state(void)
 {
   // timers are saved as tick counts, in 16.16 int format
-  int tac, tat = 0, tbc, tbt = 0;
+  int tac, tat = 0, tbc, tbt = 0, busy = 0;
   tac = 1024 - ym2612.OPN.ST.TA;
   tbc = 256  - ym2612.OPN.ST.TB;
+  if (Pico.t.ym2612_busy > 0)
+    busy = cycles_z80_to_68k(Pico.t.ym2612_busy);
   if (Pico.t.timer_a_next_oflow != TIMER_NO_OFLOW)
     tat = (int)((double)(Pico.t.timer_a_step - Pico.t.timer_a_next_oflow)
           / (double)Pico.t.timer_a_step * tac * 65536);
@@ -1301,12 +1303,12 @@ void ym2612_pack_state(void)
     YM2612PicoStateSave2_940(tat, tbt);
   else
 #endif
-    YM2612PicoStateSave2(tat, tbt);
+    YM2612PicoStateSave2(tat, tbt, busy);
 }
 
 void ym2612_unpack_state(void)
 {
-  int i, ret, tac, tat, tbc, tbt;
+  int i, ret, tac, tat, tbc, tbt, busy = 0;
   YM2612PicoStateLoad();
 
   // feed all the registers and update internal state
@@ -1336,12 +1338,13 @@ void ym2612_unpack_state(void)
     ret = YM2612PicoStateLoad2_940(&tat, &tbt);
   else
 #endif
-    ret = YM2612PicoStateLoad2(&tat, &tbt);
+    ret = YM2612PicoStateLoad2(&tat, &tbt, &busy);
   if (ret != 0) {
     elprintf(EL_STATUS, "old ym2612 state");
     return; // no saved timers
   }
 
+  Pico.t.ym2612_busy = cycles_68k_to_z80(busy);
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
   if (ym2612.OPN.ST.mode & 1)
