@@ -896,7 +896,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
       // since the A/B tile row to be read depends on it. E.g. Skitchin, OD2
       // in contrast, CRAM writes would have an immediate effect on the current
       // pixel. XXX think about different offset values for different RAM types
-      PicoVideoSync(InHblank(30));
+      PicoVideoSync(InHblank(pvid->type == 3 ? 103 : 30)); // cram in Toy Story
 
     if (!(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
