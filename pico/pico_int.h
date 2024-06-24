@@ -300,7 +300,6 @@ extern SH2 sh2s[2];
 #define PVS_DMAFILL   (1 << 20) // DMA fill is waiting for fill data
 #define PVS_DMABG     (1 << 21) // background DMA operation is running
 #define PVS_FIFORUN   (1 << 22) // FIFO is processing
-#define PVS_Z80WAIT   (1 << 23) // Z80 blocked by VDP DMA
 
 struct PicoVideo
 {

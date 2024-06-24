@@ -125,12 +125,6 @@ static void do_timing_hacks_start(struct PicoVideo *pv)
   int cycles = PicoVideoFIFOHint();
 
   SekCyclesBurn(cycles); // prolong cpu HOLD if necessary
-  if (pv->status & PVS_Z80WAIT) {
-    Pico.t.z80c_cnt += cycles_68k_to_z80(cycles);
-    if (!(pv->status & (PVS_CPUWR|PVS_CPURD)))
-      pv->status &= ~PVS_Z80WAIT;
-  }
-
   // XXX how to handle Z80 bus cycle stealing during DMA correctly?
   if ((Pico.t.z80_buscycles -= cycles) < 0)
     Pico.t.z80_buscycles = 0;
