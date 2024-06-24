@@ -536,6 +536,9 @@ static void DmaSlow(int len, u32 source)
 
   SekCyclesBurnRun(PicoVideoFIFOWrite(len, FQ_FGDMA | (pvid->type == 1),
                               PVS_DMABG, SR_DMA | PVS_CPUWR));
+  // short transfers might have been completely conveyed to FIFO, adjust state
+  if ((pvid->status & SR_DMA) && VdpFIFO.fifo_total <= 4)
+    SetFIFOState(&VdpFIFO, pvid);
 
   if ((source & 0xe00000) == 0xe00000) { // Ram
     base = (u16 *)PicoMem.ram;
@@ -895,7 +898,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
       // the vertical scroll value for this line must be read from VSRAM early,
       // since the A/B tile row to be read depends on it. E.g. Skitchin, OD2
       // in contrast, CRAM writes would have an immediate effect on the current
-      // pixel. XXX think about different offset values for different RAM types
+      // pixel, so sync can be closer to start of actual image data
       PicoVideoSync(InHblank(pvid->type == 3 ? 103 : 30)); // cram in Toy Story
 
     if (!(PicoIn.opt&POPT_DIS_VDP_FIFO))
