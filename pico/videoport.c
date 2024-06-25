@@ -23,7 +23,8 @@ enum { clkdiv = 2 };    // CPU clock granularity: one of 1,2,4,8
 // Slot clock is sysclock/20 for h32 and sysclock/16 for h40.
 // One scanline is 63.7us/64.3us (ntsc/pal) long which is ~488.57 68k cycles.
 // Approximate by 488 for VDP.
-// 1 slot is 488/171 = 2.8538 68k cycles in h32, and 488/210 = 2.3238 in h40.
+// 1 slot is 20/7 = 2.857 68k cycles in h32, and 16/7 = 2.286 in h40. That's
+// 171 slots in h32, and ~213.8 (really 193 plus 17 prolonged in HSYNC) in h40.
 enum { slcpu = 488 };
 
 // VDP has a slot counter running from 0x00 to 0xff every scanline, but it has
@@ -952,11 +953,13 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
 
         if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
           // handle line blanking before line rendering. Only the last switch
-          // before the 1st sync for other reasons is honoured.
-          PicoVideoSync(1);
-          lineenabled = (d&0x40) ? Pico.m.scanline : -1;
-          linedisabled = (d&0x40) ? -1 : Pico.m.scanline;
-          lineoffset = SekCyclesDone() - Pico.t.m68c_line_start;
+          // before the 1st sync for other reasons is honoured. Switching after
+          // active area is on next line
+          int skip = InHblank(470); // Deadly Moves
+          PicoVideoSync(skip);
+          lineenabled = (d&0x40) ? Pico.m.scanline + !skip: -1;
+          linedisabled = (d&0x40) ? -1 : Pico.m.scanline + !skip;
+          lineoffset = (skip ? SekCyclesDone() - Pico.t.m68c_line_start : 0);
         } else if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
           // VDP regs 0-7,11-13,16-18 influence rendering, ignore all others
           PicoVideoSync(InHblank(93)); // Toy Story
