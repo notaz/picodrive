@@ -24,7 +24,7 @@ enum { clkdiv = 2 };    // CPU clock granularity: one of 1,2,4,8
 // One scanline is 63.7us/64.3us (ntsc/pal) long which is ~488.57 68k cycles.
 // Approximate by 488 for VDP.
 // 1 slot is 20/7 = 2.857 68k cycles in h32, and 16/7 = 2.286 in h40. That's
-// 171 slots in h32, and ~213.8 (really 193 plus 17 prolonged in HSYNC) in h40.
+// 171 slots in h32, and ~214 (really 193 plus 17 prolonged in HSYNC) in h40.
 enum { slcpu = 488 };
 
 // VDP has a slot counter running from 0x00 to 0xff every scanline, but it has
@@ -34,6 +34,11 @@ enum { slcpu = 488 };
 // and 0xe4 are only half slots. Ignore 0xe4 here and make 0xb6 a full slot.
 enum { hint32 = 0x85, gapstart32 = 0x94, gapend32 = 0xe9};
 enum { hint40 = 0xa5, gapstart40 = 0xb7, gapend40 = 0xe5};
+
+// Basic timing in h32: 38 slots (~108.5 cycles) from hint to VDP output start
+// at slot 0x00. vint takes place on the 1st VBLANK line in slot 0x01 (~111.5).
+// Rendering takes 128 slots (~365.5), and right border starts at slot 0x80
+// (~474 cycles). hint occurs after 5 slots into the border (~488.5 cycles).
 
 // The horizontal sync period (HBLANK) is 30/37 slots (h32/h40):
 // h32: 4 slots front porch (1.49us), 13 HSYNC (4.84us), 13 back porch (4.84us)
@@ -621,7 +626,7 @@ static void DmaSlow(int len, u32 source)
         if (sl > VdpFIFO.fifo_hcounts[0]-5) // hint delay is 5 slots
           sl = (s8)sl;
         // TODO this is needed to cover timing inaccuracies
-        if (sl <= 12)  sl = -2;
+        if (sl <= 12) sl = -2;
         PicoDrawBgcDMA(base, source, mask, len, sl);
         // do last DMA cycle since it's all going to the same cram location
         source = source+len-1;
