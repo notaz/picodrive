@@ -194,7 +194,7 @@ static char sh2dasm_buff[64];
 		(ulong)(sh2)->r[8], (ulong)(sh2)->r[9], (ulong)(sh2)->r[10], (ulong)(sh2)->r[11], \
 		(ulong)(sh2)->r[12], (ulong)(sh2)->r[13], (ulong)(sh2)->r[14], (ulong)(sh2)->r[15]); \
 	printf("%csh2 pc-ml %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n", ms, \
-		(ulong)(sh2)->pc, (ulong)(sh2)->ppc, (ulong)(sh2)->pr, (ulong)(sh2)->sr&0xfff, \
+		(ulong)(sh2)->pc, (ulong)(sh2)->ppc, (ulong)(sh2)->pr, (ulong)(sh2)->sr, \
 		(ulong)(sh2)->gbr, (ulong)(sh2)->vbr, (ulong)(sh2)->mach, (ulong)(sh2)->macl); \
 	printf("%csh2 tmp-p  %08x %08x %08x %08x %08x %08lx %08x %08x\n", ms, \
 		(sh2)->drc_tmp, (sh2)->irq_cycles, \
@@ -269,12 +269,14 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
         SH2_DUMP(&fsh2, "file");
         SH2_DUMP(sh2, "current");
         SH2_DUMP(&csh2[idx][0], "previous");
+        SH2_DUMP(&csh2[idx][1], "previous");
 	char *ps = (char *)sh2, *pf = (char *)&fsh2;
 	for (idx = 0; idx < offsetof(SH2, read8_map); idx += sizeof(u32))
 		if (*(u32 *)(ps+idx) != *(u32 *)(pf+idx))
 			printf("diff reg %ld\n",(long)idx/sizeof(u32));
         exit(1);
       }
+      memcpy(&csh2[idx][1], &csh2[idx][0], offsetof(SH2, poll_cnt)+4);
       csh2[idx][0] = fsh2;
     }
   }
@@ -4649,6 +4651,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           FLUSH_CYCLES(sr);
           rcache_get_reg_arg(0, GET_Rn(), NULL);
           tmp = emit_memhandler_read(0);
+          sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_clr_t_cond(sr);
           emith_cmp_r_imm(tmp, 0);
           emith_set_t_cond(sr, DCOND_EQ);
@@ -5262,8 +5265,6 @@ static void sh2_generate_utils(void)
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
   host_arg2reg(arg3, 3);
-  emith_move_r_r(arg0, arg0); // nop
-  emith_flush();
 
   // sh2_drc_write8(u32 a, u32 d)
   sh2_drc_write8 = (void *)tcache_ptr;
@@ -5645,7 +5646,6 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free)
   u32 start_lit, end_lit;
   struct block_desc *block;
   int removed = 0, rest;
-  u32 _a = a;
 
   // ignore cache-through
   a &= wtmask;
