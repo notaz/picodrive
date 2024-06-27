@@ -1211,13 +1211,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 } while (0)
 
 #define emith_sh2_rcall(a, tab, func, mask) do { \
+	int scale_ = PTR_SCALE <= 2 ? PTR_SCALE : 2; \
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
+	if (PTR_SCALE > scale_) emith_lsl(mask, mask, PTR_SCALE-scale_); \
 	EMIT_XREX_IF(1, tab, tab, mask); \
 	EMIT_OP_MODRM64(0x8d, 0, tab, 4); \
-	EMIT_SIB64(PTR_SCALE, mask, tab); /* lea tab, [tab + mask * {4,8}] */ \
-	EMIT_XREX_IF(1, tab, tab, mask); \
-	EMIT_OP_MODRM64(0x8d, 0, tab, 4); \
-	EMIT_SIB64(PTR_SCALE, mask, tab); /* lea tab, [tab + mask * {4,8}] */ \
+	EMIT_SIB64(scale_+1, mask, tab); /* lea tab, [tab + mask*(2*scale)] */ \
 	EMIT_REX_IF(1, func,  tab); \
 	emith_deref_modrm(0x8b, 0, func, tab); /* mov func, [tab] */ \
 	EMIT_REX_IF(0, mask, tab); \

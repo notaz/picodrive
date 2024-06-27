@@ -50,9 +50,10 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc,
 #elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__)
 #define	DRC_SR_REG	"r28"
 #define DRC_REG_LL	0	// no ABI for __ILP32__
-#elif defined(__i386__)
-#define	DRC_SR_REG	"edi"
-#define DRC_REG_LL	0	// 32 bit
+//i386 only has 8 registers and reserving one of them causes too much spilling
+//#elif defined(__i386__)
+//#define	DRC_SR_REG	"edi"
+//#define DRC_REG_LL	0	// 32 bit
 #elif defined(__x86_64__)
 #define	DRC_SR_REG	"rbx"
 #define DRC_REG_LL	(__ILP32__ || _WIN32)
