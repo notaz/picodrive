@@ -48,6 +48,8 @@ ifeq "$(ASAN)" "1"
 else
 ifeq "$(DEBUG)" "0"
 	CFLAGS += -O3 -DNDEBUG
+else
+	CFLAGS += -O1
 endif
 endif
 	LD = $(CC)

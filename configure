@@ -221,7 +221,7 @@ fi
 #fi
 
 if [ -z "$ARCH" ]; then
-  ARCH=`$CC -dumpmachine | awk -F '-' '{print $1}'`
+  ARCH=`$CC $MFLAGS $CFLAGS -dumpmachine | awk -F '-' '{print $1}'`
 fi
 
 # CPU/ABI stuff first, else compile test may fail
