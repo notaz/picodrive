@@ -350,7 +350,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
   // simple test for GG. Do this here since m.hardware is nulled in Insert
   if ((PicoIn.AHW & PAHW_SMS) && !PicoIn.hwSelect) {
     const char *ext = NULL;
-    if (rom_file && rom_file->ext && (*rom_file->ext != '\0')) {
+    if (rom_file && (*rom_file->ext != '\0')) {
       ext = rom_file->ext;
     }
     else if ((ext = strrchr(filename, '.'))) {

@@ -611,7 +611,7 @@ static u32 no_fmsound[] = { // cf Meka, meka/meka.pat
 // NB GG carts having the system type set to 4 (eg. HTH games) run as SMS anyway
 static u32 gg_smsmode[] = { // cf https://www.smspower.org/Tags/SMS-GG
   0x60002401 /* Castl.Ilusion */, 0x6f101018 /* Taito Chase */,
-  0x70709018 /* Olympic Gold */ , 0x70079038 /* Outrun EU */,
+  0x70709018 /* Olympic Gold */ , 0x70709038 /* Outrun EU */,
   0x60801068 /* Predator 2 */   , 0x70408098 /* Prince.Persia */,
   0x50101037 /* Rastan Saga */  , 0x7f086018 /* RC Grandprix */,
   0x60002415 /* Super Kickoff */, 0x60801108 /* WWF.Steelcage */,
@@ -650,8 +650,7 @@ void PicoResetMS(void)
       id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]);
       ck = *(u16 *)&Pico.rom[tmr-6] | (id&0xf0000000) | 0xfff0000;
 
-      if (!PicoIn.hwSelect && hw && ((id+1)&0xfffe) != 0) {
-        PicoIn.AHW &= ~(PAHW_GG|PAHW_SG|PAHW_SC);
+      if (!PicoIn.hwSelect && !PicoIn.AHW && hw && ((id+1)&0xfffe) != 0) {
         if (hw >= 0x5 && hw < 0x8)
           PicoIn.AHW |= PAHW_GG; // GG cartridge detected
       }
