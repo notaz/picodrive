@@ -340,7 +340,7 @@ static void write_bank_sega(unsigned short a, unsigned char d)
   }
 }
 
-// Codemasters mapper. Similar to Sega, but different addresses, TODO: SRAM
+// Codemasters mapper. Similar to Sega, but different addresses
 static void write_bank_codem(unsigned short a, unsigned char d)
 {
   if (a >= 0xc000 || (a & 0x3fff)) return; // address is 0x0000, 0x4000, 0x8000?
@@ -352,6 +352,14 @@ static void write_bank_codem(unsigned short a, unsigned char d)
 
   d &= bank_mask;
   z80_map_set(z80_read_map, a, a+0x3fff, Pico.rom + (d << 14), 0);
+  if (Pico.ms.carthw[1] & 0x80) {
+    z80_map_set(z80_read_map,  0xa000, 0xbfff, PicoMem.vram+0x4000, 0);
+    z80_map_set(z80_write_map, 0xa000, 0xbfff, PicoMem.vram+0x4000, 0);
+  } else {
+    d = Pico.ms.carthw[2] & bank_mask;
+    z80_map_set(z80_read_map,  0xa000, 0xbfff, Pico.rom + (d << 14)+0x2000, 0);
+    z80_map_set(z80_write_map, 0xa000, 0xbfff, xwrite, 1);
+  }
 }
 
 // MSX mapper. 4 selectable 8KB banks at the top
