@@ -530,7 +530,8 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      Pico.t.z80c_aim = Pico.t.z80c_cnt = z80_cycles_from_68k() + (Pico.t.z80_busdelay >> 8) + 2;
+      Pico.t.z80c_aim = Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_cnt += Pico.t.z80_busdelay >> 8;
       Pico.t.z80_busdelay &= 0xff;
     }
     else
