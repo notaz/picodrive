@@ -24,7 +24,7 @@
  * 320x224 -> 320x240, PAR 1:1, for NTSC, DAR 4:3 (PAL 7% etc etc...)
  * 160x144 -> 320x240: GG, PAR 6:5, scaling to 320x240 for DAR 4:3
  * 
- * (C) 2021 kub <derkub@gmail.com>
+ * (C) 2021 irixxxx
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):

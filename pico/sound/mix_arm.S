@@ -1,6 +1,7 @@
 /*
  * Generic routines for mixing audio samples
  * (C) notaz, 2007,2008
+ * (C) irixxxx, 2019,2020		added filtering
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

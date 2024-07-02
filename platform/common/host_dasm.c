@@ -1,6 +1,6 @@
 /*
  * DRC host disassembler interface for MIPS/ARM32 for use without binutils
- * (C) kub, 2018,2019
+ * (C) irixxxx, 2018-2021
  */
 #include <stdio.h>
 #include <stdlib.h>

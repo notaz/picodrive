@@ -1,3 +1,9 @@
+/*
+ * PicoDrive input driver for PS2
+ *
+ * (C) fjtrujy,irixxxx 2024
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

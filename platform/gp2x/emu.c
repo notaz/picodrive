@@ -1,5 +1,6 @@
 /*
  * (c) Copyright 2006-2010 notaz, All rights reserved.
+ * (c) Copyright 2019-2024 irixxxx
  *
  * For performance reasons 3 renderers are exported for both MD and 32x modes:
  * - 16bpp line renderer

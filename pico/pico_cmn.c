@@ -1,6 +1,7 @@
 /*
  * common code for base/cd/32x
  * (C) notaz, 2007-2009,2013
+ * (C) irixxxx, 2020-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

@@ -1,6 +1,6 @@
 /*
  * MP3 decoding using minimp3
- * (C) kub, 2020
+ * (C) irixxxx, 2020
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

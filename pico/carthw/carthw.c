@@ -1,6 +1,7 @@
 /*
  * Support for a few cart mappers and some protection.
  * (C) notaz, 2008-2011
+ * (C) irixxxx, 2021-2022
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

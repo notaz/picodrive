@@ -1,6 +1,6 @@
 /*
  * Basic macros to emit ARM A64 instructions and some utils
- * Copyright (C) 2019-2024 kub
+ * Copyright (C) 2019-2024 irixxxx
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

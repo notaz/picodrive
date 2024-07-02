@@ -1,7 +1,7 @@
 /*
  * Platform interface functions for PSP picodrive frontend
  *
- * (C) 2020 kub
+ * (C) 2020 irixxxx
  */
 #include <stdio.h>
 #include <stdlib.h>

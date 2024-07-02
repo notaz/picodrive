@@ -1,3 +1,9 @@
+/*
+ * PicoDrive platform interface for PS2
+ *
+ * (C) fjtrujy,irixxxx 2024
+ */
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/types.h>

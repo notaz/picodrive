@@ -1,7 +1,7 @@
 /*
  * SMS renderer
  * (C) notaz, 2009-2010
- * (C) kub, 2021
+ * (C) irixxxx, 2020-2024
  *
  * currently supports VDP mode 4 (SMS and GG) and mode 3-0 (TMS)
  * modes numbered after the bit numbers used in Sega and TI documentation

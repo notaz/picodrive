@@ -1,7 +1,7 @@
 /*
  * assembly optimized versions of most funtions from draw.c
  * (C) notaz, 2006-2010,2017
- * (C) kub, 2020
+ * (C) irixxxx, 2020-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

@@ -1,6 +1,8 @@
 /*
+ * PicoDrive input driver for PSP
+ *
  * (C) Gražvydas "notaz" Ignotas, 2006-2012
- * (C) kub 2020
+ * (C) irixxxx 2020
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):

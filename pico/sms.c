@@ -1,7 +1,7 @@
 /*
  * SMS emulation
  * (C) notaz, 2009-2010
- * (C) kub, 2021
+ * (C) irixxxx, 2021-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

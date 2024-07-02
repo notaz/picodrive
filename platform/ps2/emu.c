@@ -1,3 +1,9 @@
+/*
+ * PicoDrive PS2 frontend
+ *
+ * (C) fjtrujy,irixxxx, 2024
+ */
+
 #include <stddef.h>
 #include <malloc.h>
 

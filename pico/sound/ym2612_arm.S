@@ -1,7 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2006
- * (C) kub, 2020	added SSG-EG and simple output rate interpolation
+ * (C) irixxxx, 2020-2023	added SSG-EG and simple output rate interpolation
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

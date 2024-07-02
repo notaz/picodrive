@@ -2,6 +2,7 @@
  * memory handling
  * (c) Copyright Dave, 2004
  * (C) notaz, 2006-2010
+ * (C) irixxxx, 2019-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

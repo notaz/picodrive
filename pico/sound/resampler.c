@@ -1,6 +1,6 @@
 /* Configurable fixed point resampling SINC filter for mono and stereo audio.
  *
- * (C) 2022 kub
+ * (C) 2022 irixxxx
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):

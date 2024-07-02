@@ -1,6 +1,7 @@
 /*
  * assembly optimized versions of most funtions from draw2.c
  * (C) notaz, 2006-2008
+ * (C) irixxxx, 2019-2023
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

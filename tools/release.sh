@@ -1,5 +1,7 @@
 #! /bin/bash
 #
+# (C) irixxxx 2021-2024
+#
 # picodrive release build script
 #
 # creates builds for the supported platforms in the release directory

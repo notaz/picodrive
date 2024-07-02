@@ -1,7 +1,7 @@
 /*
  * some code for sample mixing
  * (C) notaz, 2006,2007
- * (C) kub, 2019,2020		added filtering
+ * (C) irixxxx, 2019,2020		added filtering
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

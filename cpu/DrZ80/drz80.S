@@ -1,6 +1,7 @@
 ;@ Reesy's Z80 Emulator Version 0.001
 
 ;@ (c) Copyright 2004 Reesy, All rights reserved
+;@ (c) Copyright 2021-24 irixxxx, All rights reserved
 ;@ DrZ80 is free for non-commercial use.
 
 ;@ For commercial use, separate licencing terms must be obtained.
