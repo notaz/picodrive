@@ -577,7 +577,7 @@ static int menu_loop_32x_options(int id, int keys)
 static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", "SG-1000", "SC-3000", NULL };
 static const char *gg_ghosting_opts[] = { "OFF", "weak", "normal", NULL };
 static const char *sms_mappers[] = { "auto", "Sega", "Codemasters", "Korea", "Korea MSX", "Korea X-in-1", "Korea 4-Pak", "Korea Janggun", "Korea Nemesis", "Taiwan 8K RAM", "Korea XOR", "Sega 32K RAM", NULL };
-static const char *sms_tmspalette[] = { "SMS", "SG-1000" };
+static const char *sms_tmspalette[] = { "SMS", "SG-1000", NULL };
 
 static const char h_smsfm[] = "FM sound is only supported by few games,\n"
 				"some games may crash with FM enabled";
