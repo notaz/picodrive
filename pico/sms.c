@@ -189,9 +189,11 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0xc0: /* I/O port A and B */
-        if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7)
+        if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7) {
           d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
-        else
+          if (!(Pico.ms.io_ctl & 0x01)) // TR as output
+            d = (d & ~0x20) | ((Pico.ms.io_ctl << 1) & 0x20);
+        } else
           ; // read kbd 8 bits
         break;
 
@@ -199,6 +201,8 @@ static unsigned char z80_sms_in(unsigned short a)
         if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7) {
           d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
           d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
+          if (!(Pico.ms.io_ctl & 0x04)) // TR as output
+            d = (d & ~0x08) | ((Pico.ms.io_ctl >> 3) & 0x08);
           if (Pico.ms.io_ctl & 0x08) d |= 0x80; // TH as input is unconnected
           if (Pico.ms.io_ctl & 0x02) d |= 0x40;
         } else
@@ -309,6 +313,7 @@ static void write_bank_sega(unsigned short a, unsigned char d)
 
   elprintf(EL_Z80BNK, "bank sega %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_SEGA;
+  if (d == Pico.ms.carthw[a & 0x0f]) return;
   Pico.ms.carthw[a & 0x0f] = d;
 
   switch (a & 0x0f)
@@ -348,6 +353,7 @@ static void write_bank_codem(unsigned short a, unsigned char d)
   if (Pico.ms.mapper != PMS_MAP_CODEM && (Pico.ms.mapper || (a>>14) == d)) return;
   elprintf(EL_Z80BNK, "bank codem %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_CODEM;
+  if (Pico.ms.carthw[a>>14] == d) return;
   Pico.ms.carthw[a>>14] = d;
 
   d &= bank_mask;
@@ -690,8 +696,9 @@ void PicoResetMS(void)
 
   z80_reset();
   PsndReset(); // pal must be known here
+
+  Pico.ms.io_ctl = (PicoIn.AHW & (PAHW_SG|PAHW_SC)) ? 0xf5 : 0xff;
   Pico.ms.fm_ctl = 0xff;
-  Pico.m.dirtyPal = 1;
 
   // reset memory mapping
   PicoMemSetupMS();
@@ -708,6 +715,7 @@ void PicoResetMS(void)
   Pico.video.reg[8] = 0x00;
   Pico.video.reg[9] = 0x00;
   Pico.video.reg[10] = 0xff;
+  Pico.m.dirtyPal = 1;
 
   // BIOS, clear zram (unitialized on Mark-III, cf src/mame/drivers/sms.cpp)
   i = !(PicoIn.AHW & PAHW_GG) && (Pico.m.hardware & PMS_HW_JAP) ? 0xf0 : 0x00;
