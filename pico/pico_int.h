@@ -203,7 +203,7 @@ extern struct DrZ80 drZ80;
 
 #define z80_resetCycles() { \
   Pico.t.z80c_cnt -= Pico.t.z80c_aim, Pico.t.z80c_aim = Pico.t.z80_scanline = 0; \
-  if (!Pico.m.z80Run | Pico.m.z80_reset) Pico.t.z80c_cnt = 0; \
+  if (!Pico.m.z80Run || Pico.m.z80_reset) Pico.t.z80c_cnt = 0; \
 }
 
 #define z80_cyclesDone() \
