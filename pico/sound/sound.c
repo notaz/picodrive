@@ -16,6 +16,8 @@
 #include "resampler.h"
 #include "mix.h"
 
+#define YM2612_CH6PAN   0x1b6   // panning register for channel 6 (used for DAC)
+
 void (*PsndMix_32_to_16)(s16 *dest, s32 *src, int count) = mix_32_to_16_stereo;
 
 // master int buffer to mix to
@@ -282,9 +284,12 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   // 1 sample delay for correct IIR filtering over audio frame boundaries
   if (PicoIn.opt & POPT_EN_STEREO) {
     s16 *d = PicoIn.sndOut + pos*2;
-    // left channel only, mixed ro right channel in mixing phase
-    *d++ += Pico.snd.dac_val2, *d++ += Pico.snd.dac_val2;
-    while (--len) *d++ += Pico.snd.dac_val, *d++ += Pico.snd.dac_val;
+    int pan = ym2612.REGS[YM2612_CH6PAN];
+    int l = pan & 0x80 ? Pico.snd.dac_val : 0;
+    int r = pan & 0x40 ? Pico.snd.dac_val : 0;
+    *d++ += pan & 0x80 ? Pico.snd.dac_val2 : 0;
+    *d++ += pan & 0x40 ? Pico.snd.dac_val2 : 0;
+    while (--len) *d++ += l, *d++ += r;
   } else {
     s16 *d = PicoIn.sndOut + pos;
     *d++ += Pico.snd.dac_val2;
@@ -516,13 +521,21 @@ static int PsndRender(int offset, int length)
 
   // Fill up DAC output in case of missing samples (Q rounding errors)
   if (length-daclen > 0 && PicoIn.sndOut) {
-    s16 *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
-    *dacbuf++ += Pico.snd.dac_val2;
-    if (stereo) *dacbuf++ += Pico.snd.dac_val2;
-    for (daclen++; length-daclen > 0; daclen++) {
-      *dacbuf++ += Pico.snd.dac_val;
-      if (stereo) *dacbuf++ += Pico.snd.dac_val;
+    if (PicoIn.opt & POPT_EN_STEREO) {
+      s16 *d = PicoIn.sndOut + daclen*2;
+      int pan = ym2612.REGS[YM2612_CH6PAN];
+      int l = pan & 0x80 ? Pico.snd.dac_val : 0;
+      int r = pan & 0x40 ? Pico.snd.dac_val : 0;
+      *d++ += pan & 0x80 ? Pico.snd.dac_val2 : 0;
+      *d++ += pan & 0x40 ? Pico.snd.dac_val2 : 0;
+      if (l|r) for (daclen++; length-daclen > 0; daclen++)
+          *d++ += l, *d++ += r;
+    } else {
+      s16 *d = PicoIn.sndOut + daclen;
+      *d++ += Pico.snd.dac_val2;
+      if (Pico.snd.dac_val) for (daclen++; length-daclen > 0; daclen++)
+        *d++ += Pico.snd.dac_val;
     }
     Pico.snd.dac_val2 = Pico.snd.dac_val;
   }
