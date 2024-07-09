@@ -71,23 +71,23 @@ static int get_token(const char *buff, char *dest, int len)
 static int get_ext(const char *fname, char ext[4],
 	char *base, size_t base_size)
 {
-	int len, pos = 0;
+	size_t pos = 0;
+	char *p;
 	
-	len = strrchr(fname, '.') - fname;
-	if (len > 0)
-		pos = len;
+	ext[0] = 0;
+	if (!(p = strrchr(fname, '.')))
+		return -1;
+	pos = p - fname;
 
 	strncpy(ext, fname + pos + 1, 4/*sizeof(ext)*/-1);
 	ext[4/*sizeof(ext)*/-1] = '\0';
 
 	if (base != NULL && base_size > 0) {
-		if (pos + 1 < base_size)
+		if (pos >= base_size)
 			pos = base_size - 1;
 
-		len = (pos < len) ? pos : len;
-
-		memcpy(base, fname, len);
-		base[len] = 0;
+		memcpy(base, fname, pos);
+		base[pos] = 0;
 	}
 	return pos;
 }
@@ -219,17 +219,17 @@ cd_data_t *cue_parse(const char *fname)
 	if (fname == NULL || (fname_len = strlen(fname)) == 0)
 		return NULL;
 
-	ret = get_ext(fname, ext, cue_base, sizeof(cue_base));
+	ret = get_ext(fname, ext, cue_base, sizeof(cue_base) - 4);
 	if (strcasecmp(ext, "cue") == 0) {
 		f = fopen(fname, "r");
 	}
-	else {
+	else if (strcasecmp(ext, "chd") != 0) {
 		// not a .cue, try one with the same base name
-		if (ret + 3 < sizeof(cue_base)) {
-			strcpy(cue_base + ret, "cue");
+		if (0 < ret && ret < sizeof(cue_base)) {
+			strcpy(cue_base + ret, ".cue");
 			f = fopen(cue_base, "r");
 			if (f == NULL) {
-				strcpy(cue_base + ret, "CUE");
+				strcpy(cue_base + ret, ".CUE");
 				f = fopen(cue_base, "r");
 			}
 		}
