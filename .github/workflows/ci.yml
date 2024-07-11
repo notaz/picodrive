@@ -196,12 +196,12 @@ jobs:
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
         ./configure --platform=miyoo
         make -j$(getconf _NPROCESSORS_ONLN)
-        mv PicoDrive-miyoo.zip PicoDrive-miyoo-$ver.zip
+        mv PicoDrive-miyoo.ipk PicoDrive-miyoo-$ver.ipk
     - name: artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Miyoo
-        path: PicoDrive-miyoo*.zip
+        path: PicoDrive-miyoo*.ipk
 
   build-retrofw:
     runs-on: ubuntu-latest

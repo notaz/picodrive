@@ -141,10 +141,12 @@ all: PicoDrive-dge.zip
 CFLAGS += -DSDL_SURFACE_SW # some legacy dinguces had bugs in HWSURFACE
 else
 ifneq (,$(filter %__MIYOO__, $(CFLAGS)))
-PicoDrive-miyoo.zip: .od_data
+PicoDrive-miyoo.ipk: .od_data
 	rm -f .od_data/default.*.desktop .od_data/PicoDrive.dge
-	cd .od_data && zip -9 -r ../$@ *
-all: PicoDrive-miyoo.zip
+	gm2xpkg -i platform/miyoo/pkg.cfg
+	mv picodrive.ipk $@
+	@gm2xpkg -c platform/miyoo/pkg.cfg >/dev/null 2>&1
+all: PicoDrive-miyoo.ipk
 else
 PicoDrive.opk: .od_data
 	rm -f .od_data/PicoDrive.dge
