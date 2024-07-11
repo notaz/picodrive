@@ -14,31 +14,26 @@ Currently the main development happens in the
 [irixxxx's fork](https://github.com/irixxxx/picodrive),
 [notaz's repo](https://github.com/notaz/picodrive) isn't updated as much.
 
+
 ### gallery
 
 Some images of demos and homebrew software:
 
-**16/32 bit systems**: Mega Drive/Genesis, Sega/Mega CD, 32X, Pico.
+**16 bit systems**: Mega Drive/Genesis, Sega/Mega CD, 32X, Pico.
 
-![Titan Overdrive 2](https://github.com/irixxxx/picodrive/assets/31696370/02a4295b-ac9d-4114-bcd1-b5dd6e5930d0)
-![Raycast Demo](https://github.com/irixxxx/picodrive/assets/31696370/6e9c0bfe-49a9-45aa-bad7-544de065e388)
-![OpenLara](https://github.com/irixxxx/picodrive/assets/31696370/8a00002a-5c10-4d1d-a948-739bf978282a)
-
-![Titan Overdrive 2](https://github.com/irixxxx/picodrive/assets/31696370/2e263e81-51c8-4daa-ab16-0b2cd5554f84)
-![DMA David](https://github.com/irixxxx/picodrive/assets/31696370/fbbeac15-8665-4d3e-9729-d1f8c35e417a)
-![Doom Resurrection](https://github.com/irixxxx/picodrive/assets/31696370/db7b7153-b917-4850-8442-a748c2fbb968)
-
-$~$
+| ![Titan Overdrive 2](https://github.com/irixxxx/picodrive/assets/31696370/02a4295b-ac9d-4114-bcd1-b5dd6e5930d0) | ![Raycast Demo](https://github.com/irixxxx/picodrive/assets/31696370/6e9c0bfe-49a9-45aa-bad7-544de065e388) | ![OpenLara](https://github.com/irixxxx/picodrive/assets/31696370/8a00002a-5c10-4d1d-a948-739bf978282a) |
+| --- | --- | --- |
+| [_MegaDrive: Titan Overdrive 2_](https://demozoo.org/productions/170767/) | [_MegaCD: RaycastDemo_](https://github.com/matteusbeus/RaycastDemo) | [_32X: OpenLara_](https://github.com/XProger/OpenLara/releases) |
+|![Titan Overdrive 2](https://github.com/irixxxx/picodrive/assets/31696370/2e263e81-51c8-4daa-ab16-0b2cd5554f84)|![DMA David](https://github.com/irixxxx/picodrive/assets/31696370/fbbeac15-8665-4d3e-9729-d1f8c35e417a)|![Doom Resurrection](https://github.com/irixxxx/picodrive/assets/31696370/db7b7153-b917-4850-8442-a748c2fbb968)|
+|  | [_MegaDrive: DMA David_](http://www.mode5.net/DMA_David.html) | [_32X: Doom Resurrection_](https://archive.org/details/doom-32x-all-versions) |
 
 **8 bit systems**: SG-1000, SC-3000, Master System/Mark III, Game Gear.
 
-![Cheril Perils Classics](https://github.com/irixxxx/picodrive/assets/31696370/653914a4-9f90-45f8-bd91-56e784df7550)
-![Stygian Quest](https://github.com/irixxxx/picodrive/assets/31696370/8196801b-85c8-4d84-97e1-ae57ab3d577f)
-![Wing Warriors](https://github.com/irixxxx/picodrive/assets/31696370/3c4a8f40-dad6-4fa4-b188-46b428a4b8c6)
-
-![Nyan Cat](https://github.com/irixxxx/picodrive/assets/31696370/6fe0d38b-549d-4faa-9351-b260a89dc745)
-![Anguna the Prison Dungeon](https://github.com/irixxxx/picodrive/assets/31696370/3264b962-7da2-4257-9ff7-1b509bd50cdf)
-![Turrican](https://github.com/irixxxx/picodrive/assets/31696370/c4eb2f2c-806e-4f4b-ac94-5c2cda82e962)
+| ![Cheril Perils Classics](https://github.com/irixxxx/picodrive/assets/31696370/653914a4-9f90-45f8-bd91-56e784df7550) | ![Stygian Quest](https://github.com/irixxxx/picodrive/assets/31696370/8196801b-85c8-4d84-97e1-ae57ab3d577f) | ![Sword of Stone](https://github.com/irixxxx/picodrive/assets/31696370/3c4a8f40-dad6-4fa4-b188-46b428a4b8c6) |
+| --- | --- | --- |
+| [_SG-1000: Cheril Perils Classic_](https://www.smspower.org/Homebrew/CherilPerilsClassic-SG) | [_MasterSystem: Stygian Quest_](https://www.smspower.org/Homebrew/StygianQuest-SMS) | [_GameGear: The Sword of Stone_](https://www.smspower.org/Homebrew/SwordOfStone-GG) |
+| ![Nyan Cat](https://github.com/irixxxx/picodrive/assets/31696370/6fe0d38b-549d-4faa-9351-b260a89dc745) | ![Anguna the Prison Dungeon](https://github.com/irixxxx/picodrive/assets/31696370/3264b962-7da2-4257-9ff7-1b509bd50cdf) | ![Turrican](https://github.com/irixxxx/picodrive/assets/31696370/c4eb2f2c-806e-4f4b-ac94-5c2cda82e962) |
+| [_SG-1000: Nyan Cat_](https://www.smspower.org/Homebrew/NyanCat-SG) | [_MS: Anguna the Prison Dungeon_](https://www.smspower.org/Homebrew/AngunaThePrisonDungeon-SMS) | [_GameGear: Turrican_](https://www.smspower.org/Homebrew/GGTurrican-GG) |
 
 
 ### compiling
