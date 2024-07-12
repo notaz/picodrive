@@ -26,9 +26,7 @@ static void *shadow_fb;
 static int shadow_size;
 static struct area { int w, h; } area;
 
-static struct in_pdata in_sdl_platform_data = {
-	.defbinds = in_sdl_defbinds,
-};
+static struct in_pdata in_sdl_platform_data;
 
 static int sound_rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, 53000, -1 };
 struct plat_target plat_target = { .sound_rates = sound_rates };
@@ -438,6 +436,7 @@ void plat_init(void)
 	g_screen_ptr = shadow_fb;
 
 	plat_target_setup_input();
+	in_sdl_platform_data.defbinds = in_sdl_defbinds,
 	in_sdl_platform_data.kmap_size = in_sdl_key_map_sz,
 	in_sdl_platform_data.key_map = in_sdl_key_map,
 	in_sdl_platform_data.jmap_size = in_sdl_joy_map_sz,

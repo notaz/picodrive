@@ -10,7 +10,7 @@
 #include "../common/plat_sdl.h"
 #include "../common/emu.h"
 
-const struct in_default_bind in_sdl_defbinds[] = {
+struct in_default_bind _in_sdl_defbinds[] = {
 	{ SDLK_UP,	IN_BINDTYPE_PLAYER12, GBTN_UP },
 	{ SDLK_DOWN,	IN_BINDTYPE_PLAYER12, GBTN_DOWN },
 	{ SDLK_LEFT,	IN_BINDTYPE_PLAYER12, GBTN_LEFT },
@@ -27,6 +27,7 @@ const struct in_default_bind in_sdl_defbinds[] = {
 	{ SDLK_SPACE,	IN_BINDTYPE_EMU, PEVB_FF },
 	{ 0, 0, 0 }
 };
+const struct in_default_bind *in_sdl_defbinds = _in_sdl_defbinds;
 
 struct menu_keymap _in_sdl_key_map[] = {
 	{ SDLK_UP,	PBTN_UP },
@@ -122,6 +123,15 @@ static void keyswap(int k1, int k2)
 	}
 }
 
+static void bindswap(int k1, int k2)
+{
+	int i;
+
+	for (i = 0; _in_sdl_defbinds[i].code; i++)
+		if (_in_sdl_defbinds[i].code == k1)
+			_in_sdl_defbinds[i].code = k2;
+}
+
 void plat_target_setup_input(void)
 {
 	if (strcmp(plat_device, "miyoo") == 0) {
@@ -129,6 +139,7 @@ void plat_target_setup_input(void)
 		keyswap(SDLK_LALT, SDLK_LCTRL);
 		nameswap(SDLK_LALT, SDLK_LCTRL);
 		nameswap(SDLK_SPACE, SDLK_LSHIFT);
+		bindswap(SDLK_ESCAPE, SDLK_RCTRL);
 	} else if (strcmp(plat_device, "gcw0") == 0) {
 		/* swapped X/Y keys, single L/R keys */
 		nameswap(SDLK_SPACE, SDLK_LSHIFT);

@@ -7,7 +7,7 @@
 #include "../common/input_pico.h"
 #include "../common/plat_sdl.h"
 
-const struct in_default_bind in_sdl_defbinds[] = {
+const struct in_default_bind _in_sdl_defbinds[] = {
 	{ SDLK_UP,     IN_BINDTYPE_PLAYER12, GBTN_UP },
 	{ SDLK_DOWN,   IN_BINDTYPE_PLAYER12, GBTN_DOWN },
 	{ SDLK_LEFT,   IN_BINDTYPE_PLAYER12, GBTN_LEFT },
@@ -35,6 +35,7 @@ const struct in_default_bind in_sdl_defbinds[] = {
 	{ SDLK_BACKSPACE, IN_BINDTYPE_EMU, PEVB_FF },
 	{ 0, 0, 0 }
 };
+const struct in_default_bind *in_sdl_defbinds = _in_sdl_defbinds;
 
 const struct menu_keymap _in_sdl_key_map[] = {
 	{ SDLK_UP,	PBTN_UP },
