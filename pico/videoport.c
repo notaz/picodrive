@@ -626,7 +626,8 @@ static void DmaSlow(int len, u32 source)
         if (sl > VdpFIFO.fifo_hcounts[0]-5) // hint delay is 5 slots
           sl = (s8)sl;
         // TODO this is needed to cover timing inaccuracies
-        if (sl <= 12) sl = -2;
+        if (sl <= 12) sl = -3;
+        else if (sl <= 40) sl = 30;
         PicoDrawBgcDMA(base, source, mask, len, sl);
         // do last DMA cycle since it's all going to the same cram location
         source = source+len-1;
