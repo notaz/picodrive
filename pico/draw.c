@@ -304,34 +304,34 @@ TileFlipMakerAS(TileFlipSH_AS_and, pix_sh_as_and)
 // --------------------------------------------
 
 #ifndef _ASM_DRAW_C
-#define DrawTile(mask) { \
-  if (code!=oldcode) { \
-    oldcode = code; \
- \
-    pack = 0; \
-    if (code != blank) { \
-      /* Get tile address/2: */\
-      u32 addr = ((code&0x7ff)<<4) + ty; \
-      if (code & 0x1000) addr ^= 0xe; /* Y-flip */ \
- \
-      pal = ((code>>9)&0x30) | sh; /* shadow */ \
- \
-      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); \
-      if (!pack) \
-        blank = code; \
-    } \
-  } \
- \
-  if (code & 0x8000) { /* (un-forced) high priority tile */ \
-    if (sh | (pack&mask)) { \
-      code |= (dx<<16) | (ty<<25); \
-      if (code & 0x1000) code ^= 0xe<<25; \
-      *hc++ = code, *hc++ = pack&mask; /* cache it */ \
-    } \
-  } else if (pack&mask) { \
-    if (code & 0x0800) TileFlip(pd + dx, pack&mask, pal); \
-    else               TileNorm(pd + dx, pack&mask, pal); \
-  } \
+#define DrawTile(mask) {						\
+  if (code!=oldcode) {							\
+    oldcode = code;							\
+									\
+    pack = 0;								\
+    if (code != blank) {						\
+      /* Get tile address/2: */						\
+      u32 addr = ((code&0x7ff)<<4) + ty;				\
+      if (code & 0x1000) addr ^= 0xe; /* Y-flip */			\
+									\
+      pal = ((code>>9)&0x30) | sh; /* shadow */				\
+									\
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));			\
+      if (!pack)							\
+        blank = code;							\
+    }									\
+  }									\
+									\
+  if (code & 0x8000) { /* (un-forced) high priority tile */		\
+    if (sh | (pack&mask)) {						\
+      code |= (dx<<16) | (ty<<25);					\
+      if (code & 0x1000) code ^= 0xe<<25;				\
+      *hc++ = code, *hc++ = pack&mask; /* cache it */			\
+    }									\
+  } else if (pack&mask) {						\
+    if (code & 0x0800) TileFlip(pd + dx, pack&mask, pal);		\
+    else               TileNorm(pd + dx, pack&mask, pal);		\
+  }									\
 }
 
 static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
@@ -478,34 +478,34 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 }
 #endif
 
-#define DrawTileInterlace(mask) { \
-  if (code!=oldcode) { \
-    oldcode = code; \
- \
-    pack = 0; \
-    if (code != blank) { \
-      /* Get tile address/2: */ \
-      u32 addr = ((code&0x3ff)<<5) + ty; \
-      if (code & 0x1000) addr ^= 0x1e; /* Y-flip */ \
- \
-      pal = ((code>>9)&0x30) | sh; /* shadow */ \
- \
-      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); \
-      if (!pack) \
-        blank = code; \
-    } \
-  } \
- \
-  if (code & 0x8000) { /* high priority tile */ \
-    if (sh | (pack&mask)) { \
-      code = (code&0xfc00) | ((code&0x3ff)<<1) | (dx<<16) | (ty<<25); \
-      if (code & 0x1000) code ^= 0x1e<<25; \
-      *hc++ = code, *hc++ = pack&mask; /* cache it */ \
-    } \
-  } else if (pack&mask) { \
-    if (code & 0x0800) TileFlip(pd + dx, pack&mask, pal); \
-    else               TileNorm(pd + dx, pack&mask, pal); \
-  } \
+#define DrawTileInterlace(mask) {					\
+  if (code!=oldcode) {							\
+    oldcode = code;							\
+									\
+    pack = 0;								\
+    if (code != blank) {						\
+      /* Get tile address/2: */						\
+      u32 addr = ((code&0x3ff)<<5) + ty;				\
+      if (code & 0x1000) addr ^= 0x1e; /* Y-flip */			\
+									\
+      pal = ((code>>9)&0x30) | sh; /* shadow */				\
+									\
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));			\
+      if (!pack)							\
+        blank = code;							\
+    }									\
+  }									\
+									\
+  if (code & 0x8000) { /* high priority tile */				\
+    if (sh | (pack&mask)) {						\
+      code = (code&0xfc00) | ((code&0x3ff)<<1) | (dx<<16) | (ty<<25);	\
+      if (code & 0x1000) code ^= 0x1e<<25;				\
+      *hc++ = code, *hc++ = pack&mask; /* cache it */			\
+    }									\
+  } else if (pack&mask) {						\
+    if (code & 0x0800) TileFlip(pd + dx, pack&mask, pal);		\
+    else               TileNorm(pd + dx, pack&mask, pal);		\
+  }									\
 }
 
 #ifndef _ASM_DRAW_C
