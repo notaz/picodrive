@@ -87,9 +87,10 @@ static uint8_t vsync; /* 0 (Disabled), 1 (Enabled), 2 (Dynamic) */
 #define SOUND_BLOCK_COUNT    7
 #define SOUND_BUFFER_CHUNK   (2*54000/50) // max.rate/min.frames in stereo
 
+static short sndBuffer_emu[SOUND_BUFFER_CHUNK+4]; // 4 for sample rounding overhang
 static short __attribute__((aligned(4))) sndBuffer[SOUND_BUFFER_CHUNK*SOUND_BLOCK_COUNT];
 static short __attribute__((aligned(4))) nulBuffer[SOUND_BUFFER_CHUNK];
-static short *snd_playptr, *sndBuffer_endptr;
+static short *snd_playptr, *sndBuffer_ptr, *sndBuffer_endptr;
 static int samples_made, samples_done, samples_block;
 
 static int sound_thread_exit = 0, sound_stopped = 1;
@@ -122,23 +123,77 @@ static void writeSound(int len)
 
 	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 4) {
 		samples_made += len / 2;
-		PicoIn.sndOut += len / 2;
+		sndBuffer_ptr += len / 2;
+		l = sndBuffer_ptr - sndBuffer;
+
+		if (sndBuffer_ptr > sndBuffer_endptr)
+			sndBuffer_endptr = sndBuffer_ptr;
+		if (l > sizeof(sndBuffer)/2)
+			lprintf("snd ovrn %d %d\n", len, sndBuffer_ptr - sndBuffer);
+		if (l > samples_block * (SOUND_BLOCK_COUNT-2)) {
+			sndBuffer_endptr = sndBuffer_ptr;
+			sndBuffer_ptr = sndBuffer;
+		}
 	} else
 		lprintf("ovfl %d\n", samples_made - samples_done);
-	if (sndBuffer_endptr < PicoIn.sndOut)
-		sndBuffer_endptr = PicoIn.sndOut;
-
-	l = PicoIn.sndOut - sndBuffer;
-	if (l > sizeof(sndBuffer)/2)
-		lprintf("ovrn %d %d\n", len, PicoIn.sndOut - sndBuffer);
-	if (l > samples_block * (SOUND_BLOCK_COUNT-2)) {
-		sndBuffer_endptr = PicoIn.sndOut;
-		PicoIn.sndOut = sndBuffer;
-	}
 
 	// signal the snd thread
 	SignalSema(sound_sem);
 }
+
+static void writeSound_44100(int len)
+{
+	writeSound(len);
+	PicoIn.sndOut = sndBuffer_ptr;
+}
+
+static void writeSound_22050_stereo(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i+=2, p+=4) {
+		p[0] = p[2] = PicoIn.sndOut[i];
+		p[1] = p[3] = PicoIn.sndOut[i+1];
+	}
+	writeSound(2*len);
+}
+
+static void writeSound_22050_mono(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i++, p+=2) {
+		p[0] = p[1] = PicoIn.sndOut[i];
+	}
+	writeSound(2*len);
+}
+
+static void writeSound_11025_stereo(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i+=2, p+=8) {
+		p[0] = p[2] = p[4] = p[6] = PicoIn.sndOut[i];
+		p[1] = p[3] = p[5] = p[7] = PicoIn.sndOut[i+1];
+	}
+	writeSound(4*len);
+}
+
+static void writeSound_11025_mono(int len)
+{
+	short *p = sndBuffer_ptr;
+	int i;
+
+	for (i = 0; i < len / 2; i++, p+=4) {
+		p[0] = p[1] = p[2] = p[3] = PicoIn.sndOut[i];
+	}
+	writeSound(4*len);
+}
+
+#define PS2_RATE 44100 // PicoIn.sndRate
 
 static void resetSound()
 {
@@ -147,7 +202,7 @@ static void resetSound()
 	int ret;
 
 	format.bits = 16;
-	format.freq = PicoIn.sndRate;
+	format.freq = PS2_RATE;
 	format.channels = stereo ? 2 : 1;
 	ret = audsrv_set_format(&format);
 	if (ret < 0) {
@@ -170,14 +225,10 @@ static int sound_thread(void *argp)
 		// if there aren't enough samples, queue silence
 		int queued = audsrv_queued()/2;
 		while (queued < 2*samples_block) {
-			short *sndOut = PicoIn.sndOut, *sndEnd = sndBuffer_endptr;
-
 			// compute sample chunk size
-			int buflen = sndEnd - snd_playptr;
-			if (sndOut >= snd_playptr)
-				buflen = sndOut - snd_playptr;
-			if (buflen > samples_made - samples_done)
-				buflen = samples_made - samples_done;
+			int buflen = samples_made - samples_done;
+			if (buflen > sndBuffer_endptr - snd_playptr)
+				buflen = sndBuffer_endptr - snd_playptr;
 			if (buflen > 3*samples_block - queued)
 				buflen = 3*samples_block - queued;
 
@@ -241,7 +292,7 @@ static void sound_init(void)
 	thread.initial_priority = 40;
 	thid = CreateThread(&thread);
 
-	samples_block = 22050/50; // needs to be initialized before thread start
+	samples_block = PS2_RATE/60; // needs to be initialized before thread start
 	if (thid >= 0) {
 		ret = StartThread(thid, NULL);
 		if (ret < 0) lprintf("sound_init: StartThread returned %08x\n", ret);
@@ -255,7 +306,7 @@ static void sound_init(void)
 void pemu_sound_start(void) {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	static int mp3_init_done;
-	int ret, stereo;
+	int ret, stereo, factor;
 
 	samples_made = samples_done = 0;
 
@@ -279,14 +330,22 @@ void pemu_sound_start(void) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo = (PicoIn.opt&8)>>3;
-	samples_block = (PicoIn.sndRate / (Pico.m.pal ? 50 : 60)) * (stereo ? 2 : 1);
+
+	factor = PS2_RATE / PicoIn.sndRate;
+	samples_block = (PS2_RATE / (Pico.m.pal ? 50 : 60)) * (stereo ? 2 : 1);
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
 
 	resetSound();
-	PicoIn.writeSound = writeSound;
-	snd_playptr = PicoIn.sndOut = sndBuffer_endptr = sndBuffer;
+	switch (factor) {
+	case 1: PicoIn.writeSound = stereo ? writeSound_44100       :writeSound_44100     ; break;
+	case 2: PicoIn.writeSound = stereo ? writeSound_22050_stereo:writeSound_22050_mono; break;
+	case 4: PicoIn.writeSound = stereo ? writeSound_11025_stereo:writeSound_11025_mono; break;
+	}
+	sndBuffer_endptr = sndBuffer;
+	snd_playptr = sndBuffer_ptr = sndBuffer;
+	PicoIn.sndOut = (factor == 1 ? sndBuffer_ptr : sndBuffer_emu);
 
 	PsndRate_old = PicoIn.sndRate;
 	PicoOpt_old  = PicoIn.opt;

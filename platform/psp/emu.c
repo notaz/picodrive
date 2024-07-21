@@ -450,7 +450,7 @@ static void writeSound(int len)
 	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 4) {
 		sndBuffer_ptr += len / 2;
 		if (sndBuffer_ptr - sndBuffer > sizeof(sndBuffer)/2)
-			lprintf("snd ovrn %d %d\n", len, PicoIn.sndOut - sndBuffer);
+			lprintf("snd ovrn %d %d\n", len, sndBuffer_ptr - sndBuffer);
 		if (sndBuffer_ptr >= sndBuffer_endptr) {
 			int wrap = sndBuffer_ptr - sndBuffer_endptr;
 			if (wrap > 0)
