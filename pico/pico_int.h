@@ -946,7 +946,7 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 static __inline u8 PicoVideoGetV(int scanline, int maywrap)
 {
   if (maywrap && scanline >= Pico.t.vcnt_wrap) scanline -= Pico.t.vcnt_adj;
-  if ((Pico.video.reg[12]&6) == 6) scanline = (scanline<<1) | 1;
+  if ((Pico.video.reg[12]&6) == 6) scanline = (scanline<<1)|(scanline>>8);
   return scanline;
 }
 
