@@ -25,13 +25,12 @@
 
 /* note: in_ps2 handles combos (if 2 btns have the same bind,
  * both must be pressed for action to happen) */
-static int in_ps2_combo_keys = 0;
-static int in_ps2_combo_acts = 0;
+static int in_ps2_combo_keys[2];
+static int in_ps2_combo_acts[2];
 
 static void *padBuf[2][4];
 static uint32_t padConnected[2][4]; // 2 ports, 4 slots
 static uint32_t padOpen[2][4];
-static uint32_t maxslot[2];
 
 
 static const char *in_ps2_keys[IN_PS2_NBUTTONS] = {
@@ -53,15 +52,14 @@ static int lg2(unsigned v)
 	return r;
 }
 
-static unsigned int ps2_pad_read()
+static unsigned int ps2_pad_read(int pad)
 {
 	unsigned int paddata;
 	struct padButtonStatus buttons;
 	int32_t ret, port, slot;
 
-	
 	// Using for now port 0, slot 0
-	port = 0;
+	port = pad;
 	slot = 0;
 
 	ret = padRead(port, slot, &buttons);
@@ -80,7 +78,7 @@ static unsigned int ps2_pad_read()
 	return paddata;
 }
 
-static unsigned in_ps2_get_bits(void)
+static unsigned in_ps2_get_bits(int pad)
 {
 	unsigned mask =
 	    PAD_UP|PAD_DOWN|PAD_LEFT|PAD_RIGHT |
@@ -88,12 +86,14 @@ static unsigned in_ps2_get_bits(void)
 	    PAD_L1|PAD_R1|PAD_SELECT|PAD_START;
 		// PS2_NUB_UP|PS2_NUB_DOWN|PS2_NUB_LEFT|PS2_NUB_RIGHT |
 
-	return ps2_pad_read() & mask;
+	return ps2_pad_read(pad) & mask;
 }
 
 static void in_ps2_probe(const in_drv_t *drv)
 {
-	in_register(IN_PS2_PREFIX "PS2 pad", -1, NULL,
+	in_register(IN_PS2_PREFIX "PS2 pad 1", -1, (void *)0,
+		IN_PS2_NBUTTONS, in_ps2_keys, 1);
+	in_register(IN_PS2_PREFIX "PS2 pad 2", -1, (void *)1,
 		IN_PS2_NBUTTONS, in_ps2_keys, 1);
 }
 
@@ -112,15 +112,16 @@ in_ps2_get_key_names(const in_drv_t *drv, int *count)
 /* ORs result with pressed buttons */
 static int in_ps2_update(void *drv_data, const int *binds, int *result)
 {
+	int pad = (int)drv_data & 1;
 	int type_start = 0;
 	int i, t;
 	unsigned keys;
 
-	keys = in_ps2_get_bits();
+	keys = in_ps2_get_bits(pad);
 
-	if (keys & in_ps2_combo_keys) {
+	if (keys & in_ps2_combo_keys[pad]) {
 		result[IN_BINDTYPE_EMU] = in_combos_do(keys, binds, IN_PS2_NBUTTONS,
-						in_ps2_combo_keys, in_ps2_combo_acts);
+					in_ps2_combo_keys[pad], in_ps2_combo_acts[pad]);
 		type_start = IN_BINDTYPE_PLAYER12;
 	}
 
@@ -137,11 +138,12 @@ static int in_ps2_update(void *drv_data, const int *binds, int *result)
 
 int in_ps2_update_keycode(void *data, int *is_down)
 {
-	static unsigned old_val = 0;
+	static unsigned old_val[2] = { 0, 0 };
+	int pad = (int)data & 1;
 	unsigned val, diff, i;
 
-	val = in_ps2_get_bits();
-	diff = val ^ old_val;
+	val = in_ps2_get_bits(pad);
+	diff = val ^ old_val[pad];
 	if (diff == 0)
 		return -1;
 
@@ -150,7 +152,7 @@ int in_ps2_update_keycode(void *data, int *is_down)
 		if (diff & (1<<i))
 			break;
 
-	old_val ^= 1 << i;
+	old_val[pad] ^= 1 << i;
 
 	if (is_down)
 		*is_down = !!(val & (1<<i));
@@ -162,7 +164,7 @@ static struct {
 	int pbtn;
 } key_pbtn_map[] =
 {
-	{ PAD_UP,		PBTN_UP },
+	{ PAD_UP,	PBTN_UP },
 	{ PAD_DOWN,	PBTN_DOWN },
 	{ PAD_LEFT,	PBTN_LEFT },
 	{ PAD_RIGHT,	PBTN_RIGHT },
@@ -200,6 +202,7 @@ static int in_ps2_menu_translate(void *drv_data, int keycode, char *charcode)
 /* remove binds of missing keys, count remaining ones */
 static int in_ps2_clean_binds(void *drv_data, int *binds, int *def_binds)
 {
+	int pad = (int)drv_data & 1;
 	int i, count = 0;
 
 	for (i = 0; i < IN_PS2_NBUTTONS; i++) {
@@ -213,7 +216,7 @@ static int in_ps2_clean_binds(void *drv_data, int *binds, int *def_binds)
 		}
 	}
 
-	in_combos_find(binds, IN_PS2_NBUTTONS, &in_ps2_combo_keys, &in_ps2_combo_acts);
+	in_combos_find(binds, IN_PS2_NBUTTONS, &in_ps2_combo_keys[pad], &in_ps2_combo_acts[pad]);
 
 	return count;
 }
@@ -250,7 +253,8 @@ void in_ps2_init(struct in_default_bind *defbinds)
 	for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
 		key_pbtn_map[i].key = lg2(key_pbtn_map[i].key);
 
-	in_ps2_combo_keys = in_ps2_combo_acts = 0;
+	memset(in_ps2_combo_keys, 0, sizeof(in_ps2_combo_keys));
+	memset(in_ps2_combo_acts, 0, sizeof(in_ps2_combo_acts));
 
 	/* fill keys array, converting key bitmasks to bit numbers */
 	in_ps2_keys[lg2(PAD_UP)] = "Up";
