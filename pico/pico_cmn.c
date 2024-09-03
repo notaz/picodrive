@@ -51,10 +51,10 @@ static int SekSyncM68k(int once)
     // accessing the main bus. Account for these by shortening the time
     // the 68K CPU runs.
     int z80_buscyc = Pico.t.z80_buscycles >> (~Pico.m.scanline & 1);
-    if (z80_buscyc <= cyc_do)
-      SekExecM68k(cyc_do - z80_buscyc);
-    else
-      z80_buscyc = cyc_do;
+    // NB the Z80 isn't fast enough to steal more than half the bandwidth.
+    if (z80_buscyc > cyc_do/2)
+      z80_buscyc = cyc_do/2;
+    SekExecM68k(cyc_do - z80_buscyc);
     Pico.t.m68c_cnt += z80_buscyc;
     Pico.t.z80_buscycles -= z80_buscyc;
     if (once) break;
@@ -233,6 +233,7 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
+  // also delay between F bit and IRQ must not be too long (Kessler Incident demo)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
   PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
@@ -244,8 +245,8 @@ static int PicoFrameHints(void)
   pv->pending_ints |= 0x20;
 
   if (pv->reg[1] & 0x20) {
-    if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 60) // CPU blocked?
-      SekExecM68k(11); // HACK
+    if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 40) // CPU blocked?
+      SekExecM68k(10); // HACK
     elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }
