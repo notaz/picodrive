@@ -922,7 +922,7 @@ void PicoCartUnload(void)
 static unsigned int rom_crc32(int size)
 {
   unsigned int crc;
-  elprintf(EL_STATUS, "caclulating CRC32..");
+  elprintf(EL_STATUS, "calculating CRC32..");
   if (size <= 0 || size > Pico.romsize) size = Pico.romsize;
 
   // have to unbyteswap for calculation..
@@ -1140,6 +1140,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
         PicoIn.AHW = PAHW_PICO;
       else if (strcmp(p, "prot") == 0)
         carthw_sprot_startup();
+      else if (strcmp(p, "flash") == 0)
+        carthw_flash_startup();
       else if (strcmp(p, "ssf2_mapper") == 0)
         carthw_ssf2_startup();
       else if (strcmp(p, "x_in_1_mapper") == 0)

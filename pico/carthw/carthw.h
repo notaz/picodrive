@@ -30,6 +30,7 @@ void carthw_sf001_startup(void);
 void carthw_sf002_startup(void);
 void carthw_sf004_startup(void);
 
+void carthw_flash_startup(void);
 void carthw_sprot_startup(void);
 void carthw_sprot_new_location(unsigned int a,
 	unsigned int mask, unsigned short val, int is_ro);

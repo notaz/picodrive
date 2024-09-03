@@ -737,6 +737,42 @@ void carthw_sf004_startup(void)
   carthw_chunks     = carthw_sf00x_state;
 }
 
+/* Simple protection through reading flash ID */
+static int flash_writecount;
+
+static carthw_state_chunk carthw_flash_state[] =
+{
+  { CHUNK_CARTHW, sizeof(flash_writecount), &flash_writecount },
+  { 0,            0,                        NULL }
+};
+
+static u32 PicoRead16_flash(u32 a) { return (a&6) ? 0x2257 : 0x0020; }
+
+static void PicoWrite16_flash(u32 a, u32 d)
+{
+  int banksz = (1<<M68K_MEM_SHIFT)-1;
+  switch (++flash_writecount) {
+    case 3: cpu68k_map_set(m68k_read16_map, 0, banksz, PicoRead16_flash, 1);
+            break;
+    case 4: cpu68k_map_read_mem(0, banksz, Pico.rom, 0);
+            flash_writecount = 0;
+            break;
+  }
+}
+
+static void carthw_flash_mem_setup(void)
+{
+  cpu68k_map_set(m68k_write16_map, 0, 0x7fffff, PicoWrite16_flash, 1);
+}
+
+void carthw_flash_startup(void)
+{
+  elprintf(EL_STATUS, "Flash prot emu startup");
+
+  PicoCartMemSetup   = carthw_flash_mem_setup;
+  carthw_chunks      = carthw_flash_state;
+}
+
 /* Simple unlicensed ROM protection emulation */
 static struct {
   u32 addr;
