@@ -37,6 +37,7 @@
 
 #if defined(RENDER_GSKIT_PS2)
 #include <malloc.h>
+#include <kernel.h>
 #include "libretro-common/include/libretro_gskit_ps2.h"
 #include "ps2/asm.h"
 #else
