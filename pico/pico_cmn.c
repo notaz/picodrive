@@ -52,6 +52,8 @@ static int SekSyncM68k(int once)
     // the 68K CPU runs.
     int z80_buscyc = Pico.t.z80_buscycles >> (~Pico.m.scanline & 1);
     // NB the Z80 isn't fast enough to steal more than half the bandwidth.
+    // the fastest would be POP cc which takes 10+~3.3*2 z-cyc (~35 cyc) for a
+    // 16 bit value, but 68k is only blocked for ~16 cyc for the 2 bus cycles.
     if (z80_buscyc > cyc_do/2)
       z80_buscyc = cyc_do/2;
     SekExecM68k(cyc_do - z80_buscyc);
@@ -233,7 +235,6 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  // also delay between F bit and IRQ must not be too long (Kessler Incident demo)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
   PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
@@ -245,9 +246,14 @@ static int PicoFrameHints(void)
   pv->pending_ints |= 0x20;
 
   if (pv->reg[1] & 0x20) {
+    // as per https://gendev.spritesmind.net/forum/viewtopic.php?t=2202, IRQ
+    // is usually sampled after operand reading, so the next instruction will
+    // be executed before the IRQ is taken.
     if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 40) // CPU blocked?
-      SekExecM68k(10); // HACK
+      SekExecM68k(4);
     elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
+    // TODO: IRQ usually sampled after operand reading, so insn can't turn it
+    // off? single exception is MOVE.L which samples IRQ after the 1st write?
     SekInterrupt(6);
   }
 
