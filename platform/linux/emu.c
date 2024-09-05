@@ -9,7 +9,9 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <sys/mman.h>
+#ifndef __MINGW32__
+#include <sys/mman.h> // MAP_JIT
+#endif
 
 #include "../libpicofe/menu.h"
 #include "../libpicofe/plat.h"

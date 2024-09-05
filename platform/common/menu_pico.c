@@ -103,16 +103,25 @@ static void make_bg(int no_scale, int from_screen)
 
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{
-		u32 t, *d = g_menubg_ptr;
-		d += (g_menuscreen_h / 2 - h * 2 / 2)
-			* g_menuscreen_w / 2;
-		d += (g_menuscreen_w / 2 - w * 2 / 2) / 2;
-		for (y = 0; y < h; y++, src += pp, d += g_menuscreen_w*2/2) {
-			for (x = 0; x < w; x++) {
-				t = src[x];
-				t = (PXMASKH(t,1)>>1) - (PXMASKH(t,3)>>3);
-				t |= t << 16;
-				d[x] = d[x + g_menuscreen_w / 2] = t;
+		int xf = g_menuscreen_w / w, yf = g_menuscreen_h / h;
+		int f = no_scale ? 1 : xf < yf ? xf : yf;
+		int xs = f * w, ys = f * h;
+		unsigned short t;
+		int i, j, k, l;
+
+		x = (g_menuscreen_w - xs)/2, y = (g_menuscreen_h - ys)/2;
+		dst = (short *)g_menubg_ptr + y * g_menuscreen_w + x;
+		for (i = 0; i < h; i++) {
+			for (j = 0; j < w; j++, src++) {
+				t = (PXMASKH(*src,1)>>1) - (PXMASKH(*src,3)>>3);
+				for (l = 0; l < f; l++)
+					*dst++ = t;
+			}
+			src += pp - w;
+			dst += g_menuscreen_w - xs;
+			for (k = 1; k < f; k++) {
+				memcpy(dst, dst-g_menuscreen_w, g_menuscreen_w*2);
+				dst += g_menuscreen_w;
 			}
 		}
 		return;

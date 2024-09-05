@@ -25,6 +25,26 @@ jobs:
     - name: make
       run: LDFLAGS=-Wl,--no-undefined make -j$(getconf _NPROCESSORS_ONLN) -f Makefile.libretro
 
+  build-win32:
+    runs-on: ubuntu-latest
+    container: ghcr.io/irixxxx/toolchain-win32
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: build
+      run: |
+        git config --global --add safe.directory $PWD
+        ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        ./configure --platform=win32
+        make -j$(getconf _NPROCESSORS_ONLN)
+        mv PicoDrive.zip PicoDrive-win32-$ver.zip
+    - name: artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Win32
+        path: PicoDrive-win32*.zip
+
 
   build-gp2x:
     runs-on: ubuntu-latest

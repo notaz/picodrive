@@ -123,6 +123,17 @@ PicoDrive.zip: $(TARGET)
 all: PicoDrive.zip
 endif
 
+ifeq "$(PLATFORM)" "win32"
+PicoDrive.zip: $(TARGET)
+	$(RM) -rf .od_data
+	mkdir .od_data
+	cp -r platform/linux/skin .od_data
+	cp platform/game_def.cfg .od_data
+	$(STRIP) $< -o .od_data/PicoDrive.exe
+	cd .od_data && zip -9 -r ../$@ *
+all: PicoDrive.zip
+endif
+
 ifeq "$(PLATFORM)" "opendingux"
 .od_data: $(TARGET)
 	$(RM) -rf .od_data
@@ -245,6 +256,14 @@ LDLIBS += -lpatches -lgskit -ldmakit -lps2_drivers
 OBJS += platform/ps2/plat.o
 OBJS += platform/ps2/emu.o
 OBJS += platform/ps2/in_ps2.o
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "win32"
+CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X -DSDL_REDRAW_EVT
+OBJS += platform/win32/plat.o
+OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
+OBJS += platform/common/plat_sdl.o platform/common/inputmap_kbd.o
+OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
