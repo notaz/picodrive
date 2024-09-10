@@ -88,7 +88,6 @@ static void make_bg(int no_scale, int from_screen)
 	int h = g_menubg_src_h ? g_menubg_src_h : g_screen_height;
 	int pp = g_menubg_src_pp ? g_menubg_src_pp : g_screen_ppitch;
 	short *dst;
-	int x, y;
 
 	if (from_screen) {
 		src = g_screen_ptr;
@@ -104,24 +103,24 @@ static void make_bg(int no_scale, int from_screen)
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{
 		int xf = g_menuscreen_w / w, yf = g_menuscreen_h / h;
-		int f = no_scale ? 1 : xf < yf ? xf : yf;
-		int xs = f * w, ys = f * h;
-		unsigned short t;
-		int i, j, k, l;
+		int f = no_scale ? 1 : xf < yf ? xf : yf, xs = f * w, ys = f * h;
+		int x = (g_menuscreen_w - xs)/2, y = (g_menuscreen_h - ys)/2;
+		uint16_t *p = (uint16_t *)g_menubg_ptr;
+		uint16_t *q = (uint16_t *)src;
 
-		x = (g_menuscreen_w - xs)/2, y = (g_menuscreen_h - ys)/2;
-		dst = (short *)g_menubg_ptr + y * g_menuscreen_w + x;
+		int i, j, k, l;
+		p += y * g_menuscreen_pp + x;
 		for (i = 0; i < h; i++) {
-			for (j = 0; j < w; j++, src++) {
-				t = (PXMASKH(*src,1)>>1) - (PXMASKH(*src,3)>>3);
+			for (j = 0; j < w; j++, q++) {
+				uint16_t t = (PXMASKH(*q,1)>>1) - (PXMASKH(*q,3)>>3);
 				for (l = 0; l < f; l++)
-					*dst++ = t;
+					*p++ = t;
 			}
-			src += pp - w;
-			dst += g_menuscreen_w - xs;
+			p += g_menuscreen_pp - xs;
+			q += pp - w;
 			for (k = 1; k < f; k++) {
-				memcpy(dst, dst-g_menuscreen_w, g_menuscreen_w*2);
-				dst += g_menuscreen_w;
+				memcpy(p, p-g_menuscreen_pp, g_menuscreen_w*2);
+				p += g_menuscreen_pp;
 			}
 		}
 		return;
