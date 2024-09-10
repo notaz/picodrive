@@ -147,6 +147,11 @@ void gp2x_make_fb_bufferable(int yes)
 }
 
 /* common */
+void plat_video_menu_update(void)
+{
+	// surface is always the screen
+}
+
 void plat_video_menu_enter(int is_rom_loaded)
 {
 	if (gp2x_current_bpp != 16 || gp2x_dev_id == GP2X_DEV_WIZ) {

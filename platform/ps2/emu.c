@@ -868,6 +868,12 @@ void plat_video_wait_vsync(void)
 	gsKit_sync(gsGlobal);
 }
 
+/* update surface data */
+void plat_video_menu_update(void)
+{
+	// surface is always the screen
+}
+
 /* switch from emulation display to menu display */
 void plat_video_menu_enter(int is_rom_loaded)
 {

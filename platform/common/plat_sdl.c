@@ -285,6 +285,19 @@ void plat_video_clear_buffers(void)
 	}
 }
 
+void plat_video_menu_update(void)
+{
+	// w/h might have changed due to resizing
+	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 1);
+	resize_buffers();
+
+	// update pitch as it is needed by the menu bg scaler
+	if (plat_sdl_overlay || plat_sdl_gl_active)
+		g_menuscreen_pp = g_menuscreen_w;
+	else
+		g_menuscreen_pp = plat_sdl_screen->pitch / 2;
+}
+
 void plat_video_menu_enter(int is_rom_loaded)
 {
 	if (SDL_MUSTLOCK(plat_sdl_screen))
@@ -293,16 +306,13 @@ void plat_video_menu_enter(int is_rom_loaded)
 
 void plat_video_menu_begin(void)
 {
-	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 1);
-	resize_buffers();
-	if (plat_sdl_overlay || plat_sdl_gl_active) {
-		g_menuscreen_pp = g_menuscreen_w;
+	plat_video_menu_update(); // just in case
+
+	if (plat_sdl_overlay || plat_sdl_gl_active)
 		g_menuscreen_ptr = shadow_fb;
-	}
 	else {
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
-		g_menuscreen_pp = plat_sdl_screen->pitch / 2;
 		g_menuscreen_ptr = plat_sdl_screen->pixels;
 	}
 }

@@ -156,6 +156,8 @@ static void copy_bg(int dir)
 
 static void menu_draw_prep(void)
 {
+	plat_video_menu_update();
+
 	if (menu_w == g_menuscreen_w && menu_h == g_menuscreen_h)
 		return;
 	menu_w = g_menuscreen_w, menu_h = g_menuscreen_h;

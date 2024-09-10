@@ -199,6 +199,10 @@ void plat_video_toggle_renderer(int change, int is_menu)
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 }
 
+void plat_video_menu_update(void)
+{
+}
+
 void plat_video_menu_enter(int is_rom_loaded)
 {
 }
