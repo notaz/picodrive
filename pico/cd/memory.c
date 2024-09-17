@@ -68,7 +68,7 @@ static void remap_word_ram(u32 r3);
 
 // poller detection
 #define POLL_LIMIT 16
-#define POLL_CYCLES 64
+#define POLL_CYCLES 52
 
 void m68k_comm_check(u32 a)
 {
@@ -122,18 +122,20 @@ static u32 m68k_reg_read16(u32 a)
       elprintf(EL_CDREG3, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 4:
+      pcd_sync_s68k(SekCyclesDone(), 0);
       d = Pico_mcd->s68k_regs[4]<<8;
       goto end;
     case 6:
       d = *(u16 *)(Pico.rom + 0x72);
       goto end;
     case 8:
-      d = cdc_host_r();
+      d = cdc_host_r(0);
       goto end;
     case 0xa:
       elprintf(EL_UIO, "m68k FIXME: reserved read");
       goto end;
     case 0xc: // 384 cycle stopwatch timer
+      pcd_sync_s68k(SekCyclesDone(), 0);
       d = pcd_stopwatch_read(0);
       elprintf(EL_CDREGS, "m68k stopwatch timer read (%04x)", d);
       goto end;
@@ -238,7 +240,7 @@ void m68k_reg_write8(u32 a, u32 d)
         ((u16 *)Pico.rom)[0x70/2], ((u16 *)Pico.rom)[0x72/2]);
       return;
     case 8:
-      (void) cdc_host_r(); // acts same as reading
+      (void) cdc_host_r(0); // acts same as reading
       return;
     case 0x0f:
       a = 0x0e;
@@ -338,7 +340,7 @@ u32 s68k_reg_read16(u32 a)
       d = cdc_reg_r();
       goto end;
     case 8:
-      d = cdc_host_r();
+      d = cdc_host_r(1);
       goto end;
     case 0xc:
       d = pcd_stopwatch_read(1);
@@ -557,7 +559,7 @@ void s68k_reg_write16(u32 a, u32 d)
       // these are only byte registers, LDS/UDS ignored
       return s68k_reg_write8(a + 1, d);
     case 0x08:
-      return (void) cdc_host_r(); // acts same as reading
+      return (void) cdc_host_r(1); // acts same as reading
     case 0x0a: // DMA address
       r[0xa] = d >> 8;
       r[0xb] = d;
@@ -1232,13 +1234,13 @@ PICO_INTERNAL void PicoMemSetupCD(void)
     Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
     memset(Pico_mcd, 0, sizeof(mcd_state));
   }
-  pcd_base_address = (Pico.romsize > 0x20000 ? 0x400000 : 0x000000);
+  pcd_base_address = (Pico.romsize != 0x20000 ? 0x400000 : 0x000000);
 
   // setup default main68k map
   PicoMemSetup();
 
   // main68k map (BIOS or MSU mapped by PicoMemSetup()):
-  if (Pico.romsize > 0x20000) {
+  if (pcd_base_address != 0) {
     // MSU cartridge. Fake BIOS detection
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x41ffff, PicoReadM68k8_bios, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x41ffff, PicoReadM68k16_bios, 1);

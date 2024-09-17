@@ -92,7 +92,7 @@ typedef struct
   //void (*dma_w)(unsigned int words);
   int dma_w;
   uint8 ram[0x4000 + 2352]; /* 16K external RAM (with one block overhead to handle buffer overrun) */
-} cdc_t; 
+} cdc_t;
 
 static cdc_t cdc;
 
@@ -125,7 +125,7 @@ void cdc_reset(void)
   cdc.head[1][3] = 0x00;
 
   /* reset CDC cycle counter */
-  cdc.cycles = 0;
+  cdc.cycles = SekCyclesDoneS68k();
 
   /* DMA transfer disabled */
   cdc.dma_w = 0;
@@ -243,6 +243,16 @@ int cdc_context_load_old(uint8 *state)
 
   return 0x10960; // sizeof(old_cdc)
 #undef old_load
+}
+
+static int check_decoder_irq_pending(void)
+{
+  /* As per mcd-verificator, DECI is active for a phase of 49:72 per sector */
+  /* 12500000/75 * 49/(49+72) = ~67500, but it sometimes fails with that */
+  if (CYCLES_GE(SekCyclesDoneS68k(), cdc.cycles + 67250))
+    cdc.ifstat |= BIT_DECI;
+
+  return !(cdc.ifstat & BIT_DECI) && (cdc.ifctrl & BIT_DECIEN);
 }
 
 static void do_dma(enum dma_type type, int bytes_in)
@@ -368,7 +378,7 @@ void cdc_dma_update(void)
       cdc.ifstat &= ~BIT_DTEI;
 
       /* Data Transfer End interrupt enabled ? */
-      if (cdc.ifctrl & BIT_DTEIEN)
+      if (!check_decoder_irq_pending() && (cdc.ifctrl & BIT_DTEIEN))
       {
         /* level 5 interrupt enabled ? */
         if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
@@ -411,9 +421,10 @@ int cdc_decoder_update(uint8 header[4])
 
     /* pending decoder interrupt */
     cdc.ifstat &= ~BIT_DECI;
+    cdc.cycles = SekCyclesDoneS68k();
 
     /* decoder interrupt enabled ? */
-    if (cdc.ifctrl & BIT_DECIEN)
+    if (((cdc.ifstat & BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN)) && (cdc.ifctrl & BIT_DECIEN))
     {
       /* level 5 interrupt enabled ? */
       if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)
@@ -455,7 +466,7 @@ int cdc_decoder_update(uint8 header[4])
       return 1;
     }
   }
-  
+
   /* keep decoding same data block if Buffer Write is disabled */
   return 0;
 }
@@ -473,6 +484,7 @@ void cdc_reg_w(unsigned char data)
     case 0x01:  /* IFCTRL */
     {
       /* pending interrupts ? */
+      check_decoder_irq_pending();
       if (((data & BIT_DTEIEN) && !(cdc.ifstat & BIT_DTEI)) ||
           ((data & BIT_DECIEN) && !(cdc.ifstat & BIT_DECI)))
       {
@@ -621,14 +633,13 @@ void cdc_reg_w(unsigned char data)
       /* clear DBCH bits 4-7 */
       cdc.dbc &= 0x0fff;
 
-#if 0
       /* no pending decoder interrupt ? */
-      if ((cdc.ifstat | BIT_DECI) || !(cdc.ifctrl & BIT_DECIEN))
+      if (!check_decoder_irq_pending())
       {
         /* clear pending level 5 interrupt */
         pcd_irq_s68k(5, 0);
       }
-#endif
+
       Pico_mcd->s68k_regs[0x04+1] = 0x08;
       break;
     }
@@ -648,8 +659,15 @@ void cdc_reg_w(unsigned char data)
     case 0x0a:  /* CTRL0 */
     {
       /* reset DECI if decoder turned off */
-      if (!(data & BIT_DECEN))
+      if (!(data & BIT_DECEN)) {
         cdc.ifstat |= BIT_DECI;
+
+        if ((cdc.ifstat & BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN))
+        {
+          /* clear pending level 5 interrupt */
+          pcd_irq_s68k(5, 0);
+        }
+      }
 
       /* update decoding mode */
       if (data & BIT_AUTORQ)
@@ -657,7 +675,7 @@ void cdc_reg_w(unsigned char data)
         /* set MODE bit according to CTRL1 register & clear FORM bit */
         cdc.stat[2] = cdc.ctrl[1] & BIT_MODRQ;
       }
-      else 
+      else
       {
         /* set MODE & FORM bits according to CTRL1 register */
         cdc.stat[2] = cdc.ctrl[1] & (BIT_MODRQ | BIT_FORMRQ);
@@ -676,7 +694,7 @@ void cdc_reg_w(unsigned char data)
         /* set MODE bit according to CTRL1 register & clear FORM bit */
         cdc.stat[2] = data & BIT_MODRQ;
       }
-      else 
+      else
       {
         /* set MODE & FORM bits according to CTRL1 register */
         cdc.stat[2] = data & (BIT_MODRQ | BIT_FORMRQ);
@@ -692,7 +710,7 @@ void cdc_reg_w(unsigned char data)
       cdc.pt |= data;
       Pico_mcd->s68k_regs[0x04+1] = 0x0d;
       break;
-  
+
     case 0x0d:  /* PTH */
       cdc.pt &= 0x00ff;
       cdc.pt |= data << 8;
@@ -722,6 +740,7 @@ unsigned char cdc_reg_r(void)
 
     case 0x01:  /* IFSTAT */
       Pico_mcd->s68k_regs[0x04+1] = 0x02;
+      check_decoder_irq_pending();
       return cdc.ifstat;
 
     case 0x02:  /* DBCL */
@@ -785,15 +804,13 @@ unsigned char cdc_reg_r(void)
 
       /* clear pending decoder interrupt */
       cdc.ifstat |= BIT_DECI;
-      
-#if 0
+
       /* no pending data transfer end interrupt */
-      if ((cdc.ifstat | BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN))
+      if ((cdc.ifstat & BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN))
       {
         /* clear pending level 5 interrupt */
         pcd_irq_s68k(5, 0);
       }
-#endif
 
       Pico_mcd->s68k_regs[0x04+1] = 0x10;
       return data;
@@ -805,8 +822,14 @@ unsigned char cdc_reg_r(void)
   }
 }
 
-unsigned short cdc_host_r(void)
+unsigned short cdc_host_r(int sub)
 {
+  int dir = Pico_mcd->s68k_regs[0x04+0] & 0x07;
+
+  /* sync sub cpu if DSR bit not there (yet?) on main cpu */
+  if (!(Pico_mcd->s68k_regs[0x04+0] & 0x40))
+    if (!sub) pcd_sync_s68k(SekCyclesDone()+8, 0); /* HACK, mcd-verificator */
+
   /* check if data is available */
   if (!(cdc.ifstat & BIT_DTEN))
   {
@@ -817,7 +840,11 @@ unsigned short cdc_host_r(void)
 #ifdef LOG_CDC
     error("CDC host read 0x%04x -> 0x%04x (dbc=0x%x) (%X)\n", cdc.dac, data, cdc.dbc, s68k.pc);
 #endif
- 
+
+    /* only the configured cpu access advances the DMA */
+    if ((sub && dir != 3) || (!sub && dir != 2))
+      return data;
+
     /* increment data address counter */
     cdc.dac += 2;
 
@@ -843,7 +870,7 @@ unsigned short cdc_host_r(void)
         cdc.ifstat &= ~BIT_DTEI;
 
         /* Data Transfer End interrupt enabled ? */
-        if (cdc.ifctrl & BIT_DTEIEN)
+        if (!check_decoder_irq_pending() && (cdc.ifctrl & BIT_DTEIEN))
         {
           /* level 5 interrupt enabled ? */
           if (Pico_mcd->s68k_regs[0x32+1] & PCDS_IEN5)

@@ -763,7 +763,7 @@ void cdc_dma_update(void);
 int  cdc_decoder_update(unsigned char header[4]);
 void cdc_reg_w(unsigned char data);
 unsigned char  cdc_reg_r(void);
-unsigned short cdc_host_r(void);
+unsigned short cdc_host_r(int sub);
 
 // cd/cdd.c
 void cdd_reset(void);

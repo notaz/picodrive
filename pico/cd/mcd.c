@@ -58,7 +58,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
-  if (Pico.romsize <= 0x20000) // hack to detect BIOS, no GA HINT vector for MSU
+  if (Pico.romsize == 0x20000) // hack to detect BIOS, no GA HINT vector for MSU
     memset(Pico.rom + 0x70, 0xff, 4);
 }
 
@@ -149,11 +149,11 @@ static void pcd_cdc_event(unsigned int now)
   {
     /* reset CDD command wait flag */
     Pico_mcd->s68k_regs[0x4b] = 0xf0;
+  }
 
-    if ((Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) && (Pico_mcd->s68k_regs[0x37] & 4)) {
-      elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
-      pcd_irq_s68k(4, 1);
-    }
+  if ((Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) && (Pico_mcd->s68k_regs[0x37] & 4)) {
+    elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
+    pcd_irq_s68k(4, 1);
   }
 
   pcd_event_schedule(now, PCD_EVENT_CDC, 12500000/75);
@@ -312,8 +312,7 @@ static int SekSyncM68k(int once);
 
 void pcd_run_cpus_normal(int m68k_cycles)
 {
-  // TODO this is suspicious. ~1 cycle refresh delay every 256 cycles?
-  SekAimM68k(m68k_cycles, 0x42); // Fhey area
+  SekAimM68k(m68k_cycles, 0x108);
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
     if (SekShouldInterrupt()) {
