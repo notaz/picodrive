@@ -184,7 +184,7 @@ static const char *find_bios(int *region, const char *cd_fname)
 			(*region == 8 ? "EU" : "JAP") : "USA");
 	}
 
-	// look for MSU.MD rom file. XXX another extension list? ugh...
+	// look for MSU.MD or MD+ rom file. XXX another extension list? ugh...
 	static const char *md_exts[] = { "gen", "smd", "md", "32x" };
 	char *ext = strrchr(cd_fname, '.');
 	int extpos = ext ? ext-cd_fname : strlen(cd_fname);

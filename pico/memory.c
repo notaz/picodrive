@@ -421,8 +421,6 @@ static NOINLINE u32 port_read(int i)
   // Decap Attack reportedly doesn't work on Nomad but works on must
   // other MD revisions (different pull-up strength?).
   u32 mask = 0x3f;
-  if (CYCLES_GE(padTHLatency[i], SekCyclesDone()+100))
-    padTHLatency[i] = SekCyclesDone(); // kludge to cope with cycle wrap
   if (CYCLES_GE(SekCyclesDone(), padTHLatency[i])) {
     mask |= 0x40;
     padTHLatency[i] = SekCyclesDone();

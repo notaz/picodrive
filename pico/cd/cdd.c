@@ -155,6 +155,9 @@ static void ogg_free(int i)
 
 void cdd_reset(void)
 {
+  /* stop audio streaming */
+  Pico_mcd->cdda_stream = NULL;
+
   /* reset cycle counter */
   cdd.cycles = 0;
   
@@ -715,13 +718,13 @@ void cdd_read_audio(unsigned int samples)
 
 
 void cdd_update(void)
-{  
+{
 #ifdef LOG_CDD
   error("LBA = %d (track n°%d)(latency=%d)\n", cdd.lba, cdd.index, cdd.latency);
 #endif
   
   /* update decoder, depending on track type */
-  if (cdd.status == CD_PLAY && !is_audio(cdd.index))
+  if (cdd.status == CD_PLAY && !is_audio(cdd.index) && !cdd.latency)
   {
     /* DATA sector header (CD-ROM Mode 1) */
     uint8 header[4];
@@ -1043,11 +1046,11 @@ void cdd_process(void)
         cdd.latency += (((cdd.lba - lba) * 120) / 270000);
       }
 
-      /* block transfer always starts 3 blocks earlier */
-      lba -= 3;
-
       /* get track index */
       while ((cdd.toc.tracks[index].end <= lba) && (index < cdd.toc.last)) index++;
+
+      /* block transfer always starts 3 blocks earlier */
+      lba -= 3;
 
       /* seek to block */
       cdd_seek(index, lba);
@@ -1131,7 +1134,7 @@ void cdd_process(void)
 
     case 0x07:  /* Resume */
     {
-      int lba = (cdd.lba < 0 ? 0 : cdd.lba);
+      int lba = (cdd.lba < 4 ? 4 : cdd.lba);
 
       /* CD drive latency */
       if (!cdd.latency)

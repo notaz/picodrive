@@ -9,6 +9,7 @@
 
 #include "../pico_int.h"
 #include "../sound/ym2612.h"
+#include "megasd.h"
 
 extern unsigned char formatted_bram[4*0x10];
 
@@ -96,6 +97,7 @@ PICO_INTERNAL int PicoResetMCD(void)
   }
   Pico.sv.start = Pico.sv.end = 0; // unused
 
+  msd_reset();
   return 0;
 }
 
@@ -150,6 +152,8 @@ static void pcd_cdc_event(unsigned int now)
     /* reset CDD command wait flag */
     Pico_mcd->s68k_regs[0x4b] = 0xf0;
   }
+
+  msd_update();
 
   if ((Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) && (Pico_mcd->s68k_regs[0x37] & 4)) {
     elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");

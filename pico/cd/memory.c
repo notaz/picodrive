@@ -9,6 +9,7 @@
 
 #include "../pico_int.h"
 #include "../memory.h"
+#include "megasd.h"
 
 uptr s68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
@@ -1244,6 +1245,10 @@ PICO_INTERNAL void PicoMemSetupCD(void)
     // MSU cartridge. Fake BIOS detection
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x41ffff, PicoReadM68k8_bios, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x41ffff, PicoReadM68k16_bios, 1);
+    // MD+ on MEGASD.
+    cpu68k_map_set(m68k_write8_map,  0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write8, 1);
+    cpu68k_map_set(m68k_write16_map, 0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write16, 1);
+    msd_reset();
   } else {
     // RAM cart
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x7fffff, PicoReadM68k8_ramc, 1);

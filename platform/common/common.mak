@@ -100,7 +100,7 @@ endif
 SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
 	$(R)pico/cd/cdc.c $(R)pico/cd/cdd.c $(R)pico/cd/cd_image.c \
 	$(R)pico/cd/cd_parse.c $(R)pico/cd/gfx.c $(R)pico/cd/gfx_dma.c \
-	$(R)pico/cd/misc.c $(R)pico/cd/pcm.c
+	$(R)pico/cd/misc.c $(R)pico/cd/pcm.c $(R)pico/cd/megasd.c
 # 32X
 ifneq "$(no_32x)" "1"
 SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/memory.c $(R)pico/32x/draw.c \
