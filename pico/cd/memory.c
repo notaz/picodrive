@@ -791,7 +791,10 @@ void PicoWrite8_mcd_io(u32 a, u32 d)
     return;
   }
 
-  PicoWrite8_io(a, d);
+  if (carthw_ssf2_active && (a & ~0x0e) == 0xa130f1 && a != 0xa130f1)
+    carthw_ssf2_write8(a, d); // for MSU/MD+
+  else
+    PicoWrite8_io(a, d);
 }
 
 void PicoWrite16_mcd_io(u32 a, u32 d)
@@ -806,7 +809,10 @@ void PicoWrite16_mcd_io(u32 a, u32 d)
     return;
   }
 
-  PicoWrite16_io(a, d);
+  if (carthw_ssf2_active && (a & ~0x0f) == 0xa130f0 && a != 0xa130f0)
+    carthw_ssf2_write16(a, d); // for MSU/MD+
+  else
+    PicoWrite16_io(a, d);
 }
 #endif
 
@@ -1245,9 +1251,11 @@ PICO_INTERNAL void PicoMemSetupCD(void)
     // MSU cartridge. Fake BIOS detection
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x41ffff, PicoReadM68k8_bios, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x41ffff, PicoReadM68k16_bios, 1);
-    // MD+ on MEGASD.
+    // MD+ on MEGASD plus mirror
     cpu68k_map_set(m68k_write8_map,  0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write8, 1);
     cpu68k_map_set(m68k_write16_map, 0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write16, 1);
+    cpu68k_map_set(m68k_write8_map,  0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write8, 1);
+    cpu68k_map_set(m68k_write16_map, 0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write16, 1);
     msd_reset();
   } else {
     // RAM cart

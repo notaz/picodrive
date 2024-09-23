@@ -12,6 +12,8 @@
 #include "cdd.h"
 #include "megasd.h"
 
+#define CDD_PLAY_OFFSET 3 // CDD starts this many sectors early
+
 // modifiable fields visible through the interface
 u16 msd_command, msd_result;
 u16 msd_data[0x800/2];
@@ -23,7 +25,7 @@ static s32 msd_readlba = -1; // >= 0 if sector read is running
 static int msd_loop, msd_index = -1; // >= 0 if audio track is playing
 
 static u16 verser[] = // mimick version 1.04 R7, serial 0x01234567
-    { 0x4d45, 0x4741, 0x5344, 0x0104, 0x0700, 0xffff, 0x0123, 0x4567 };
+    { 0x4d45, 0x4741, 0x5344, 0x0104, 0x0700, 0xffff, 0x1234, 0x5678 };
 //    { 0x4d45, 0x4741, 0x5344, 0x9999, 0x9900, 0xffff, 0x1234, 0x5678 };
 
 // get a 32bit value from the data area
@@ -36,7 +38,8 @@ static s32 get32(int offs)
 // send commands to cdd
 static void cdd_play(s32 lba)
 {
-  int secs = lba / 75;
+  // add CDD offset to have it going to the right LBA immediately
+  int secs = (lba += CDD_PLAY_OFFSET) / 75;
   int mins = secs / 60;
   lba -= secs * 75;
   secs -= mins * 60;
@@ -78,7 +81,7 @@ static void msd_playtrack(int idx, s32 offs, int loop)
   msd_readlba = -1;
 
   msd_startlba = cdd.toc.tracks[msd_index].start + 150;
-  msd_endlba = cdd.toc.tracks[msd_index].end;
+  msd_endlba = cdd.toc.tracks[msd_index].end + 150;
   msd_looplba = msd_startlba + offs;
 
   cdd_play(msd_startlba);
@@ -121,6 +124,8 @@ void msd_update()
     // CD LEDs
     s68k_write8(0xff8000,(cdd.status == CD_PLAY) | 0x2);
 
+    cdd.latency = 0; // MEGASD has no latency in this mode
+
     if (cdd.status == CD_PLAY) {
       if (msd_readlba >= 0 && cdd.lba >= msd_readlba) {
         // read done
@@ -128,12 +133,12 @@ void msd_update()
       }
       else if (msd_index >= 0) {
         msd_command = 0;
-        if (cdd.lba > msd_endlba || cdd.index > msd_index) {
+        if (cdd.lba >= msd_endlba-1 || cdd.index > msd_index) {
           if (!msd_loop || msd_index < 0) {
             cdd_stop();
             // audio done
           } else
-            cdd_play(msd_looplba);
+            cdd_play(msd_looplba - CDD_PLAY_OFFSET);
         }
       }
     }
@@ -169,7 +174,8 @@ void msd_process(u16 d)
   case 0x27: msd_result = cdd.toc.last << 8;
              msd_command = 0; break;
 
-  default:   msd_command = msd_result = 0; break; // not supported
+  default:   elprintf(EL_ANOMALY, "unknown MEGASD command %02x", msd_command);
+             msd_command = msd_result = 0; break; // not supported
   }
 }
 
@@ -204,9 +210,10 @@ static u32 msd_read16(u32 a)
 {
   u16 d = 0;
 
-  if (a >= 0x03f800) {
+  a = (u16)a;
+  if (a >= 0x0f800) {
     d = msd_data[(a&0x7ff)>>1];
-  } else if (a >= 0x03f7f0) {
+  } else if (a >= 0xf7f0) {
     switch (a&0xe) {
       case 0x6: d = 0x5241; break; // RA
       case 0x8: d = 0x5445; break; // TE
@@ -229,21 +236,25 @@ static u32 msd_read8(u32 a)
 
 void msd_write16(u32 a, u32 d)
 {
-  if (a == 0x03f7fa) {
+  a = (u16)a;
+  if (a == 0xf7fa) {
     // en/disable overlay
     u32 base = 0x040000-(1<<M68K_MEM_SHIFT);
     if ((u16)d == 0xcd54) {
       msd_init();
       cpu68k_map_set(m68k_read8_map,  base, 0x03ffff, msd_read8, 1);
       cpu68k_map_set(m68k_read16_map, base, 0x03ffff, msd_read16, 1);
+      base += 0x800000; // mirror
+      cpu68k_map_set(m68k_read8_map,  base, 0x0bffff, msd_read8, 1);
+      cpu68k_map_set(m68k_read16_map, base, 0x0bffff, msd_read16, 1);
     } else if (Pico.romsize > base) {
       cpu68k_map_set(m68k_read8_map,  base, 0x03ffff, Pico.rom+base, 0);
       cpu68k_map_set(m68k_read16_map, base, 0x03ffff, Pico.rom+base, 0);
     }
-  } else if (a == 0x03f7fe) {
+  } else if (a == 0xf7fe) {
     // command port
     msd_process(d);
-  } else if (a >= 0x03f800) {
+  } else if (a >= 0xf800) {
     // data area
     msd_data[(a&0x7ff) >> 1] = d;
   }
@@ -251,7 +262,7 @@ void msd_write16(u32 a, u32 d)
 
 void msd_write8(u32 a, u32 d)
 {
-  if (a >= 0x03f800) {
+  if ((u16)a >= 0xf800) {
     // data area
     ((u8 *)msd_data)[MEM_BE2(a&0x7ff)] = d;
   }

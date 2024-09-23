@@ -859,7 +859,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
-  if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS|PAHW_PICO)))
+  if (!(PicoIn.AHW & (PAHW_SMS|PAHW_PICO)))
     PicoCartDetect(carthw_cfg);
   if (PicoIn.AHW & PAHW_SMS)
     PicoCartDetectMS();
