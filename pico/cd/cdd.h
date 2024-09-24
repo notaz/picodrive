@@ -69,6 +69,7 @@ typedef struct
   int offset;
   int start;
   int end;
+  int loop, loop_lba; /* for MEGASD */
 } track_t; 
 
 /* CD TOC */

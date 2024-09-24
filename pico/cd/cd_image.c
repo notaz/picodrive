@@ -193,6 +193,10 @@ int load_cd_image(const char *cd_img_name, int *type)
       lba += length;
       tracks[index].end = lba;
 
+      // weird MEGASD cue file extensions
+      tracks[index].loop = cue_data->tracks[n].loop;
+      tracks[index].loop_lba = cue_data->tracks[n].loop_lba;
+
       sprintf_lba(tmp_ext, sizeof(tmp_ext), tracks[index].start);
       elprintf(EL_STATUS, "Track %2i: %s %9i %s %s", n, tmp_ext, length,
           tracks[index].type ? "AUDIO" : "DATA ",

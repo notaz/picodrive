@@ -416,6 +416,19 @@ file_ok:
 			if (ret != 3) continue;
 			data->tracks[count].sector_xlength = m*60*75 + s*75 + f;
 		}
+		else if (BEGINS(buff, "REM NOLOOP")) // MEGASD "extension"
+		{
+			data->tracks[count].loop = -1;
+		}
+		else if (BEGINS(buff, "REM LOOP")) // MEGASD "extension"
+		{
+			int lba;
+			get_token(buff+8, buff2, sizeof(buff2));
+			ret = sscanf(buff2, "%d", &lba);
+			if (ret != 1) lba = 0;
+			data->tracks[count].loop_lba = lba;
+			data->tracks[count].loop = 1;
+		}
 		else if (BEGINS(buff, "REM"))
 			continue;
 		else

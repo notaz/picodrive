@@ -791,7 +791,7 @@ void PicoWrite8_mcd_io(u32 a, u32 d)
     return;
   }
 
-  if (carthw_ssf2_active && (a & ~0x0e) == 0xa130f1 && a != 0xa130f1)
+  if (carthw_ssf2_active)
     carthw_ssf2_write8(a, d); // for MSU/MD+
   else
     PicoWrite8_io(a, d);
@@ -809,7 +809,7 @@ void PicoWrite16_mcd_io(u32 a, u32 d)
     return;
   }
 
-  if (carthw_ssf2_active && (a & ~0x0f) == 0xa130f0 && a != 0xa130f0)
+  if (carthw_ssf2_active)
     carthw_ssf2_write16(a, d); // for MSU/MD+
   else
     PicoWrite16_io(a, d);

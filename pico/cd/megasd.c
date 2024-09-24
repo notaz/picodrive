@@ -2,7 +2,14 @@
  * PicoDrive
  * (C) irixxxx, 2024
  *
- * MEGASD enhancement support
+ * MEGASD enhancement support as "documented" in "MegaSD DEV Manual Rev.2"
+ *
+ * Emulates parts of the MEGASD API for "CD enhanced Megadrive games". Missing:
+ * - Fader and volume control
+ * - enhanced SSF2 mapper
+ * - PCM access
+ * The missing features are AFAIK not used by any currently available patch.
+ * I'm not going to look into these until I see it used somewhere.
  */
 
 #include "../pico_int.h"
@@ -24,7 +31,7 @@ static s32 msd_startlba, msd_endlba, msd_looplba;
 static s32 msd_readlba = -1; // >= 0 if sector read is running
 static int msd_loop, msd_index = -1; // >= 0 if audio track is playing
 
-static u16 verser[] = // mimick version 1.04 R7, serial 0x01234567
+static u16 verser[] = // mimick version 1.04 R7, serial 0x12345678
     { 0x4d45, 0x4741, 0x5344, 0x0104, 0x0700, 0xffff, 0x1234, 0x5678 };
 //    { 0x4d45, 0x4741, 0x5344, 0x9999, 0x9900, 0xffff, 0x1234, 0x5678 };
 
@@ -76,12 +83,27 @@ static void cdd_stop(void)
 // play a track, looping from offset if enabled
 static void msd_playtrack(int idx, s32 offs, int loop)
 {
+  track_t *track;
+
+  if (idx < 1 || idx > cdd.toc.last) {
+    msd_result = msd_command = 0;
+    return;
+  }
   msd_index = idx-1;
+
+  track = &cdd.toc.tracks[msd_index];
+  if (track->loop) {
+    // overridden by some bizarre proprietary extensions in the cue file
+    // NB using these extensions definitely prevents using CHD files with MD+!
+    loop = track->loop > 0;
+    offs = track->loop_lba;
+  }
+
   msd_loop = loop;
   msd_readlba = -1;
 
-  msd_startlba = cdd.toc.tracks[msd_index].start + 150;
-  msd_endlba = cdd.toc.tracks[msd_index].end + 150;
+  msd_startlba = track->start + 150;
+  msd_endlba = track->end + 150;
   msd_looplba = msd_startlba + offs;
 
   cdd_play(msd_startlba);
@@ -90,6 +112,11 @@ static void msd_playtrack(int idx, s32 offs, int loop)
 // play a range of sectors, with looping if enabled
 static void msd_playsectors(s32 startlba, s32 endlba, s32 looplba, int loop)
 {
+  if (startlba < 0 || startlba >= cdd.toc.tracks[cdd.toc.last].start) {
+    msd_result = msd_command = 0;
+    return;
+  }
+
   msd_index = 99;
   msd_loop = loop;
   msd_readlba = -1;
@@ -104,8 +131,13 @@ static void msd_playsectors(s32 startlba, s32 endlba, s32 looplba, int loop)
 // read a block of data
 static void msd_readdata(s32 lba)
 {
+  if (lba < 0 || lba >= cdd.toc.tracks[cdd.toc.last].start) {
+    msd_result = msd_command = 0;
+    return;
+  }
+
   msd_index = -1;
-  msd_readlba = lba;
+  msd_readlba = lba + 150;
 
   cdd_play(msd_readlba);
 }
@@ -169,7 +201,7 @@ void msd_process(u16 d)
   case 0x17: msd_readdata(get32(0)); break;
   case 0x18: msd_transfer();
              msd_command = 0; break;
-  case 0x19: msd_readdata(++msd_readlba); break;
+  case 0x19: msd_readdata(msd_readlba-150 + 1); break;
 
   case 0x27: msd_result = cdd.toc.last << 8;
              msd_command = 0; break;

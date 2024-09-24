@@ -303,6 +303,7 @@ typedef struct
 	int pregap;		/* pregap for current track */
 	int sector_offset;	/* in current file */
 	int sector_xlength;
+	int loop, loop_lba;	/* MEGASD extensions */
 	enum cd_track_type type;
 } cd_track_t;
 
