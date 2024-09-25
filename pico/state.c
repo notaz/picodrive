@@ -12,6 +12,7 @@
 #include <cpu/sh2/sh2.h>
 #include "sound/ym2612.h"
 #include "sound/emu2413/emu2413.h"
+#include "cd/megasd.h"
 #include "state.h"
 
 // sn76496 & ym2413
@@ -135,6 +136,7 @@ typedef enum {
   CHUNK_YM2413,
   CHUNK_PICO_PCM,
   CHUNK_PICO,
+  CHUNK_CD_MSD,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -308,6 +310,8 @@ static int state_save(void *file)
     CHECKED_WRITE(CHUNK_CD_CDC, len, buf2);
     len = cdd_context_save(buf2);
     CHECKED_WRITE(CHUNK_CD_CDD, len, buf2);
+
+    CHECKED_WRITE_BUFF(CHUNK_CD_MSD, Pico_msd);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
       wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -497,6 +501,7 @@ static int state_load(void *file)
       case CHUNK_GA_REGS:  CHECKED_READ_BUFF(Pico_mcd->s68k_regs); break;
       case CHUNK_PCM:      CHECKED_READ_BUFF(Pico_mcd->pcm); break;
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
+      case CHUNK_CD_MSD:   CHECKED_READ_BUFF(Pico_msd); break;
 
       case CHUNK_CD_EVT:
         CHECKED_READ2(0x40, buf);
