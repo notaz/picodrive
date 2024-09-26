@@ -702,6 +702,7 @@ extern carthw_state_chunk *carthw_chunks;
 #define CHUNK_CARTHW 64
 
 // cart.c
+extern int rom_strcmp(void *rom, int size, int offset, const char *s1);
 extern int PicoCartResize(int newsize);
 extern void Byteswap(void *dst, const void *src, int len);
 extern void (*PicoCartMemSetup)(void);
@@ -816,6 +817,7 @@ PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 
 extern mcd_state *Pico_mcd;
 
+PICO_INTERNAL void PicoCreateMCD(unsigned char *bios_data, int bios_size);
 PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);

@@ -20,6 +20,19 @@ static unsigned int mcd_s68k_cycle_base;
 
 mcd_state *Pico_mcd;
 
+PICO_INTERNAL void PicoCreateMCD(unsigned char *bios_data, int bios_size)
+{
+  if (!Pico_mcd) {
+    Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
+    memset(Pico_mcd, 0, sizeof(mcd_state));
+  }
+  if (bios_data && bios_size > 0) {
+    if (bios_size > sizeof(Pico_mcd->bios))
+      bios_size = sizeof(Pico_mcd->bios);
+    memcpy(Pico_mcd->bios, bios_data, bios_size);
+  }
+}
+
 PICO_INTERNAL void PicoInitMCD(void)
 {
   SekInitS68k();
@@ -59,8 +72,8 @@ PICO_INTERNAL void PicoPowerMCD(void)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
-  if (Pico.romsize == 0x20000) // hack to detect BIOS, no GA HINT vector for MSU
-    memset(Pico.rom + 0x70, 0xff, 4);
+  if (Pico.romsize == 0) // no HINT vector from gate array for MSU
+    memset(Pico_mcd->bios + 0x70, 0xff, 4);
 }
 
 void pcd_soft_reset(void)

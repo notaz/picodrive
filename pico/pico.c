@@ -49,9 +49,9 @@ void PicoInit(void)
 // to be called once on emu exit
 void PicoExit(void)
 {
+  PicoCartUnload();
   if (PicoIn.AHW & PAHW_MCD)
     PicoExitMCD();
-  PicoCartUnload();
   z80_exit();
   PsndExit();
 
@@ -161,9 +161,6 @@ PICO_INTERNAL void PicoDetectRegion(void)
 
 int PicoReset(void)
 {
-  if (Pico.romsize <= 0)
-    return 1;
-
 #if defined(CPU_CMP_R) || defined(CPU_CMP_W) || defined(DRC_CMP)
   PicoIn.opt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
 #endif

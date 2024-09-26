@@ -127,7 +127,7 @@ static u32 m68k_reg_read16(u32 a)
       d = Pico_mcd->s68k_regs[4]<<8;
       goto end;
     case 6:
-      d = *(u16 *)(Pico.rom + 0x72);
+      d = *(u16 *)(Pico_mcd->bios + 0x72);
       goto end;
     case 8:
       d = cdc_host_r(0);
@@ -233,12 +233,12 @@ void m68k_reg_write8(u32 a, u32 d)
         remap_word_ram(d);
       goto write_comm;
     case 6:
-      Pico.rom[MEM_BE2(0x72)] = d; // simple hint vector changer
+      Pico_mcd->bios[MEM_BE2(0x72)] = d; // simple hint vector changer
       return;
     case 7:
-      Pico.rom[MEM_BE2(0x73)] = d;
+      Pico_mcd->bios[MEM_BE2(0x73)] = d;
       elprintf(EL_CDREGS, "hint vector set to %04x%04x",
-        ((u16 *)Pico.rom)[0x70/2], ((u16 *)Pico.rom)[0x72/2]);
+        ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
       return;
     case 8:
       (void) cdc_host_r(0); // acts same as reading
@@ -672,23 +672,6 @@ static void PicoWriteM68k16_cell1(u32 a, u32 d)
   *(u16 *)(Pico_mcd->word_ram1M[1] + a) = d;
 }
 #endif
-
-// BIOS faking for MSU-MD, checks for "SEGA" at 0x400100 to detect CD drive
-static u8 bios_id[4] = "SEGA";
-
-static u32 PicoReadM68k8_bios(u32 a)
-{
-  if ((a & 0xfffffc) == BASE+0x100) // CD detection by MSU
-    return bios_id[a&3];
-  return 0;
-}
-
-static u32 PicoReadM68k16_bios(u32 a)
-{
-  if ((a & 0xfffffc) == BASE+0x100) // CD detection by MSU
-    return (bios_id[a&2]<<8) | bios_id[(a&2)+1];
-  return 0;
-}
 
 // RAM cart (400000 - 7fffff, optional)
 static u32 PicoReadM68k8_ramc(u32 a)
@@ -1228,7 +1211,7 @@ void pcd_state_loaded_mem(void)
   Pico_mcd->m.dmna_ret_2m &= 3;
 
   // restore hint vector
-  *(u16 *)(Pico.rom + 0x72) = Pico_mcd->m.hint_vector;
+  *(u16 *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 }
 
 #ifdef EMU_M68K
@@ -1237,27 +1220,22 @@ static void m68k_mem_setup_cd(void);
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
-  if (!Pico_mcd) {
-    Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
-    memset(Pico_mcd, 0, sizeof(mcd_state));
-  }
-  pcd_base_address = (Pico.romsize != 0x20000 ? 0x400000 : 0x000000);
+  pcd_base_address = (Pico.romsize ? 0x400000 : 0x000000);
 
   // setup default main68k map
   PicoMemSetup();
 
   // main68k map (BIOS or MSU mapped by PicoMemSetup()):
-  if (pcd_base_address != 0) {
-    // MSU cartridge. Fake BIOS detection
-    cpu68k_map_set(m68k_read8_map,   0x400000, 0x41ffff, PicoReadM68k8_bios, 1);
-    cpu68k_map_set(m68k_read16_map,  0x400000, 0x41ffff, PicoReadM68k16_bios, 1);
+  cpu68k_map_set(m68k_read8_map,   BASE, BASE+0x01ffff, Pico_mcd->bios, 0);
+  cpu68k_map_set(m68k_read16_map,  BASE, BASE+0x01ffff, Pico_mcd->bios, 0);
+  if (pcd_base_address != 0) { // cartridge (for MSU/MD+)
     // MD+ on MEGASD plus mirror
     cpu68k_map_set(m68k_write8_map,  0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write8, 1);
     cpu68k_map_set(m68k_write16_map, 0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write16, 1);
     cpu68k_map_set(m68k_write8_map,  0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write8, 1);
     cpu68k_map_set(m68k_write16_map, 0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write16, 1);
     msd_reset();
-  } else {
+  } else { // no cartridge
     // RAM cart
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x7fffff, PicoReadM68k8_ramc, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x7fffff, PicoReadM68k16_ramc, 1);

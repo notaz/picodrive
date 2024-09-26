@@ -140,8 +140,6 @@ PICO_INTERNAL void SekInit(void)
 // Reset the 68000:
 PICO_INTERNAL int SekReset(void)
 {
-  if (Pico.rom==NULL) return 1;
-
 #ifdef EMU_C68K
   CycloneReset(&PicoCpuCM68k);
 #endif

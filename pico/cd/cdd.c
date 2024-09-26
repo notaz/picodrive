@@ -165,7 +165,7 @@ void cdd_reset(void)
   cdd.latency = 0;
   
   /* reset track index */
-  cdd.index = -1;
+  cdd.index = 0;
   
   /* reset logical block address */
   cdd.lba = 0;

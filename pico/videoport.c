@@ -554,8 +554,8 @@ static void DmaSlow(int len, u32 source)
   {
     u8 r3 = Pico_mcd->s68k_regs[3];
     elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", r3);
-    if (source < Pico.romsize /*0x20000*/) { // Bios area
-      base = (u16 *)(Pico.rom + (source & 0xfe0000));
+    if ((source & 0xfc0000) == pcd_base_address) { // Bios area
+      base = (u16 *)(Pico_mcd->bios + (source & 0xfe0000));
     } else if ((source & 0xfc0000) == pcd_base_address+0x200000) { // Word Ram
       if (!(r3 & 4)) { // 2M mode
         base = (u16 *)(Pico_mcd->word_ram2M + (source & 0x20000));
@@ -572,7 +572,8 @@ static void DmaSlow(int len, u32 source)
     } else if ((source & 0xfe0000) == pcd_base_address+0x020000) { // Prg Ram
       base = (u16 *)Pico_mcd->prg_ram_b[r3 >> 6];
       source -= 2; // XXX: test
-    }
+    } else // Rom
+      base = m68k_dma_source(source);
   }
   else
   {

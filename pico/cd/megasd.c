@@ -20,7 +20,7 @@
 #include "cdd.h"
 #include "megasd.h"
 
-#define CDD_PLAY_OFFSET 3 // CDD starts this many sectors early
+#define CDD_PLAY_OFFSET 3 // CDD play starts this many sectors early
 
 struct megasd Pico_msd; // MEGASD state
 
@@ -145,7 +145,7 @@ static void msd_transfer()
 // update msd state (called every 1/75s, like CDD irq)
 void msd_update()
 {
-  if (Pico_msd.initialized) {
+  if (Pico_msd.initialized && (Pico_msd.readlba >= 0 || Pico_msd.index >= 0)) {
     // CD LEDs
     s68k_write8(0xff8000,(cdd.status == CD_PLAY) | 0x2);
 
@@ -162,6 +162,7 @@ void msd_update()
           if (!Pico_msd.loop || Pico_msd.index < 0) {
             cdd_stop();
             // audio done
+            Pico_msd.index = -1;
           } else
             cdd_play(Pico_msd.looplba - CDD_PLAY_OFFSET);
         }
@@ -213,6 +214,7 @@ static void msd_init(void)
 
     // enable CD drive
     s68k_write8(0xff8037, 0x4);
+    s68k_write8(0xff8000, 0x2);
 
     PicoResetHook = msd_reset;
   }
