@@ -1220,6 +1220,13 @@ static void m68k_mem_setup_cd(void);
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
+  if (Pico_mcd == NULL) {
+    static u8 bios_id[4] = "SEGA";
+    PicoCreateMCD(NULL, 0);
+    // BIOS faking for MSU-MD, checks for "SEGA" at 0x400100 to detect CD drive
+    memcpy(Pico_mcd->bios+0x100, bios_id, 4);
+  }
+
   pcd_base_address = (Pico.romsize ? 0x400000 : 0x000000);
 
   // setup default main68k map
