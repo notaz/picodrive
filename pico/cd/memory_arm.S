@@ -199,8 +199,8 @@ m_m68k_read8_r06:
     ldrb    r0, [r1, #0x73]           @ IRQ vector
     bx      lr
 m_m68k_read8_r07:
-    PIC_LDR(r1, r2, Pico)
-    ldr     r1, [r1, #OFS_Pico_rom]
+    PIC_LDR(r1, r2, Pico_mcd)
+    ldr     r1, [r1]
     ldrb    r0, [r1, #0x72]
     bx      lr
 m_m68k_read8_r08:
@@ -298,8 +298,8 @@ m_m68k_read16_r04:
     mov     r0, r0, lsl #8
     bx      lr
 m_m68k_read16_r06:
-    PIC_LDR(r1, r2, Pico)
-    ldr     r1, [r1, #OFS_Pico_rom]
+    PIC_LDR(r1, r2, Pico_mcd)
+    ldr     r1, [r1]
     ldrh    r0, [r1, #0x72]           @ IRQ vector
     bx      lr
 m_m68k_read16_r08:
@@ -350,6 +350,10 @@ PicoWrite8_mcd_io:
     and     r2, r0, #0xff00
     cmp     r2, #0x2000                 @ a120xx?
     beq     m68k_reg_write8
+
+    PIC_LDR(r2, r3, carthw_ssf2_active)
+    tst     r2, r2
+    bne     carthw_ssf2_write8
     b       PicoWrite8_io
 
 
@@ -376,7 +380,12 @@ PicoWriteM68k16_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
 PicoWrite16_mcd_io:
     and     r2, r0, #0xff00
     cmp     r2, #0x2000                 @ a120xx?
-    bne     PicoWrite16_io
+    beq     m_m68k_write16_regs
+
+    PIC_LDR(r2, r3, carthw_ssf2_active)
+    tst     r2, r2
+    bne     carthw_ssf2_write16
+    b       PicoWrite16_io
 
 m_m68k_write16_regs:
     and     r0, r0, #0x3e
