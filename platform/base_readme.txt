@@ -34,8 +34,9 @@ Just copy the .pnd to <sd card>/pandora/menu or <sd card>/pandora/desktop.
 Then load a ROM and enjoy! Cartridge ROMs can be in various common formats and
 can be zipped, one ROM file per zip. Certain extensions are used to detect the
 console the ROM is for (.sg, .sc, .sms, .gg, .smd, .md, .gen, .32x, .pco).
-For MSU games, load the .cue file and make sure the cartridge ROM has the same
-name and is in the same directory.
+For MSU or MD+ games, load the .cue file and make sure the cartridge ROM has the
+same name and is in the same directory. MD+ use extensions in the .cue file,
+hence don't try to convert it to any other format.
 Sega/Mega CD images can be in CHD, CUE+BIN/ISO or ISO/CSO+MP3/WAV format (read
 below for more details).
 
@@ -48,7 +49,7 @@ option.
 How to run Sega/Mega CD games
 -----------------------------
 
-To play any non-MSU CD game you need BIOS files. These files must be copied to
+To play any non-MSU/MD+ CD game you need BIOS files. These must be copied to
 #ifdef PANDORA
 <sd card>/pandora/appdata/picodrive/ directory
 (if you run PicoDrive once it will create that directory for you).

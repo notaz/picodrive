@@ -24,8 +24,13 @@ PICO_INTERNAL void PicoCreateMCD(unsigned char *bios_data, int bios_size)
 {
   if (!Pico_mcd) {
     Pico_mcd = plat_mmap(0x05000000, sizeof(mcd_state), 0, 0);
-    memset(Pico_mcd, 0, sizeof(mcd_state));
+    if (Pico_mcd == NULL) {
+      elprintf(EL_STATUS, "OOM");
+      return;
+    }
   }
+  memset(Pico_mcd, 0, sizeof(mcd_state));
+
   if (bios_data && bios_size > 0) {
     if (bios_size > sizeof(Pico_mcd->bios))
       bios_size = sizeof(Pico_mcd->bios);
