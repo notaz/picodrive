@@ -82,6 +82,7 @@ static void msd_playtrack(int idx, s32 offs, int loop)
     Pico_msd.result = Pico_msd.command = 0;
     return;
   }
+
   Pico_msd.index = idx-1;
 
   track = &cdd.toc.tracks[Pico_msd.index];
@@ -160,13 +161,19 @@ void msd_update()
         Pico_msd.command = 0;
         if (cdd.lba >= Pico_msd.endlba-1 || cdd.index > Pico_msd.index) {
           if (!Pico_msd.loop || Pico_msd.index < 0) {
-            cdd_stop();
+            cdd_pause();
             // audio done
             Pico_msd.index = -1;
           } else
             cdd_play(Pico_msd.looplba - CDD_PLAY_OFFSET);
         }
       }
+
+      // Hack for D32XR: to prevent BIOS freaking out, pretend drive is "ready"
+      // TODO find out what a real MEGASD is doing with this schizophrenia!
+      u8 state = Pico_mcd->s68k_regs[0x38];
+      Pico_mcd->s68k_regs[0x41] = ~(~Pico_mcd->s68k_regs[0x41] + CD_READY-state) & 0xf;
+      Pico_mcd->s68k_regs[0x38] = CD_READY;
     }
   }
 }
