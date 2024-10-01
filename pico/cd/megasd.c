@@ -169,7 +169,7 @@ void msd_update()
         }
       }
 
-      // Hack for D32XR: to prevent BIOS freaking out, pretend drive is "ready"
+      // Hack for D32XR: to prevent CD BIOS freaking out, pretend drive "ready"
       // TODO find out what a real MEGASD is doing with this schizophrenia!
       u8 state = Pico_mcd->s68k_regs[0x38];
       Pico_mcd->s68k_regs[0x41] = ~(~Pico_mcd->s68k_regs[0x41] + CD_READY-state) & 0xf;
