@@ -1,7 +1,7 @@
 /*
  * Support for a few cart mappers and some protection.
  * (C) notaz, 2008-2011
- * (C) irixxxx, 2021-2022
+ * (C) irixxxx, 2021-2024
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -1161,6 +1161,55 @@ void carthw_smw64_startup(void)
   PicoResetHook     = carthw_smw64_reset;
   PicoLoadStateHook = carthw_smw64_statef;
   carthw_chunks     = carthw_smw64_state;
+}
+
+/* J-Cart */
+unsigned char carthw_jcart_th;
+
+static carthw_state_chunk carthw_jcart_state[] =
+{
+  { CHUNK_CARTHW, sizeof(carthw_jcart_th), &carthw_jcart_th },
+  { 0,            0,                       NULL }
+};
+
+static void carthw_jcart_write8(u32 a, u32 d)
+{
+  carthw_jcart_th = (d&1) << 6;
+}
+
+static void carthw_jcart_write16(u32 a, u32 d)
+{
+  carthw_jcart_write8(a+1, d);
+}
+
+static u32 carthw_jcart_read8(u32 a)
+{
+  u32 v = PicoReadPad(2 + (a&1), 0x3f | carthw_jcart_th);
+  // some carts additionally have an EEPROM; SDA is also readable in this range
+  if (Pico.m.sram_reg & SRR_MAPPED)
+    v |= EEPROM_read() & 0x80; // SDA is always on bit 7 for J-Carts
+  return v;
+}
+
+static u32 carthw_jcart_read16(u32 a)
+{
+  return carthw_jcart_read8(a) | (carthw_jcart_read8(a+1) << 8);
+}
+
+static void carthw_jcart_mem_setup(void)
+{
+  cpu68k_map_set(m68k_write8_map,  0x380000, 0x3fffff, carthw_jcart_write8, 1);
+  cpu68k_map_set(m68k_write16_map, 0x380000, 0x3fffff, carthw_jcart_write16, 1);
+  cpu68k_map_set(m68k_read8_map,  0x380000, 0x3fffff, carthw_jcart_read8, 1);
+  cpu68k_map_set(m68k_read16_map, 0x380000, 0x3fffff, carthw_jcart_read16, 1);
+}
+
+void carthw_jcart_startup(void)
+{
+  elprintf(EL_STATUS, "J-Cart startup");
+
+  PicoCartMemSetup  = carthw_jcart_mem_setup;
+  carthw_chunks     = carthw_jcart_state;
 }
 
 // vim:ts=2:sw=2:expandtab

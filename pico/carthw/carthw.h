@@ -38,3 +38,5 @@ void carthw_sprot_new_location(unsigned int a,
 
 void carthw_lk3_startup(void);
 void carthw_smw64_startup(void);
+
+void carthw_jcart_startup(void);

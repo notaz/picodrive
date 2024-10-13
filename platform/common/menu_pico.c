@@ -424,7 +424,7 @@ const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team pla
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
 static char h_play34[] = "Works only for Mega Drive/CD/32X games having\n"
-				"support for Team player or 4 way play";
+				"support for Team player, 4 way play, or J-cart";
 
 static menu_entry e_menu_keyconfig[] =
 {

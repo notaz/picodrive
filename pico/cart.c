@@ -1136,6 +1136,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
         PicoIn.AHW = PAHW_SVP;
       else if (strcmp(p, "pico") == 0)
         PicoIn.AHW = PAHW_PICO;
+      else if (strcmp(p, "j_cart") == 0)
+        carthw_jcart_startup();
       else if (strcmp(p, "prot") == 0)
         carthw_sprot_startup();
       else if (strcmp(p, "flash") == 0)

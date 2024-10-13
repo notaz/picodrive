@@ -432,6 +432,12 @@ static NOINLINE u32 port_read(int i)
   return (in & ~ctrl_reg) | (data_reg & ctrl_reg);
 }
 
+// pad export for J-Cart
+u32 PicoReadPad(int i, u32 out_bits)
+{
+  return read_pad_3btn(i, out_bits);
+}
+
 void PicoSetInputDevice(int port, enum input_device device)
 {
   port_read_func *func;
