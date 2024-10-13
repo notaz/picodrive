@@ -121,7 +121,7 @@ static void writeSound(int len)
 {
 	int l;
 
-	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 4) {
+	if (samples_made - samples_done < samples_block * (SOUND_BLOCK_COUNT-2) - 8) {
 		samples_made += len / 2;
 		sndBuffer_ptr += len / 2;
 		l = sndBuffer_ptr - sndBuffer;
@@ -130,7 +130,8 @@ static void writeSound(int len)
 			sndBuffer_endptr = sndBuffer_ptr;
 		if (l > sizeof(sndBuffer)/2)
 			lprintf("snd ovrn %d %d\n", len, sndBuffer_ptr - sndBuffer);
-		if (l > samples_block * (SOUND_BLOCK_COUNT-2)) {
+		// leave space for block with 1 overhanging sample @11025Hz
+		if (l >= samples_block * (SOUND_BLOCK_COUNT-1) - 8) {
 			sndBuffer_endptr = sndBuffer_ptr;
 			sndBuffer_ptr = sndBuffer;
 		}
@@ -227,6 +228,8 @@ static int sound_thread(void *argp)
 		while (queued < 2*samples_block) {
 			// compute sample chunk size
 			int buflen = samples_made - samples_done;
+			if (snd_playptr >= sndBuffer_endptr)
+				snd_playptr -= sndBuffer_endptr - sndBuffer;
 			if (buflen > sndBuffer_endptr - snd_playptr)
 				buflen = sndBuffer_endptr - snd_playptr;
 			if (buflen > 3*samples_block - queued)
@@ -238,8 +241,6 @@ static int sound_thread(void *argp)
 
 				samples_done += buflen;
 				snd_playptr  += buflen;
-				if (snd_playptr >= sndBuffer_endptr)
-					snd_playptr -= sndBuffer_endptr - sndBuffer;
 			} else {
 				buflen = (3*samples_block - queued) & ~1;
 				while (buflen > sizeof(nulBuffer)/2) {
