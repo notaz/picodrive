@@ -25,18 +25,16 @@
 
 /* note: in_ps2 handles combos (if 2 btns have the same bind,
  * both must be pressed for action to happen) */
-static int in_ps2_combo_keys[2];
-static int in_ps2_combo_acts[2];
+static int in_ps2_combo_keys[4];
+static int in_ps2_combo_acts[4];
 
 static void *padBuf[2][4];
-static uint32_t padConnected[2][4]; // 2 ports, 4 slots
-static uint32_t padOpen[2][4];
+static int padMap[4][2]; // port/slot for 4 mapped pads
+static int padMapped; // #pads successfully opened
 
+static const char *in_ps2_keys[IN_PS2_NBUTTONS];
 
-static const char *in_ps2_keys[IN_PS2_NBUTTONS] = {
-	[0 ... IN_PS2_NBUTTONS-1] = NULL,
-};
-
+static unsigned old_keys[4];
 
 /* calculate bit number from bit mask (logarithm to the basis 2) */
 static int lg2(unsigned v)
@@ -54,26 +52,20 @@ static int lg2(unsigned v)
 
 static unsigned int ps2_pad_read(int pad)
 {
-	unsigned int paddata;
+	unsigned int paddata = 0;
 	struct padButtonStatus buttons;
 	int32_t ret, port, slot;
 
-	// Using for now port 0, slot 0
-	port = pad;
-	slot = 0;
+	if (pad < padMapped) {
+		port = padMap[pad][0];
+		slot = padMap[pad][1];
 
-	ret = padRead(port, slot, &buttons);
+		ret = padRead(port, slot, &buttons);
 
-	if (ret != 0) {
-		paddata = 0xffff ^ buttons.btns;
+		if (ret != 0) {
+			paddata = 0xffff ^ buttons.btns;
+		}
 	}
-
-	// analog..
-	// buttons &= ~(PS2_NUB_UP|PS2_NUB_DOWN|PS2_NUB_LEFT|PS2_NUB_RIGHT);
-	// if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= PS2_NUB_LEFT;
-	// if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= PS2_NUB_RIGHT;
-	// if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= PS2_NUB_UP;
-	// if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= PS2_NUB_DOWN;
 
 	return paddata;
 }
@@ -83,8 +75,7 @@ static unsigned in_ps2_get_bits(int pad)
 	unsigned mask =
 	    PAD_UP|PAD_DOWN|PAD_LEFT|PAD_RIGHT |
 	    PAD_CIRCLE|PAD_CROSS|PAD_TRIANGLE|PAD_SQUARE |
-	    PAD_L1|PAD_R1|PAD_SELECT|PAD_START;
-		// PS2_NUB_UP|PS2_NUB_DOWN|PS2_NUB_LEFT|PS2_NUB_RIGHT |
+	    PAD_L1|PAD_R1|PAD_L2|PAD_R2|PAD_L3|PAD_R3|PAD_SELECT|PAD_START;
 
 	return ps2_pad_read(pad) & mask;
 }
@@ -94,6 +85,10 @@ static void in_ps2_probe(const in_drv_t *drv)
 	in_register(IN_PS2_PREFIX "PS2 pad 1", -1, (void *)0,
 		IN_PS2_NBUTTONS, in_ps2_keys, 1);
 	in_register(IN_PS2_PREFIX "PS2 pad 2", -1, (void *)1,
+		IN_PS2_NBUTTONS, in_ps2_keys, 1);
+	in_register(IN_PS2_PREFIX "PS2 pad 3", -1, (void *)2,
+		IN_PS2_NBUTTONS, in_ps2_keys, 1);
+	in_register(IN_PS2_PREFIX "PS2 pad 4", -1, (void *)3,
 		IN_PS2_NBUTTONS, in_ps2_keys, 1);
 }
 
@@ -112,7 +107,7 @@ in_ps2_get_key_names(const in_drv_t *drv, int *count)
 /* ORs result with pressed buttons */
 static int in_ps2_update(void *drv_data, const int *binds, int *result)
 {
-	int pad = (int)drv_data & 1;
+	int pad = (int)drv_data & 3;
 	int type_start = 0;
 	int i, t;
 	unsigned keys;
@@ -138,12 +133,11 @@ static int in_ps2_update(void *drv_data, const int *binds, int *result)
 
 int in_ps2_update_keycode(void *data, int *is_down)
 {
-	static unsigned old_val[2] = { 0, 0 };
-	int pad = (int)data & 1;
+	int pad = (int)data & 3;
 	unsigned val, diff, i;
 
 	val = in_ps2_get_bits(pad);
-	diff = val ^ old_val[pad];
+	diff = val ^ old_keys[pad];
 	if (diff == 0)
 		return -1;
 
@@ -152,7 +146,7 @@ int in_ps2_update_keycode(void *data, int *is_down)
 		if (diff & (1<<i))
 			break;
 
-	old_val[pad] ^= 1 << i;
+	old_keys[pad] ^= 1 << i;
 
 	if (is_down)
 		*is_down = !!(val & (1<<i));
@@ -202,7 +196,7 @@ static int in_ps2_menu_translate(void *drv_data, int keycode, char *charcode)
 /* remove binds of missing keys, count remaining ones */
 static int in_ps2_clean_binds(void *drv_data, int *binds, int *def_binds)
 {
-	int pad = (int)drv_data & 1;
+	int pad = (int)drv_data & 3;
 	int i, count = 0;
 
 	for (i = 0; i < IN_PS2_NBUTTONS; i++) {
@@ -236,14 +230,17 @@ void in_ps2_init(struct in_default_bind *defbinds)
 {
 	int i, j;
 
-	for (j = 0; j < 2; j++) {
-    	mtapPortOpen(j);
+	for (j = 0; j < 2 && padMapped < 4; j++) {
+		mtapPortOpen(j);
 
-		for (i = 0; i < 4; i++) {
-			padConnected[j][i] = 0;
-			padOpen[j][i] = 0;
+		for (i = 0; i < 4 && padMapped < 4; i++) {
 			padBuf[j][i] = memalign(64, 256);
-			padPortOpen(j, i, padBuf[j][i]);
+			if (padPortOpen(j, i, padBuf[j][i])) {
+				padMap[padMapped][0] = j;
+				padMap[padMapped][1] = i;
+				padMapped++;
+			} else
+				free(padBuf[j][i]);
 		}
 	}
 
@@ -265,14 +262,14 @@ void in_ps2_init(struct in_default_bind *defbinds)
 	in_ps2_keys[lg2(PAD_SELECT)] = "Select";
 	in_ps2_keys[lg2(PAD_L1)] = "L1";
 	in_ps2_keys[lg2(PAD_R1)] = "R1";
+	in_ps2_keys[lg2(PAD_L2)] = "L2";
+	in_ps2_keys[lg2(PAD_R2)] = "R2";
+	in_ps2_keys[lg2(PAD_L3)] = "L3";
+	in_ps2_keys[lg2(PAD_R3)] = "R3";
 	in_ps2_keys[lg2(PAD_TRIANGLE)] = "Triangle";
 	in_ps2_keys[lg2(PAD_CIRCLE)] = "Circle";
 	in_ps2_keys[lg2(PAD_CROSS)] = "Cross";
 	in_ps2_keys[lg2(PAD_SQUARE)] = "Square";
-	// in_ps2_keys[lg2(PS2_NUB_UP)] = "Analog up";
-	// in_ps2_keys[lg2(PS2_NUB_LEFT)] = "Analog left";
-	// in_ps2_keys[lg2(PS2_NUB_DOWN)] = "Analog down";
-	// in_ps2_keys[lg2(PS2_NUB_RIGHT)] = "Analog right";
 
 	in_register_driver(&in_ps2_drv, defbinds, NULL);
 }
