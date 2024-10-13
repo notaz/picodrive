@@ -1251,6 +1251,7 @@ static void run_events_ui(unsigned int which)
 			emu_save_load_game((which & PEV_STATE_LOAD) ? 1 : 0, 0);
 			PicoStateProgressCB = NULL;
 		}
+		plat_status_msg_busy_done();
 	}
 	if (which & PEV_SWITCH_RND)
 	{

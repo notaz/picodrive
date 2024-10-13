@@ -191,6 +191,7 @@ void plat_finish(void);
 /* used before things blocking for a while (these funcs redraw on return) */
 void plat_status_msg_busy_first(const char *msg);
 void plat_status_msg_busy_next(const char *msg);
+void plat_status_msg_busy_done(void);
 void plat_status_msg_clear(void);
 
 void plat_video_toggle_renderer(int change, int menu_call);

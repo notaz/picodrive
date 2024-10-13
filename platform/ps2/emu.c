@@ -941,19 +941,27 @@ void plat_finish(void) {
 	video_deinit();
 }
 
-/* display emulator status messages before holding emulation */
+/* display emulator status messages while holding emulation */
 void plat_status_msg_busy_first(const char *msg)
 {
+	// stop sound to make sure silence is played
+	pemu_sound_stop();
 	plat_status_msg_busy_next(msg);
 }
 
 void plat_status_msg_busy_next(const char *msg)
 {
-	plat_status_msg_clear();
 	pemu_finalize_frame("", msg);
+	// flip twice since our gskit pipeline has one frame delay
+	plat_video_flip();
 	plat_video_flip();
 	emu_status_msg("");
 	reset_timing = 1;
+}
+
+void plat_status_msg_busy_done(void)
+{
+	pemu_sound_start();
 }
 
 /* clear status message area */

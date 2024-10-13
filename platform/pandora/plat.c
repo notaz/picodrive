@@ -244,6 +244,10 @@ void plat_status_msg_busy_first(const char *msg)
 	plat_status_msg_busy_next(msg);
 }
 
+void plat_status_msg_busy_done(void)
+{
+}
+
 void plat_update_volume(int has_changed, int is_up)
 {
 }

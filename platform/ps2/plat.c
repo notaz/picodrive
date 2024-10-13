@@ -156,9 +156,9 @@ void plat_wait_till_us(unsigned int us_to)
 {
 	// TODO hsync depends on NTSC/PAL (15750/15625 Hz), it however doesn't
 	// matter if it falls a bit short, the while loop will catch the rest
-	unsigned hsyncs = (us_to - plat_get_ticks_us()) * 15620 / 1000000;
+	int hsyncs = (us_to - plat_get_ticks_us()) * 15620 / 1000000;
 
-	if (hsyncs && SetAlarm(hsyncs, alarm_cb, (void *)GetThreadId()) >= 0)
+	if (hsyncs > 0 && SetAlarm(hsyncs, alarm_cb, (void *)GetThreadId()) >= 0)
 		SleepThread();
 	while ((int)(us_to - plat_get_ticks_us()) > 0)
 		RotateThreadReadyQueue(0);
