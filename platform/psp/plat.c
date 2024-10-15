@@ -107,7 +107,6 @@ void plat_video_menu_update(void)
 /* switch from emulation display to menu display */
 void plat_video_menu_enter(int is_rom_loaded)
 {
-	g_screen_ptr = NULL;
 }
 
 /* start rendering a menu screen */
