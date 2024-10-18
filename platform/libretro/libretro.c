@@ -1343,6 +1343,8 @@ static const char *find_msu(const char *cd_fname)
          return path;
       }
    }
+
+   return NULL;
 }
 
 static void set_memory_maps(void)
