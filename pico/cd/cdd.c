@@ -317,12 +317,20 @@ int cdd_load(const char *filename, int type)
   if (ret != 0)
     return ret;
 
+  if (type == CT_ISO) {
+    /* ISO format (2048 bytes data blocks) */
+    cdd.sectorSize = 2048;
+  } else {
+    /* audio or BIN format (2352 bytes data blocks) */
+    cdd.sectorSize = 2352;
+  }
+
   /* read first 16 bytes */
   pm_read(header, 0x10, cdd.toc.tracks[0].fd);
 
   /* look for valid CD image ID string */
-  if (memcmp("SEGADISCSYSTEM", header, 14))
-  {    
+  if (!Pico.romsize && memcmp("SEGADISCSYSTEM", header, 14))
+  {
     /* if not found, read next 16 bytes */
     pm_read(header, 0x10, cdd.toc.tracks[0].fd);
 
@@ -332,27 +340,16 @@ int cdd_load(const char *filename, int type)
       elprintf(EL_STATUS|EL_ANOMALY, "cd: bad cd image?");
       /* assume bin without security code */
     }
-
-    /* BIN format (2352 bytes data blocks) */
-    cdd.sectorSize = 2352;
-  }
-  else
-  {
-    /* ISO format (2048 bytes data blocks) */
-    cdd.sectorSize = 2048;
   }
 
-  ret = (type == CT_ISO ? 2048 : 2352);
-  if (ret != cdd.sectorSize)
-    elprintf(EL_STATUS|EL_ANOMALY, "cd: type detection mismatch");
   pm_sectorsize(cdd.sectorSize, cdd.toc.tracks[0].fd);
 
-  /* read CD image header + security code */
-  pm_read(header + 0x10, 0x200, cdd.toc.tracks[0].fd);
-
   /* Simulate audio tracks if none found */
-  if (cdd.toc.last == 1)
+  if (!Pico.romsize && cdd.toc.last == 1)
   {
+    /* read CD image header + security code */
+    pm_read(header + 0x10, 0x200, cdd.toc.tracks[0].fd);
+
     /* Some games require exact TOC infos */
     if (strstr(header + 0x180,"T-95035") != NULL)
     {
