@@ -1620,6 +1620,12 @@ void emu_loop(void)
 		}
 
 		emu_update_input();
+
+		// 3D glasses
+		skip |= (PicoIn.AHW & PAHW_SMS) &&
+			(Pico.m.hardware & PMS_HW_3D) &&
+			(PicoMem.zram[0x1ffb] & 1);
+
 		if (skip) {
 			int do_audio = diff > -target_frametime * 2;
 			PicoIn.skipFrame = do_audio ? 1 : 2;

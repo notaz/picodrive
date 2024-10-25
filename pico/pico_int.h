@@ -353,6 +353,7 @@ struct PicoMisc
 #define PMS_HW_JAP	0x4   // japanese system
 #define PMS_HW_FM	0x8   // FM sound
 #define PMS_HW_TMS	0x10  // assume TMS9918
+#define PMS_HW_3D	0x20  // 3D glasses
 #define PMS_HW_FMUSED	0x80  // FM sound accessed
 
 #define PMS_MAP_AUTO	0

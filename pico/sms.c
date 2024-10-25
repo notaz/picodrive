@@ -633,6 +633,13 @@ static u32 gg_smsmode[] = { // cf https://www.smspower.org/Tags/SMS-GG
   0x4f813028 /* Tesserae */
 };
 
+// TMR product codes and hardware type for known games using 3-D glasses
+static u32 three_dee[] = {
+  0x4f008001 /* Missile Def. */ , 0x40008007 /* Out Run 3-D */,
+  0x40008006 /* Poseidon Wars */, 0x40008004 /* Space Harrier */,
+  0x40008002 /* Zaxxon 3-D */   , 0x4fff8793 /* Maze Hunter */
+};
+
 void PicoResetMS(void)
 {
   unsigned tmr;
@@ -662,7 +669,7 @@ void PicoResetMS(void)
     if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
       hw = Pico.rom[tmr-1] >> 4;
       id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]);
-      ck = *(u16 *)&Pico.rom[tmr-6] | (id&0xf0000000) | 0xfff0000;
+      ck = (CPU_LE4(*(u32 *)&Pico.rom[tmr-8])>>16) | (id&0xf0000000) | 0xfff0000;
 
       if (!PicoIn.hwSelect && !PicoIn.AHW && hw && ((id+1)&0xfffe) != 0) {
         if (hw >= 0x5 && hw < 0x8)
@@ -688,6 +695,11 @@ void PicoResetMS(void)
       for (i = 0; i < sizeof(no_fmsound)/sizeof(*no_fmsound); i++)
         if ((id == no_fmsound[i] || ck == no_fmsound[i])) {
           Pico.m.hardware &= ~PMS_HW_FM; // incompatible with FM
+          break;
+        }
+      for (i = 0; i < sizeof(three_dee)/sizeof(*three_dee); i++)
+        if ((id == three_dee[i] || ck == three_dee[i])) {
+          Pico.m.hardware |= PMS_HW_3D; // uses 3-D glasses
           break;
         }
       break;
