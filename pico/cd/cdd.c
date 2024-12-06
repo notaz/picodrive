@@ -181,7 +181,7 @@ void cdd_reset(void)
 }
 
 /* FIXME: use cdd_read_audio() instead */
-static void cdd_change_track(int index, int lba)
+void cdd_play_audio(int index, int lba)
 {
   int i, base, lba_offset, lb_len;
 
@@ -258,7 +258,7 @@ void cdd_seek(int index, int lba)
 #else
   else
   {
-    cdd_change_track(cdd.index, lba);
+    cdd_play_audio(cdd.index, lba);
   }
 #endif
 }

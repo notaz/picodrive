@@ -13,6 +13,7 @@
 #include "ym2612.h"
 #include "sn76496.h"
 #include "emu2413/emu2413.h"
+#include "../cd/megasd.h"
 #include "resampler.h"
 #include "mix.h"
 
@@ -557,7 +558,7 @@ static int PsndRender(int offset, int length)
   // CD mode, cdda enabled, not data track, CDC is reading
   if ((PicoIn.AHW & PAHW_MCD) && (PicoIn.opt & POPT_EN_MCD_CDDA)
       && Pico_mcd->cdda_stream != NULL
-      && !(Pico_mcd->s68k_regs[0x36] & 1))
+      && (!(Pico_mcd->s68k_regs[0x36] & 1) || Pico_msd.state == 3))
   {
     if (Pico_mcd->cdda_type == CT_MP3)
       mp3_update(buf32, length-offset, stereo);

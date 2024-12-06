@@ -770,6 +770,7 @@ unsigned short cdc_host_r(int sub);
 
 // cd/cdd.c
 void cdd_reset(void);
+void cdd_play_audio(int index, int lba);
 int cdd_context_save(unsigned char *state);
 int cdd_context_load(unsigned char *state);
 int cdd_context_load_old(unsigned char *state);

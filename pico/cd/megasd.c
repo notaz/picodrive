@@ -4,13 +4,21 @@
  *
  * MEGASD enhancement support as "documented" in "MegaSD DEV Manual Rev.2"
  *
- * Emulates parts of the MEGASD API for "CD enhanced Megadrive games". Missing:
+ * Emulates basic audio track playing parts of the MEGASD API for "CD enhanced
+ * Megadrive games". All other functionality is missing:
  * - all commands directly accessing files on the MEGASD storage
  * - Fader and volume control
  * - enhanced SSF2 mapper (currently uses standard SSF2 mapper instead)
  * - PCM access (only possible through enhanced SSF2 mapper)
+ * - reading data sectors
  * The missing features are AFAIK not used by any currently available patch.
- * I'm not going to look into these until I see it used somewhere.
+ * I'm not going to look into these until I see it used somewhere, as I don't
+ * have the device. The manual leaves a lot to be desired regarding details.
+ *
+ * As it looks, the enhancement functions can be run fully in parallel to
+ * using the CD drive for reading data. That's at least true for playing audio.
+ * It's unclear what would happen if playing audio or reading data through both
+ * the CD drive and the MEGASD at the same time.
  */
 
 #include "../pico_int.h"
@@ -19,8 +27,6 @@
 #include "genplus_macros.h"
 #include "cdd.h"
 #include "megasd.h"
-
-#define CDD_PLAY_OFFSET 3 // CDD play starts this many sectors early
 
 struct megasd Pico_msd; // MEGASD state
 
@@ -38,39 +44,26 @@ static s32 get32(int offs)
 // send commands to cdd
 static void cdd_play(s32 lba)
 {
-  // add CDD offset to have it going to the right LBA immediately
-  int secs = (lba += CDD_PLAY_OFFSET) / 75;
-  int mins = secs / 60;
-  lba -= secs * 75;
-  secs -= mins * 60;
-  s68k_write8(0xff8044, mins/10);
-  s68k_write8(0xff8045, mins%10);
-  s68k_write8(0xff8046, secs/10);
-  s68k_write8(0xff8047, secs%10);
-  s68k_write8(0xff8048, lba /10);
-  s68k_write8(0xff8049, lba %10);
+  Pico_msd.currentlba = lba;
 
-  s68k_write8(0xff8042, 0x03);
-  s68k_write8(0xff804b, 0xff);
+  cdd_play_audio(Pico_msd.index, Pico_msd.currentlba);
+  Pico_msd.state = 3;
 }
 
 static void cdd_pause(void)
 {
-  s68k_write8(0xff8042, 0x06);
-  s68k_write8(0xff804b, 0xff);
+  Pico_msd.state |= 4;
 }
 
 static void cdd_resume(void)
 {
-  s68k_write8(0xff8042, 0x07);
-  s68k_write8(0xff804b, 0xff);
+  Pico_msd.state &= ~4;
 }
 
 static void cdd_stop(void)
 {
-  Pico_msd.index = Pico_msd.readlba = -1;
-  s68k_write8(0xff8042, 0x01);
-  s68k_write8(0xff804b, 0xff);
+  Pico_msd.index = -1;
+  Pico_msd.state &= ~6;
 }
 
 // play a track, looping from offset if enabled
@@ -94,10 +87,9 @@ static void msd_playtrack(int idx, s32 offs, int loop)
   }
 
   Pico_msd.loop = loop;
-  Pico_msd.readlba = -1;
 
-  Pico_msd.startlba = track->start + 150;
-  Pico_msd.endlba = track->end + 150;
+  Pico_msd.startlba = track->start;
+  Pico_msd.endlba = track->end;
   Pico_msd.looplba = Pico_msd.startlba + offs;
 
   cdd_play(Pico_msd.startlba);
@@ -106,74 +98,45 @@ static void msd_playtrack(int idx, s32 offs, int loop)
 // play a range of sectors, with looping if enabled
 static void msd_playsectors(s32 startlba, s32 endlba, s32 looplba, int loop)
 {
+  // TODO is crossing a track boundary allowed?
   if (startlba < 0 || startlba >= cdd.toc.tracks[cdd.toc.last].start) {
     Pico_msd.result = Pico_msd.command = 0;
     return;
   }
 
-  Pico_msd.index = 99;
-  Pico_msd.loop = loop;
-  Pico_msd.readlba = -1;
+  Pico_msd.index = 0;
+  while ((cdd.toc.tracks[Pico_msd.index].end <= startlba) &&
+         (Pico_msd.index < cdd.toc.last)) Pico_msd.index++;
 
-  Pico_msd.startlba = startlba + 150;
-  Pico_msd.endlba = endlba + 150;
-  Pico_msd.looplba = looplba + 150;
+  Pico_msd.loop = loop;
+
+  Pico_msd.startlba = startlba;
+  Pico_msd.endlba = endlba;
+  Pico_msd.looplba = looplba;
 
   cdd_play(Pico_msd.startlba);
-}
-
-// read a block of data
-static void msd_readdata(s32 lba)
-{
-  if (lba < 0 || lba >= cdd.toc.tracks[cdd.toc.last].start) {
-    Pico_msd.result = Pico_msd.command = 0;
-    return;
-  }
-
-  Pico_msd.index = -1;
-  Pico_msd.readlba = lba + 150;
-
-  cdd_play(Pico_msd.readlba);
-}
-
-// transfer data to data area
-static void msd_transfer()
-{
-  if (cdd.status == CD_PLAY)
-    cdd_read_data((u8 *)Pico_msd.data);
 }
 
 // update msd state (called every 1/75s, like CDD irq)
 void msd_update()
 {
-  if (Pico_msd.initialized && (Pico_msd.readlba >= 0 || Pico_msd.index >= 0)) {
+  if (Pico_msd.state && Pico_msd.index >= 0) {
     // CD LEDs
-    s68k_write8(0xff8000,(cdd.status == CD_PLAY) | 0x2);
 
-    cdd.latency = 0; // MEGASD has no latency in this mode
-
-    if (cdd.status == CD_PLAY) {
-      if (Pico_msd.readlba >= 0 && cdd.lba >= Pico_msd.readlba) {
-        // read done
-        Pico_msd.command = 0;
+    if (Pico_msd.state & 2) {
+      s68k_write8(0xff8000, 0x3);
+      Pico_msd.command = 0;
+      if (!(Pico_msd.state & 4))
+        Pico_msd.currentlba ++;
+      if (Pico_msd.currentlba >= Pico_msd.endlba-1) {
+        if (!Pico_msd.loop || Pico_msd.index < 0) {
+          Pico_msd.state = 1;
+          // audio done
+          Pico_msd.index = -1;
+          s68k_write8(0xff8000, 0x2);
+        } else
+          cdd_play(Pico_msd.looplba);
       }
-      else if (Pico_msd.index >= 0) {
-        Pico_msd.command = 0;
-        if (cdd.lba >= Pico_msd.endlba-1 || cdd.index > Pico_msd.index) {
-          if (!Pico_msd.loop || Pico_msd.index < 0) {
-            cdd_pause();
-            // audio done
-            Pico_msd.index = -1;
-          } else
-            cdd_play(Pico_msd.looplba - CDD_PLAY_OFFSET);
-        }
-      }
-
-      // Hack for D32XR: to prevent CD BIOS freaking out, pretend drive "ready"
-      // TODO find out what a real MEGASD is doing with this schizophrenia!
-      u8 state = Pico_mcd->s68k_regs[0x38];
-      Pico_mcd->s68k_regs[0x41] = ~(~Pico_mcd->s68k_regs[0x41] + CD_READY-state) & 0xf;
-      Pico_mcd->s68k_regs[0x38] = CD_READY;
     }
   }
 }
@@ -196,13 +159,8 @@ void msd_process(u16 d)
   case 0x14: cdd_resume();
              Pico_msd.command = 0; break;
 
-  case 0x16: Pico_msd.result = !(s68k_read8(0xff8036) & 0x1) << 8;
+  case 0x16: Pico_msd.result = !!(Pico_msd.state & 2) << 8;
              Pico_msd.command = 0; break;
-
-  case 0x17: msd_readdata(get32(0)); break;
-  case 0x18: msd_transfer();
-             Pico_msd.command = 0; break;
-  case 0x19: msd_readdata(Pico_msd.readlba-150 + 1); break;
 
   case 0x27: Pico_msd.result = cdd.toc.last << 8;
              Pico_msd.command = 0; break;
@@ -215,12 +173,11 @@ void msd_process(u16 d)
 // initialize MEGASD
 static void msd_init(void)
 {
-  if (!Pico_msd.initialized) {
-    Pico_msd.initialized = 1;
-    Pico_msd.index = Pico_msd.readlba = -1;
+  if (!(Pico_msd.state & 1)) {
+    Pico_msd.state = 1;
+    Pico_msd.index = -1;
 
     // enable CD drive
-    s68k_write8(0xff8037, 0x4);
     s68k_write8(0xff8000, 0x2);
 
     PicoResetHook = msd_reset;
@@ -229,12 +186,11 @@ static void msd_init(void)
 
 void msd_reset(void)
 {
-  if (Pico_msd.initialized) {
-    Pico_msd.initialized = Pico_msd.command = 0;
+  if (Pico_msd.state) {
+    Pico_msd.state = Pico_msd.command = 0;
     cdd_stop();
 
     s68k_write8(0xff8000, 0x0);
-    s68k_write8(0xff8001, 0x0);
 
     PicoResetHook = NULL;
   }
