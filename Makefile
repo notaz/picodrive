@@ -2,7 +2,7 @@ $(LD) ?= $(CC)
 TARGET ?= picodrive
 ASAN ?= 0
 DEBUG ?= 0
-CFLAGS += -I$(PWD)
+CFLAGS += -I.
 CYCLONE_CC ?= gcc
 CYCLONE_CXX ?= g++
 
