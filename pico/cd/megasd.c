@@ -177,7 +177,7 @@ static void msd_init(void)
     Pico_msd.state = 1;
     Pico_msd.index = -1;
 
-    // enable CD drive
+    // CD LEDs
     s68k_write8(0xff8000, 0x2);
 
     PicoResetHook = msd_reset;
@@ -201,10 +201,9 @@ static u32 msd_read16(u32 a)
 {
   u16 d = 0;
 
-  a = (u16)a;
-  if (a >= 0x0f800) {
+  if ((u16)a >= 0x0f800) {
     d = Pico_msd.data[(a&0x7ff)>>1];
-  } else if (a >= 0xf7f0) {
+  } else if ((u16)a >= 0xf7f0) {
     switch (a&0xe) {
       case 0x6: d = 0x5241; break; // RA
       case 0x8: d = 0x5445; break; // TE
