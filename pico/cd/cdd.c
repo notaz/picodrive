@@ -742,6 +742,12 @@ void cdd_update(void)
     cdc_decoder_update(header);
   }
 
+  if (Pico_mcd->m.state_flags & PCD_ST_CDD_CMD) {
+    /* pending delayed command */
+    cdd_process();
+    Pico_mcd->m.state_flags &= ~PCD_ST_CDD_CMD;
+  }
+
   /* drive latency */
   if (cdd.latency > 0)
   {
@@ -828,12 +834,6 @@ void cdd_update(void)
       /* no AUDIO track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
     }
-  }
-
-  if (Pico_mcd->m.state_flags & PCD_ST_CDD_CMD) {
-    /* pending delayed command */
-    cdd_process();
-    Pico_mcd->m.state_flags &= ~PCD_ST_CDD_CMD;
   }
 }
 
