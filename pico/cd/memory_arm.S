@@ -199,8 +199,6 @@ m_m68k_read8_r06:
     ldrb    r0, [r1, #0x73]           @ IRQ vector
     bx      lr
 m_m68k_read8_r07:
-    PIC_LDR(r1, r2, Pico_mcd)
-    ldr     r1, [r1]
     ldrb    r0, [r1, #0x72]
     bx      lr
 m_m68k_read8_r08:
@@ -298,8 +296,6 @@ m_m68k_read16_r04:
     mov     r0, r0, lsl #8
     bx      lr
 m_m68k_read16_r06:
-    PIC_LDR(r1, r2, Pico_mcd)
-    ldr     r1, [r1]
     ldrh    r0, [r1, #0x72]           @ IRQ vector
     bx      lr
 m_m68k_read16_r08:
@@ -352,6 +348,7 @@ PicoWrite8_mcd_io:
     beq     m68k_reg_write8
 
     PIC_LDR(r2, r3, carthw_ssf2_active)
+    ldr     r2, [r2]
     tst     r2, r2
     bne     carthw_ssf2_write8
     b       PicoWrite8_io
@@ -383,6 +380,7 @@ PicoWrite16_mcd_io:
     beq     m_m68k_write16_regs
 
     PIC_LDR(r2, r3, carthw_ssf2_active)
+    ldr     r2, [r2]
     tst     r2, r2
     bne     carthw_ssf2_write16
     b       PicoWrite16_io

@@ -203,7 +203,7 @@ void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r1
 u32 PicoRead16_floating(u32 a)
 {
   // faking open bus
-  u32 d = (Pico.m.rotate += 0x41);
+  u16 d = (Pico.m.rotate += 0x41);
   d ^= (d << 5) ^ (d << 8);
   if ((a & 0xff0000) == 0xa10000) return d; // MegaCD pulldowns don't work here curiously
   return (PicoIn.AHW & PAHW_MCD) ? 0x00 : d; // pulldown if MegaCD2 attached
@@ -775,9 +775,9 @@ u32 PicoRead8_io(u32 a)
     goto end;
   }
 
-  d = PicoRead16_floating(a);
-
   if ((a & 0xfc00) == 0x1000) {
+    d = (u8)PicoRead16_floating(a);
+
     if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
       // bit8 seems to be readable in this range
       if (!(a & 1)) {
@@ -807,10 +807,10 @@ u32 PicoRead16_io(u32 a)
     goto end;
   }
 
-  d = PicoRead16_floating(a);
-
   // bit8 seems to be readable in this range
   if ((a & 0xfc00) == 0x1000) {
+    d = PicoRead16_floating(a);
+
     if ((a & 0xff00) == 0x1100) { // z80 busreq
       d &= ~0x0100;
       d |= (z80_cycles_from_68k() < Pico.t.z80c_cnt) << 8;

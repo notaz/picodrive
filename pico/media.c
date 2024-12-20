@@ -320,7 +320,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
         rom_size = 0;
       }
 
-      // if there is an MSU ROM, it's name is now in rom_fname for loading
+      // if there is an MSU ROM, its name is now in rom_fname for loading
       PicoIn.AHW |= PAHW_MCD;
     }
     else {

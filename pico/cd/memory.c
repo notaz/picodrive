@@ -1237,10 +1237,11 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   cpu68k_map_set(m68k_read16_map,  BASE, BASE+0x01ffff, Pico_mcd->bios, 0);
   if (pcd_base_address != 0) { // cartridge (for MSU/MD+)
     // MD+ on MEGASD plus mirror
-    cpu68k_map_set(m68k_write8_map,  0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write8, 1);
-    cpu68k_map_set(m68k_write16_map, 0x040000-(1<<M68K_MEM_SHIFT), 0x03ffff, msd_write16, 1);
-    cpu68k_map_set(m68k_write8_map,  0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write8, 1);
-    cpu68k_map_set(m68k_write16_map, 0x0c0000-(1<<M68K_MEM_SHIFT), 0x0bffff, msd_write16, 1);
+    u32 base = 0x040000-(1<<M68K_MEM_SHIFT);
+    cpu68k_map_set(m68k_write8_map,  base, 0x03ffff, msd_write8, 1);
+    cpu68k_map_set(m68k_write16_map, base, 0x03ffff, msd_write16, 1);
+    cpu68k_map_set(m68k_write8_map,  base+0x080000, 0x0bffff, msd_write8, 1);
+    cpu68k_map_set(m68k_write16_map, base+0x080000, 0x0bffff, msd_write16, 1);
     msd_reset();
   } else { // no cartridge
     // RAM cart

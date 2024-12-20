@@ -25,6 +25,10 @@ struct megasd {
   s32 pad[7];
 };
 
+#define MSD_ST_INIT     1
+#define MSD_ST_PLAY     2
+#define MSD_ST_PAUSE    4
+
 extern struct megasd Pico_msd;
 
 
