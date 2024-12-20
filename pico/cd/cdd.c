@@ -891,6 +891,9 @@ void cdd_process(void)
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
       set_reg16(0x40, 0x000f);
+
+      /* reset to 1st track */
+      cdd_seek(0, 0);
       return;
     }
 
@@ -1046,11 +1049,8 @@ void cdd_process(void)
       /* get track index */
       while ((cdd.toc.tracks[index].end <= lba) && (index < cdd.toc.last)) index++;
 
-      /* block transfer always starts 3 blocks earlier */
-      lba -= 3;
-
-      /* seek to block */
-      cdd_seek(index, lba);
+      /* seek to block; playing always starts 3 blocks earlier */
+      cdd_seek(index, lba - 3);
 
       /* no audio track playing (yet) */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
@@ -1100,8 +1100,8 @@ void cdd_process(void)
       /* get track index */
       while ((cdd.toc.tracks[index].end <= lba) && (index < cdd.toc.last)) index++;
 
-      /* seek to block */
-      cdd_seek(index, lba);
+      /* seek to block; playing always starts 3 blocks earlier */
+      cdd_seek(index, lba - 3);
 
       /* no audio track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
@@ -1117,12 +1117,6 @@ void cdd_process(void)
       /* update status (RS1-RS8 unchanged) */
       cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_READY;
 
-      /* seek delayed by max 2 blocks before the seek starts */
-      if (!(Pico_mcd->m.state_flags & PCD_ST_CDD_CMD)) {
-        Pico_mcd->m.state_flags |= PCD_ST_CDD_CMD;
-        return;
-      }
-
       /* no audio track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
@@ -1131,17 +1125,6 @@ void cdd_process(void)
 
     case 0x07:  /* Resume */
     {
-      int lba = (cdd.lba < 4 ? 4 : cdd.lba);
-
-      /* CD drive latency */
-      if (!cdd.latency)
-      {
-        cdd.latency = 11;
-      }
-
-      /* always restart 4 blocks earlier */
-      cdd_seek(cdd.index, lba  - 4);
-
       /* update status (RS1-RS8 unchanged) */
       cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_PLAY;
       break;
