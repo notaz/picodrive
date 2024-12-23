@@ -294,12 +294,22 @@ void log_io(unsigned int addr, int bits, int rw);
 #endif
 
 #if defined(EMU_C68K)
-void cyclone_crashed(u32 pc, struct Cyclone *context)
+u32 cyclone_crashed(u32 pc, struct Cyclone *context)
 {
-    elprintf(EL_STATUS|EL_ANOMALY, "%c68k crash detected @ %06x",
-      context == &PicoCpuCM68k ? 'm' : 's', pc);
+    // check for underlying ROM, in case of on-cart hw overlaying part of ROM
+    // NB assumes code isn't executed from the overlay, but I've never seen this
+    u32 pc24 = pc & 0xffffff;
+    if (pc24 >= Pico.romsize) {
+      // no ROM, so it's probably an illegal access
+      pc24 = Pico.romsize;
+      elprintf(EL_STATUS|EL_ANOMALY, "%c68k crash detected @ %06x",
+        context == &PicoCpuCM68k ? 'm' : 's', pc);
+    }
+
     context->membase = (u32)Pico.rom;
-    context->pc = (u32)Pico.rom + Pico.romsize;
+    context->pc = (u32)Pico.rom + pc24;
+
+    return context->pc;
 }
 #endif
 

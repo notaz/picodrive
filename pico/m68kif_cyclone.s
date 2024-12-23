@@ -44,7 +44,6 @@ crashed:
     stmfd   sp!,{lr}
     mov     r1, r7
     bl      cyclone_crashed
-    ldr     r0, [r7, #0x40]  @ reload PC + membase
     ldmfd   sp!,{pc}
 
 

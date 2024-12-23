@@ -828,7 +828,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   // This will hang the emu, but will prevent nasty crashes.
   // note: 4 bytes are padded to every ROM
   if (rom != NULL)
-    *(u32 *)(rom+romsize) = CPU_BE2(0x4EFAFFFE);
+    *(u32 *)(rom+romsize) = CPU_BE2(0x6000FFFE);
 
   Pico.rom=rom;
   Pico.romsize=romsize;
