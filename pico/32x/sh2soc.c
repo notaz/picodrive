@@ -207,10 +207,11 @@ void p32x_timers_recalc(void)
       sh2s[i].state |= SH2_TIMER_RUN;
     tmp = PREG8(sh2s[i].peri_regs, 0x80) & 7;
     // Sclk cycles per timer tick
+    cycles = 2;
     if (tmp)
-      cycles = 0x20 << tmp;
-    else
-      cycles = 2;
+      cycles <<= tmp + 4;
+    if (tmp >= 6)
+      cycles <<= 1;
     timer_tick_cycles[i] = cycles;
     timer_tick_factor[i] = (1ULL << 32) / cycles;
     timer_cycles[i] = 0;
@@ -235,6 +236,7 @@ NOINLINE void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice)
     if (cnt >= 0x100) {
       int level = PREG8(pregs, 0xe3) >> 4;
       int vector = PREG8(pregs, 0xe4) & 0x7f;
+      PREG8(pregs, 0x80) |= 0x80; // WOVF
       elprintf(EL_32XP, "%csh2 WDT irq (%d, %d)",
         i ? 's' : 'm', level, vector);
       sh2_internal_irq(sh2, level, vector);
