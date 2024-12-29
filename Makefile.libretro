@@ -644,7 +644,7 @@ SHARED ?= -shared
 LDFLAGS += $(SHARED) $(fpic)
 
 ifeq ($(ARCH),)
-ARCH = $(shell $(CC) -dumpmachine | awk -F '-' '{print $$1}')
+ARCH = $(shell $(CC) $(CFLAGS) -dumpmachine | awk -F '-' '{print $$1}')
 endif
 PLATFORM = libretro
 NO_CONFIG_MAK = yes
