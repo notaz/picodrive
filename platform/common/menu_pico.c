@@ -542,6 +542,8 @@ static int mh_opt_sh2cycles(int id, int keys)
 	else if (*khz > 0x7fffffff / 1000)
 		*khz = 0x7fffffff / 1000;
 
+	Pico32xSetClocks(currentConfig.msh2_khz * 1000, currentConfig.ssh2_khz * 1000);
+
 	return 0;
 }
 
@@ -572,8 +574,6 @@ static int menu_loop_32x_options(int id, int keys)
 	if (renderer_names32x[0] == NULL)
 		me_enable(e_menu_32x_options, MA_32XOPT_RENDERER, 0);
 	me_loop_d(e_menu_32x_options, &sel, menu_draw_prep, NULL);
-
-	Pico32xSetClocks(currentConfig.msh2_khz * 1000, currentConfig.msh2_khz * 1000);
 
 	return 0;
 }

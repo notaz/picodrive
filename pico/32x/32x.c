@@ -658,7 +658,11 @@ void Pico32xStateLoaded(int is_early)
 
 void Pico32xPrepare(void)
 {
-  Pico32xSetClocks(PICO_MSH2_HZ, PICO_SSH2_HZ);
+  // fallback in case it was missing in saved config
+  if (msh2.mult_m68k_to_sh2 == 0 || msh2.mult_sh2_to_m68k == 0)
+    Pico32xSetClocks(PICO_MSH2_HZ, 0);
+  if (ssh2.mult_m68k_to_sh2 == 0 || ssh2.mult_sh2_to_m68k == 0)
+    Pico32xSetClocks(0, PICO_SSH2_HZ);
 
   sh2_execute_prepare(&msh2, PicoIn.opt & POPT_EN_DRC);
   sh2_execute_prepare(&ssh2, PicoIn.opt & POPT_EN_DRC);
