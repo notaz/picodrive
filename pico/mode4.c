@@ -439,7 +439,7 @@ static void ParseSpritesTMS(int scanline)
 
   xoff = line_offset;
 
-  sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7e) << 7);
+  sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7f) << 7);
   if (pv->reg[1] & 2) {
     addr_mask = 0xfc; h = 16;
   } else {
