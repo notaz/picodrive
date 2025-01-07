@@ -1148,7 +1148,7 @@ void run_events_pico(unsigned int events)
 	}
 	if (events & PEV_PICO_PAD) {
 		if (pico_inp_mode == 2) {
-			pico_inp_mode = (PicoPicohw.is_kb_active ? 3 : 0);
+			pico_inp_mode = (PicoIn.opt & POPT_EN_PICO_KBD ? 3 : 0);
 			emu_status_msg("Input: %s", pico_inp_mode ? "Keyboard" : "D-Pad");
 		} else if (pico_inp_mode == 3) {
 			pico_inp_mode = 0;
@@ -1164,18 +1164,14 @@ void run_events_pico(unsigned int events)
 		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
 	}
 
-	if ((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
-			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) {
+	if (((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
+			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) ||
+	    (!(PicoIn.opt & POPT_EN_PICO_KBD) && pico_inp_mode == 3)) {
 		pico_inp_mode = 0;
 		emu_status_msg("Input: D-Pad");
 	}
-	if (events & PEV_PICO_SWPS2) {
-		PicoPicohw.is_kb_active = !PicoPicohw.is_kb_active;
-		if (pico_inp_mode == 3) pico_inp_mode = 0;
-		emu_status_msg("Keyboard %sconnected", PicoPicohw.is_kb_active ? "" : "dis");
-	}
 
-	PicoPicohw.inp_mode = pico_inp_mode;
+	PicoPicohw.kb.active = pico_inp_mode == 3;
 
 	if (pico_inp_mode == 0 || pico_inp_mode == 3)
 		return;

@@ -57,11 +57,7 @@ static u32 PicoRead16_pico(u32 a)
     case 0x08: d = (PicoPicohw.pen_pos[1] >> 8);  break;
     case 0x0a: d =  PicoPicohw.pen_pos[1] & 0xff; break;
     case 0x0c: d = (1 << (PicoPicohw.page & 7)) - 1;
-               if (PicoPicohw.page == 7) {
-                 d = 0x2a; // 0b00101010
-               } else {
-                 d = ((1 << (PicoPicohw.page & 7)) - 1);
-               }
+               if (PicoPicohw.page == 7) d = 0x2a; // 0b00101010
                break;
     case 0x10: d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes); break;
     case 0x12: d = (PicoPicohw.fifo_bytes | !PicoPicoPCMBusyN()) ? 0 : 0x8000;
@@ -127,7 +123,7 @@ static void PicoWrite16_pico(u32 a, u32 d)
       PicoPicohw.fifo_bytes = 0;
       PicoPicoPCMResetN(1);
     }
-    // other bits used in software: 0x3f00.
+    // TODO: other bits used in software: 0x3f00.
   }
   else
     elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
@@ -136,7 +132,7 @@ static void PicoWrite16_pico(u32 a, u32 d)
 static u32 PicoRead8_pico_kb(u32 a)
 {
   u32 d = 0;
-  if (PicoPicohw.is_kb_active == 0) {
+  if (!(PicoIn.opt & POPT_EN_PICO_KBD)) {
     elprintf(EL_PICOHW, "kb: r @%06X %04X = %04X\n", SekPc, a, d);
     return d;
   }
@@ -178,7 +174,7 @@ static u32 PicoRead8_pico_kb(u32 a)
     case 0x6: d = 0; // l&kbtype
       break;
     case 0x7: // cap/num/scr
-      if (PicoPicohw.inp_mode == 3) {
+      if (PicoPicohw.kb.active) {
         if (key == PEVB_PICO_PS2_CAPSLOCK && PicoPicohw.kb.has_caps_lock == 1) {
           PicoPicohw.kb.caps_lock = PicoPicohw.kb.caps_lock == 4 ? 0 : 4;
           PicoPicohw.kb.has_caps_lock = 0;
@@ -188,7 +184,7 @@ static u32 PicoRead8_pico_kb(u32 a)
       break;
     case 0x8:
       d = 6;
-      if (PicoPicohw.inp_mode == 3) {
+      if (PicoPicohw.kb.active) {
         if (key) {
           PicoPicohw.kb.key_state = KEY_DOWN;
         }

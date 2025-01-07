@@ -375,7 +375,6 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
 	{ "Pico Pen state ", PEV_PICO_PENST },
-	{ "Pico Keyboard  ", PEV_PICO_SWPS2 },
 	{ NULL,                0 }
 };
 
@@ -486,6 +485,7 @@ static menu_entry e_menu_md_options[] =
 	mee_onoff_h   ("FM filter",                 MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
 	mee_onoff_h   ("FM DAC noise",              MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
 	mee_onoff_h   ("Pen button shows screen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN, h_picopen),
+	mee_onoff     ("Pico Keyboard",             MA_OPT_PICO_KBD, PicoIn.opt, POPT_EN_PICO_KBD),
 	mee_end,
 };
 

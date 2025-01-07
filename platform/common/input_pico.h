@@ -30,8 +30,7 @@
 #define PEVB_PICO_STORY 19
 #define PEVB_PICO_PAD   18
 #define PEVB_PICO_PENST 17
-#define PEVB_PICO_SWPS2 16
-#define PEVB_RESET      15
+#define PEVB_RESET      16
 
 #define PEV_VOL_DOWN    (1 << PEVB_VOL_DOWN)
 #define PEV_VOL_UP      (1 << PEVB_VOL_UP)
@@ -47,10 +46,9 @@
 #define PEV_PICO_STORY  (1 << PEVB_PICO_STORY)
 #define PEV_PICO_PAD    (1 << PEVB_PICO_PAD)
 #define PEV_PICO_PENST  (1 << PEVB_PICO_PENST)
-#define PEV_PICO_SWPS2  (1 << PEVB_PICO_SWPS2)
 #define PEV_RESET       (1 << PEVB_RESET)
 
-#define PEV_MASK 0x7fff8000
+#define PEV_MASK 0x7fff0000
 
 /* Keyboard Pico */
 

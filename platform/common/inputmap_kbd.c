@@ -32,7 +32,6 @@ const struct in_default_bind _in_sdl_defbinds[] = {
 	{ SDLK_F8,     IN_BINDTYPE_EMU, PEVB_PICO_STORY },
 	{ SDLK_F9,     IN_BINDTYPE_EMU, PEVB_PICO_PAD },
 	{ SDLK_F10,    IN_BINDTYPE_EMU, PEVB_PICO_PENST },
-	{ SDLK_F12,    IN_BINDTYPE_EMU, PEVB_PICO_SWPS2 },
 	{ SDLK_BACKSPACE, IN_BINDTYPE_EMU, PEVB_FF },
 
 	{ 0, 0, 0 }

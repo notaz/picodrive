@@ -77,6 +77,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_DIS_FM_SSGEG   (1<<23)
 #define POPT_EN_FM_DAC      (1<<24) //x00 0000
 #define POPT_EN_FM_FILTER   (1<<25)
+#define POPT_EN_PICO_KBD    (1<<26)
 
 #define PAHW_MCD    (1<<0)
 #define PAHW_32X    (1<<1)
@@ -178,6 +179,7 @@ typedef struct
     uint64_t time_keydown;
     uint8_t key_state;
     uint8_t shift_state;
+    uint8_t active;
 } picohw_kb;
 typedef struct
 {
@@ -188,8 +190,6 @@ typedef struct
 	unsigned int reserved[3];
 	unsigned char xpcm_buffer[XPCM_BUFFER_SIZE+4];
 	unsigned char *xpcm_ptr;
-	int is_kb_active;
-	int inp_mode;
 	picohw_kb kb;
 } picohw_state;
 extern picohw_state PicoPicohw;
