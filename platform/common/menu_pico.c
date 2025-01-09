@@ -420,6 +420,196 @@ static const char *mgn_dev_name(int id, int *offs)
 	return name;
 }
 
+struct key {
+	int xpos;
+	char *lower, *upper;
+	int key;
+};
+
+//pico
+struct key pico_row1[] = {
+	{  0, "esc", "esc",	PEVB_PICO_PS2_ESCAPE },
+	{  4, "1", "!",		PEVB_PICO_PS2_1 },
+	{  7, "2", "\"",	PEVB_PICO_PS2_2 },
+	{ 10, "3", "#",		PEVB_PICO_PS2_3 },
+	{ 13, "4", "$",		PEVB_PICO_PS2_4 },
+	{ 16, "5", "%",		PEVB_PICO_PS2_5 },
+	{ 19, "6", "&",		PEVB_PICO_PS2_6 },
+	{ 22, "7", "'",		PEVB_PICO_PS2_7 },
+	{ 25, "8", "(",		PEVB_PICO_PS2_8 },
+	{ 28, "9", ")",		PEVB_PICO_PS2_9 },
+	{ 31, "0", "0",		PEVB_PICO_PS2_0 },
+	{ 34, "-", "=",		PEVB_PICO_PS2_MINUS },
+	{ 37, "^", "~",		PEVB_PICO_PS2_CARET },
+	{ 40, "Y", "|",		PEVB_PICO_PS2_YEN },
+	{ 43, "bs", "bs",	PEVB_PICO_PS2_BACKSPACE },
+	{ 0 },
+};
+struct key pico_row2[] = {
+	{  5, "q", "Q",		PEVB_PICO_PS2_q },
+	{  8, "w", "W",		PEVB_PICO_PS2_w },
+	{ 11, "e", "E",		PEVB_PICO_PS2_e },
+	{ 14, "r", "R",		PEVB_PICO_PS2_r },
+	{ 17, "t", "T",		PEVB_PICO_PS2_t },
+	{ 20, "y", "Y",		PEVB_PICO_PS2_y },
+	{ 23, "u", "U",		PEVB_PICO_PS2_u },
+	{ 26, "i", "I",		PEVB_PICO_PS2_i },
+	{ 29, "o", "O",		PEVB_PICO_PS2_o },
+	{ 32, "p", "P",		PEVB_PICO_PS2_p },
+	{ 35, "@", "`",		PEVB_PICO_PS2_AT },
+	{ 38, "[", "{",		PEVB_PICO_PS2_LEFTBRACKET },
+	{ 43, "ins", "ins",	PEVB_PICO_PS2_INSERT },
+	{ 0 },
+};
+struct key pico_row3[] = {
+	{  0, "caps", "caps",	PEVB_PICO_PS2_CAPSLOCK },
+	{  6, "a", "A",		PEVB_PICO_PS2_a },
+	{  9, "s", "S",		PEVB_PICO_PS2_s },
+	{ 12, "d", "D",		PEVB_PICO_PS2_d },
+	{ 15, "f", "F",		PEVB_PICO_PS2_f },
+	{ 18, "g", "G",		PEVB_PICO_PS2_g },
+	{ 21, "h", "H",		PEVB_PICO_PS2_h },
+	{ 24, "j", "J",		PEVB_PICO_PS2_j },
+	{ 27, "k", "K",		PEVB_PICO_PS2_k },
+	{ 30, "l", "L",		PEVB_PICO_PS2_l },
+	{ 33, ";", "+",		PEVB_PICO_PS2_SEMICOLON },
+	{ 36, ":", "*",		PEVB_PICO_PS2_COLON },
+	{ 39, "]", "}",		PEVB_PICO_PS2_RIGHTBRACKET },
+	{ 43, "del", "del",	PEVB_PICO_PS2_DELETE },
+	{ 0 },
+};
+struct key pico_row4[] = {
+	{  0, "shift", "shift",	PEVB_PICO_PS2_LSHIFT },
+	{  7, "z", "Z",		PEVB_PICO_PS2_z },
+	{ 10, "x", "X",		PEVB_PICO_PS2_x },
+	{ 13, "c", "C",		PEVB_PICO_PS2_c },
+	{ 16, "v", "V",		PEVB_PICO_PS2_v },
+	{ 19, "b", "B",		PEVB_PICO_PS2_b },
+	{ 22, "n", "N",		PEVB_PICO_PS2_n },
+	{ 25, "m", "M",		PEVB_PICO_PS2_m },
+	{ 28, ",", "<",		PEVB_PICO_PS2_COMMA },
+	{ 31, ".", ">",		PEVB_PICO_PS2_PERIOD },
+	{ 34, "/", "?",		PEVB_PICO_PS2_SLASH },
+	{ 37, "_", "_",		PEVB_PICO_PS2_COLON },
+	{ 41, "enter", "enter",	PEVB_PICO_PS2_RETURN },
+	{ 0 },
+};
+struct key pico_row5[] = {
+	{  0, "muhenkan", "muhenkan",	PEVB_PICO_PS2_SOUND },
+	{ 13, "space", "space",		PEVB_PICO_PS2_SPACE },
+	{ 22, "henkan", "henkan",	PEVB_PICO_PS2_HOME },
+	{ 29, "kana", "kana",		PEVB_PICO_PS2_CJK },
+	{ 34, "romaji", "romaji",	PEVB_PICO_PS2_ROMAJI },
+	{ 0 },
+};
+
+struct key *pico_kbd[] = {
+	pico_row1, pico_row2, pico_row3, pico_row4, pico_row5, NULL
+};
+
+static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct key *hi)
+{
+	int i, j;
+	struct key *key;
+
+	for (i = 0; desc[i]; i++) {
+		// clear line?
+		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
+			int color = (key == hi ? PXMAKE(0xff, 0x00, 0xff) :
+						 PXMAKE(0xff, 0xff, 0xff));
+			char *text = (shift ? key->upper : key->lower);
+			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
+		}
+	}
+}
+
+static int find_xpos(struct key *keys, int xpos)
+{
+	int i;
+
+	for (i = 0; keys[i].lower && keys[i].xpos < xpos; i++)
+		;
+
+	if (i == 0)			return i;
+	else if (keys[i].lower == NULL)	return i-1;
+	else if (keys[i].xpos - xpos < xpos - keys[i-1].xpos) return i;
+	else				return i-1;
+}
+
+int key_config_kbd_loop(int id, int keys)
+{
+	int keyx = 0, keyy = 0;
+	int inp;
+	int dev;
+
+	int w = 20 * me_mfont_w;
+	int x = g_menuscreen_w / 2 - w / 2;
+
+	struct key *key;
+	const int *binds;
+	int bc;
+
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU))
+		;
+
+	for (;;) {
+		key = &pico_kbd[keyy][keyx];
+		for (dev = 0; dev < IN_MAX_DEVS-1; dev++)
+			if ((binds = in_get_dev_ps2_binds(dev))) break;
+		in_get_config(dev, IN_CFG_BIND_COUNT, &bc);
+		for (bc--; bc >= 0 && binds[bc] != key->key; bc--) ;
+
+		menu_draw_begin(1, 0);
+		kbd_draw(pico_kbd, 0, (g_menuscreen_w - 320)/2, 4, key);
+		text_out16(x, g_menuscreen_h - 6 * me_mfont_h, "currently bound to %s", in_get_key_name(-1, bc));
+		text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "%s - bind, %s - clear", in_get_key_name(-1, -PBTN_MOK), in_get_key_name(-1, -PBTN_MA2));
+		menu_draw_end();
+
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
+			PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, NULL, 70);
+		if (inp & (PBTN_MENU|PBTN_MBACK))
+			break;
+
+		if (inp & PBTN_UP) {
+			if (--keyy < 0) while (pico_kbd[keyy+1]) keyy++;
+			keyx = find_xpos(pico_kbd[keyy], key->xpos);
+		}
+		if (inp & PBTN_DOWN) {
+			if (pico_kbd[++keyy] == NULL) keyy = 0;	
+			keyx = find_xpos(pico_kbd[keyy], key->xpos);
+		}
+		if (inp & PBTN_LEFT) {
+			if (--keyx < 0) while (pico_kbd[keyy][keyx+1].lower) keyx++;
+		}
+		if (inp & PBTN_RIGHT) {
+			if (pico_kbd[keyy][++keyx].lower == NULL) keyx = 0;
+		}
+
+		if (inp & PBTN_MOK) {
+			int is_down, bind_dev_id, kc;
+
+			while (in_menu_wait_any(NULL, 30) & PBTN_MOK)
+				;
+
+			key = &pico_kbd[keyy][keyx];
+			menu_draw_begin(1, 0);
+			kbd_draw(pico_kbd, 0, (g_menuscreen_w - 320)/2, 4, key);
+			text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "Press a button to bind/unbind");
+			menu_draw_end();
+
+			/* wait for some up event */
+			for (is_down = 1; is_down; )
+				kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
+
+			in_bind_ps2_key(bind_dev_id, bc, 0); /* ?? */
+			in_bind_ps2_key(bind_dev_id, kc, pico_kbd[keyy][keyx].key);
+		}
+	}
+
+	return 0;
+}
+
+
 const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
@@ -433,6 +623,7 @@ static menu_entry e_menu_keyconfig[] =
 	mee_handler_id_h("Player 3",        MA_CTRL_PLAYER3,    key_config_loop_wrap, h_play34),
 	mee_handler_id_h("Player 4",        MA_CTRL_PLAYER4,    key_config_loop_wrap, h_play34),
 	mee_handler_id("Emulator hotkeys",  MA_CTRL_EMU,        key_config_loop_wrap),
+	mee_handler_id("Keyboard mapping",  MA_CTRL_KEYBOARD,   key_config_kbd_loop),
 	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev0_names),
 	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev1_names),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
@@ -1358,6 +1549,7 @@ static int mh_saveloadcfg(int id, int keys)
 
 	return 1;
 }
+
 
 static const char h_saveload[] = "Game options are overloading global options";
 

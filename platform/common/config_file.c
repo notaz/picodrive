@@ -53,7 +53,7 @@ static int seek_sect(FILE *f, const char *section)
 	return 0;
 }
 
-static void keys_write(FILE *fn, int dev_id, const int *binds)
+static void keys_write(FILE *fn, int dev_id, const int *binds, const int *ps2_binds)
 {
 	char act[48];
 	int key_count = 0, k, i;
@@ -101,6 +101,12 @@ static void keys_write(FILE *fn, int dev_id, const int *binds)
 				fprintf(fn, "bind %s = %s" NL, name, mystrip(act));
 			}
 		}
+	}
+
+	for (k = 0; k < key_count; k++) {
+		const char *name = in_get_key_name(dev_id, k);
+		if (ps2_binds[k])
+			fprintf(fn, "bind %s = key%02x" NL, name, ps2_binds[k]);
 	}
 }
 
@@ -170,7 +176,7 @@ write_line:
 		fprintf(fn, "binddev = %s" NL, name);
 
 		in_get_config(t, IN_CFG_BIND_COUNT, &count);
-		keys_write(fn, t, binds);
+		keys_write(fn, t, binds, in_get_dev_ps2_binds(t));
 	}
 
 	fprintf(fn, "Sound Volume = %i" NL, currentConfig.volume);
@@ -383,6 +389,12 @@ static int parse_bind_val(const char *val, int *type)
 	if (val[0] == 0)
 		return 0;
 	
+	if (strncasecmp(val, "key", 3) == 0)
+	{
+		*type = IN_BINDTYPE_PICO_PS2;
+		return strtol(val + 3, NULL, 16);
+	}
+
 	if (strncasecmp(val, "player", 6) == 0)
 	{
 		int player, shift = 0;
@@ -441,7 +453,10 @@ static void keys_parse_all(FILE *f)
 		}
 
 		mystrip(var + 5);
-		in_config_bind_key(dev_id, var + 5, acts, type);
+		if (type == IN_BINDTYPE_PICO_PS2)
+			in_config_bind_ps2_key(dev_id, var + 5, acts);
+		else
+			in_config_bind_key(dev_id, var + 5, acts, type);
 	}
 	in_clean_binds();
 }
