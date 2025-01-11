@@ -132,6 +132,112 @@ static u8 vdp_hcounter(int cycles)
   return hc;
 }
 
+#include <platform/common/input_pico.h>
+
+// keyboard matrix:
+// port A @0xdc:
+// row 0: 1  2  3  4  5  6  7
+// row 1: q  w  e  r  t  y  u
+// row 2: a  s  d  f  g  h  j
+// row 3: z  x  c  v  b  n  m
+// row 4: ED SP CL DL
+// row 5: ,  .  /  PI v  <  >
+// row 6: k  l  ;  :  ]  CR ^
+// row 7: i  o  p  @  [
+// port B @0xdd:
+// row 8: 8  9  0  -  ^  YN BR
+// row 9:                   GR
+// row 10:                  CTL
+// row 11:               FN SFT
+static unsigned char kbd_matrix[12];
+
+// row | col
+static unsigned char kbd_map[] = {
+  [PEVB_PICO_PS2_1]         = 0x00,
+  [PEVB_PICO_PS2_2]         = 0x01,
+  [PEVB_PICO_PS2_3]         = 0x02,
+  [PEVB_PICO_PS2_4]         = 0x03,
+  [PEVB_PICO_PS2_5]         = 0x04,
+  [PEVB_PICO_PS2_6]         = 0x05,
+  [PEVB_PICO_PS2_7]         = 0x06,
+  [PEVB_PICO_PS2_8]         = 0x80,
+  [PEVB_PICO_PS2_9]         = 0x81,
+  [PEVB_PICO_PS2_0]         = 0x82,
+  [PEVB_PICO_PS2_MINUS]     = 0x83,
+  [PEVB_PICO_PS2_CARET]     = 0x84,
+  [PEVB_PICO_PS2_YEN]       = 0x85,
+  [PEVB_PICO_PS2_ESCAPE]    = 0x86, // break
+
+  [PEVB_PICO_PS2_q]         = 0x10,
+  [PEVB_PICO_PS2_w]         = 0x11,
+  [PEVB_PICO_PS2_e]         = 0x12,
+  [PEVB_PICO_PS2_r]         = 0x13,
+  [PEVB_PICO_PS2_t]         = 0x14,
+  [PEVB_PICO_PS2_y]         = 0x15,
+  [PEVB_PICO_PS2_u]         = 0x16,
+  [PEVB_PICO_PS2_i]         = 0x70,
+  [PEVB_PICO_PS2_o]         = 0x71,
+  [PEVB_PICO_PS2_p]         = 0x72,
+  [PEVB_PICO_PS2_AT]        = 0x73,
+  [PEVB_PICO_PS2_LEFTBRACKET] = 0x74,
+
+  [PEVB_PICO_PS2_a]         = 0x20,
+  [PEVB_PICO_PS2_s]         = 0x21,
+  [PEVB_PICO_PS2_d]         = 0x22,
+  [PEVB_PICO_PS2_f]         = 0x23,
+  [PEVB_PICO_PS2_g]         = 0x24,
+  [PEVB_PICO_PS2_h]         = 0x25,
+  [PEVB_PICO_PS2_j]         = 0x26,
+  [PEVB_PICO_PS2_k]         = 0x60,
+  [PEVB_PICO_PS2_l]         = 0x61,
+  [PEVB_PICO_PS2_SEMICOLON] = 0x62,
+  [PEVB_PICO_PS2_COLON]     = 0x63,
+  [PEVB_PICO_PS2_RIGHTBRACKET] = 0x64,
+  [PEVB_PICO_PS2_RETURN]    = 0x65,
+  [PEVB_PICO_PS2_UP]        = 0x66, // up
+
+  [PEVB_PICO_PS2_z]         = 0x30,
+  [PEVB_PICO_PS2_x]         = 0x31,
+  [PEVB_PICO_PS2_c]         = 0x32,
+  [PEVB_PICO_PS2_v]         = 0x33,
+  [PEVB_PICO_PS2_b]         = 0x34,
+  [PEVB_PICO_PS2_n]         = 0x35,
+  [PEVB_PICO_PS2_m]         = 0x36,
+  [PEVB_PICO_PS2_COMMA]     = 0x50,
+  [PEVB_PICO_PS2_PERIOD]    = 0x51,
+  [PEVB_PICO_PS2_SLASH]     = 0x52,
+  [PEVB_PICO_PS2_RO]        = 0x53, // pi
+  [PEVB_PICO_PS2_DOWN]      = 0x54, // down
+  [PEVB_PICO_PS2_LEFT]      = 0x55, // left
+  [PEVB_PICO_PS2_RIGHT]     = 0x56, // right
+
+  [PEVB_PICO_PS2_CJK]       = 0x40, // kana
+  [PEVB_PICO_PS2_SPACE]     = 0x41, // space
+  [PEVB_PICO_PS2_HOME]      = 0x42, // clear/home
+  [PEVB_PICO_PS2_BACKSPACE] = 0x43, // del/ins
+
+  [PEVB_PICO_PS2_SOUND]     = 0x96, // graph
+  [PEVB_PICO_PS2_CTRL]      = 0xa6, // ctrl
+  [PEVB_PICO_PS2_CAPSLOCK]  = 0xb5, // func
+  [PEVB_PICO_PS2_LSHIFT]    = 0xb6, // shift
+};
+
+static void kbd_update(void)
+{
+  u32 key = (PicoIn.ps2 & 0x00ff);
+  u32 sft = (PicoIn.ps2 & 0xff00) >> 8;
+
+  memset(kbd_matrix, 0, sizeof(kbd_matrix));
+  if (/*PicoPicohw.kb.active &&*/ sft) {
+    int rc = kbd_map[sft];
+    kbd_matrix[rc>>4] = (1 << (rc&0x7));
+  }
+  if (/*PicoPicohw.kb.active &&*/ key) {
+    int rc = kbd_map[key];
+    kbd_matrix[rc>>4] = (1 << (rc&0x7));
+  }
+}
+
 static unsigned char z80_sms_in(unsigned short a)
 {
   unsigned char d = 0xff;
@@ -193,8 +299,12 @@ static unsigned char z80_sms_in(unsigned short a)
           d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
           if (!(Pico.ms.io_ctl & 0x01)) // TR as output
             d = (d & ~0x20) | ((Pico.ms.io_ctl << 1) & 0x20);
-        } else
-          ; // read kbd 8 bits
+        } else {
+          int i; // read kbd 8 bits
+          kbd_update();
+          for (i = 7; i >= 0; i--)
+            d = (d<<1) | !(kbd_matrix[i] & (1<<(Pico.ms.io_sg&7)));
+        }
         break;
 
       case 0xc1: /* I/O port B and miscellaneous */
@@ -205,8 +315,12 @@ static unsigned char z80_sms_in(unsigned short a)
             d = (d & ~0x08) | ((Pico.ms.io_ctl >> 3) & 0x08);
           if (Pico.ms.io_ctl & 0x08) d |= 0x80; // TH as input is unconnected
           if (Pico.ms.io_ctl & 0x02) d |= 0x40;
-        } else
-          ; // read kbd 4 bits
+        } else {
+          int i; // read kbd 4 bits
+          kbd_update();
+          for (i = 11; i >= 8; i--)
+            d = (d<<1) | !(kbd_matrix[i] & (1<<(Pico.ms.io_sg&7)));
+        }
         break;
     }
   }
@@ -274,6 +388,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         break;
 
       case 0xc0:
+        // SG-1000 has a 8255 chip, mapped to 0xdc-0xdf
         if ((PicoIn.AHW & PAHW_SC) && (a & 0x2))
           Pico.ms.io_sg = d; // 0xc2 = kbd/pad select
     }

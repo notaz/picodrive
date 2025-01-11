@@ -67,6 +67,7 @@ static void keys_write(FILE *fn, int dev_id, const int *binds, const int *ps2_bi
 		act[0] = act[31] = 0;
 
 		name = in_get_key_name(dev_id, k);
+		if (strcmp(name, "#") == 0) name = "\\x23"; // replace comment sign
 
 		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
 			mask = me_ctrl_actions[i].mask;
@@ -105,6 +106,7 @@ static void keys_write(FILE *fn, int dev_id, const int *binds, const int *ps2_bi
 
 	for (k = 0; k < key_count; k++) {
 		const char *name = in_get_key_name(dev_id, k);
+		if (strcmp(name, "#") == 0) name = "\\x23"; // replace comment sign
 		if (ps2_binds[k])
 			fprintf(fn, "bind %s = key%02x" NL, name, ps2_binds[k]);
 	}

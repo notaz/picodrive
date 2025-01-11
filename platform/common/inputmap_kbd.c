@@ -126,6 +126,13 @@ const struct in_default_bind in_sdl_pico_ps2_map[] = {
 	{ SDLK_PAGEUP, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_CJK }, // CJK Scripts: Hiragana / Katakana / Kanji (Keyboard Pico); Hangul (Kibodeu Piko)
 	{ SDLK_PAGEDOWN, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_ROMAJI }, // English Script
 
+	// Others
+	{ SDLK_LALT, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_ALT },
+	{ SDLK_UP, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_UP },
+	{ SDLK_DOWN, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_DOWN },
+	{ SDLK_LEFT, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_LEFT },
+	{ SDLK_RIGHT, IN_BINDTYPE_PICO_PS2, PEVB_PICO_PS2_RIGHT },
+
 	{ 0, 0, 0 }
 };
 const struct in_default_bind *in_sdl_defbinds = _in_sdl_defbinds;

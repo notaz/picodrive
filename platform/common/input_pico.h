@@ -141,4 +141,12 @@
 #define PEVB_PICO_PS2_CJK 0x13
 #define PEVB_PICO_PS2_ROMAJI 0x17
 
+// Other buttons, for SC-3000
+#define PEVB_PICO_PS2_CTRL 0x14
+#define PEVB_PICO_PS2_ALT 0x11
+#define PEVB_PICO_PS2_UP 0x75
+#define PEVB_PICO_PS2_DOWN 0x72
+#define PEVB_PICO_PS2_LEFT 0x6b
+#define PEVB_PICO_PS2_RIGHT 0x74
+
 #endif /* INCLUDE_c48097f3ff2a6a9af1cce8fd7a9b3f0c */

@@ -490,7 +490,7 @@ struct key pico_row4[] = {
 	{ 28, ",", "<",		PEVB_PICO_PS2_COMMA },
 	{ 31, ".", ">",		PEVB_PICO_PS2_PERIOD },
 	{ 34, "/", "?",		PEVB_PICO_PS2_SLASH },
-	{ 37, "_", "_",		PEVB_PICO_PS2_COLON },
+	{ 37, "_", "_",		PEVB_PICO_PS2_RO },
 	{ 41, "enter", "enter",	PEVB_PICO_PS2_RETURN },
 	{ 0 },
 };
@@ -515,7 +515,7 @@ static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct
 	for (i = 0; desc[i]; i++) {
 		// clear line?
 		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
-			int color = (key == hi ? PXMAKE(0xff, 0x00, 0xff) :
+			int color = (key == hi ? PXMAKE(0xff, 0x00, 0x00) :
 						 PXMAKE(0xff, 0xff, 0xff));
 			char *text = (shift ? key->upper : key->lower);
 			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
