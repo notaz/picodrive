@@ -384,15 +384,6 @@ static int vsync_handler(void)
 	return 0;
 }
 
-/* Copy of gsKit_sync_flip, but without the 'flip' */
-static void gsKit_sync(GSGLOBAL *gsGlobal)
-{
-	if (!gsGlobal->FirstFrame)
-		WaitSema(vsync_sema_id);
-
-	while (PollSema(vsync_sema_id) >= 0);
-}
-
 /* Copy of gsKit_sync_flip, but without the 'sync' */
 static void gsKit_flip(GSGLOBAL *gsGlobal)
 {
@@ -866,7 +857,11 @@ void plat_video_flip(void)
 /* wait for start of vertical blanking */
 void plat_video_wait_vsync(void)
 {
-	gsKit_sync(gsGlobal);
+	while (PollSema(vsync_sema_id) >= 0);
+
+	if (!gsGlobal->FirstFrame)
+		WaitSema(vsync_sema_id);
+	
 }
 
 /* update surface data */
@@ -926,6 +921,8 @@ void plat_init(void)
 {
 	video_init();
 	init_joystick_driver(false);
+
+	flip_after_sync = 1;
 	in_ps2_init(in_ps2_defbinds);
 	in_probe();
 	init_audio_driver();
