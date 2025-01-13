@@ -53,100 +53,87 @@
 /* Keyboard Pico */
 
 // Blue buttons
-#define PEVB_PICO_PS2_SPACE 0x29
-#define PEVB_PICO_PS2_EXCLAIM 0
-#define PEVB_PICO_PS2_QUOTEDBL 0
-#define PEVB_PICO_PS2_HASH 0
-#define PEVB_PICO_PS2_DOLLAR 0
-#define PEVB_PICO_PS2_AMPERSAND 0
-#define PEVB_PICO_PS2_LEFTPAREN 0
-#define PEVB_PICO_PS2_RIGHTPAREN 0
-#define PEVB_PICO_PS2_ASTERISK 0 //x7c on kp ??
-#define PEVB_PICO_PS2_PLUS 0 //x79 on kp ??
-#define PEVB_PICO_PS2_MINUS 0x4e
-#define PEVB_PICO_PS2_COMMA 0x41
-#define PEVB_PICO_PS2_PERIOD 0x49
-#define PEVB_PICO_PS2_SLASH 0x4a
-#define PEVB_PICO_PS2_1 0x16
-#define PEVB_PICO_PS2_2 0x1e
-#define PEVB_PICO_PS2_3 0x26
-#define PEVB_PICO_PS2_4 0x25
-#define PEVB_PICO_PS2_5 0x2e
-#define PEVB_PICO_PS2_6 0x36
-#define PEVB_PICO_PS2_7 0x3d
-#define PEVB_PICO_PS2_8 0x3e
-#define PEVB_PICO_PS2_9 0x46
-#define PEVB_PICO_PS2_0 0x45
-#define PEVB_PICO_PS2_COLON 0x52
-#define PEVB_PICO_PS2_SEMICOLON 0x4c
-#define PEVB_PICO_PS2_LESS 0
-#define PEVB_PICO_PS2_EQUALS 0 //x55 ??
-#define PEVB_PICO_PS2_GREATER 0
-#define PEVB_PICO_PS2_QUESTION 0
-#define PEVB_PICO_PS2_AT 0x54 // ??
-#define PEVB_PICO_PS2_DAKUTEN 0 //x54 // ゛
-#define PEVB_PICO_PS2_LEFTBRACKET 0x5b
-#define PEVB_PICO_PS2_RIGHTBRACKET 0x5d
-#define PEVB_PICO_PS2_CARET 0x55 // ??
-#define PEVB_PICO_PS2_UNDERSCORE 0
-#define PEVB_PICO_PS2_YEN 0x6a // ￥
-#define PEVB_PICO_PS2_RO 0x51 // ろ
-#define PEVB_PICO_PS2_KE 0 //x52 ?? // け
+#define PEVB_KBD_1 0x16
+#define PEVB_KBD_2 0x1e
+#define PEVB_KBD_3 0x26
+#define PEVB_KBD_4 0x25
+#define PEVB_KBD_5 0x2e
+#define PEVB_KBD_6 0x36
+#define PEVB_KBD_7 0x3d
+#define PEVB_KBD_8 0x3e
+#define PEVB_KBD_9 0x46
+#define PEVB_KBD_0 0x45
+#define PEVB_KBD_MINUS 0x4e
+#define PEVB_KBD_CARET 0x55
+#define PEVB_KBD_YEN 0x6a // ￥
 
-#define PEVB_PICO_PS2_a 0x1c
-#define PEVB_PICO_PS2_b 0x32
-#define PEVB_PICO_PS2_c 0x21
-#define PEVB_PICO_PS2_d 0x23
-#define PEVB_PICO_PS2_e 0x24
-#define PEVB_PICO_PS2_f 0x2b
-#define PEVB_PICO_PS2_g 0x34
-#define PEVB_PICO_PS2_h 0x33
-#define PEVB_PICO_PS2_i 0x43
-#define PEVB_PICO_PS2_j 0x3b
-#define PEVB_PICO_PS2_k 0x42
-#define PEVB_PICO_PS2_l 0x4b
-#define PEVB_PICO_PS2_m 0x3a
-#define PEVB_PICO_PS2_n 0x31
-#define PEVB_PICO_PS2_o 0x44
-#define PEVB_PICO_PS2_p 0x4d
-#define PEVB_PICO_PS2_q 0x15
-#define PEVB_PICO_PS2_r 0x2d
-#define PEVB_PICO_PS2_s 0x1b
-#define PEVB_PICO_PS2_t 0x2c
-#define PEVB_PICO_PS2_u 0x3c
-#define PEVB_PICO_PS2_v 0x2a
-#define PEVB_PICO_PS2_w 0x1d
-#define PEVB_PICO_PS2_x 0x22
-#define PEVB_PICO_PS2_y 0x35
-#define PEVB_PICO_PS2_z 0x1a
+#define PEVB_KBD_q 0x15
+#define PEVB_KBD_w 0x1d
+#define PEVB_KBD_e 0x24
+#define PEVB_KBD_r 0x2d
+#define PEVB_KBD_t 0x2c
+#define PEVB_KBD_y 0x35
+#define PEVB_KBD_u 0x3c
+#define PEVB_KBD_i 0x43
+#define PEVB_KBD_o 0x44
+#define PEVB_KBD_p 0x4d
+#define PEVB_KBD_AT 0x54
+#define PEVB_KBD_LEFTBRACKET 0x5b
+
+#define PEVB_KBD_a 0x1c
+#define PEVB_KBD_s 0x1b
+#define PEVB_KBD_d 0x23
+#define PEVB_KBD_f 0x2b
+#define PEVB_KBD_g 0x34
+#define PEVB_KBD_h 0x33
+#define PEVB_KBD_j 0x3b
+#define PEVB_KBD_k 0x42
+#define PEVB_KBD_l 0x4b
+#define PEVB_KBD_SEMICOLON 0x4c
+#define PEVB_KBD_COLON 0x52
+#define PEVB_KBD_RIGHTBRACKET 0x5d
+
+#define PEVB_KBD_z 0x1a
+#define PEVB_KBD_x 0x22
+#define PEVB_KBD_c 0x21
+#define PEVB_KBD_v 0x2a
+#define PEVB_KBD_b 0x32
+#define PEVB_KBD_n 0x31
+#define PEVB_KBD_m 0x3a
+#define PEVB_KBD_COMMA 0x41
+#define PEVB_KBD_PERIOD 0x49
+#define PEVB_KBD_SLASH 0x4a
+#define PEVB_KBD_RO 0x51 // ろ
+
+#define PEVB_KBD_SPACE 0x29
 
 // Green button on top-left
-#define PEVB_PICO_PS2_ESCAPE 0x76
+#define PEVB_KBD_ESCAPE 0x76
 
 // Orange buttons on left
-#define PEVB_PICO_PS2_CAPSLOCK 0x58
-#define PEVB_PICO_PS2_LSHIFT 0x12
+#define PEVB_KBD_CAPSLOCK 0x58
+#define PEVB_KBD_SHIFT 0x12 // left shift
 
 // Green buttons on right
-#define PEVB_PICO_PS2_BACKSPACE 0x66
-#define PEVB_PICO_PS2_INSERT 0x81
-#define PEVB_PICO_PS2_DELETE 0x85
+#define PEVB_KBD_BACKSPACE 0x66
+#define PEVB_KBD_INSERT 0x81
+#define PEVB_KBD_DELETE 0x85
 
 // Red button on bottom-right
-#define PEVB_PICO_PS2_RETURN 0x5a
+#define PEVB_KBD_RETURN 0x5a
 
 // Orange buttons on bottom
-#define PEVB_PICO_PS2_SOUND 0x67
-#define PEVB_PICO_PS2_HOME 0x64
-#define PEVB_PICO_PS2_CJK 0x13
-#define PEVB_PICO_PS2_ROMAJI 0x17
+#define PEVB_KBD_SOUND 0x67 // muhenkan (graph)
+#define PEVB_KBD_HOME 0x64 // henkan (clr/home)
+#define PEVB_KBD_CJK 0x13 // kana/kanji
+#define PEVB_KBD_ROMAJI 0x17
 
-// Other buttons, for SC-3000
-#define PEVB_PICO_PS2_CTRL 0x14
-#define PEVB_PICO_PS2_ALT 0x11
-#define PEVB_PICO_PS2_UP 0x75
-#define PEVB_PICO_PS2_DOWN 0x72
-#define PEVB_PICO_PS2_LEFT 0x6b
-#define PEVB_PICO_PS2_RIGHT 0x74
+// Other buttons for SC-3000
+#define PEVB_KBD_CTRL 0x14
+#define PEVB_KBD_FUNC 0x11
+#define PEVB_KBD_UP 0x75
+#define PEVB_KBD_DOWN 0x72
+#define PEVB_KBD_LEFT 0x6b
+#define PEVB_KBD_RIGHT 0x74
 
 #endif /* INCLUDE_c48097f3ff2a6a9af1cce8fd7a9b3f0c */

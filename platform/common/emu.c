@@ -1295,20 +1295,21 @@ void emu_update_input(void)
 {
 	static int prev_events = 0;
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
-	int actions_pico_ps2[IN_BIND_LAST] = { 0, };
+	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
 	int events;
 
 	in_update(actions);
-	in_update_pico_ps2(actions_pico_ps2);
-	PicoIn.ps2 = 0;
+	in_update_kbd(actions_kbd);
+	PicoIn.kbd = 0;
 	for (int i = 0; i < IN_BIND_LAST; i++) {
-		if (actions_pico_ps2[i]) {
-			unsigned int action = actions_pico_ps2[i];
-			if ((action & 0xff) == PEVB_PICO_PS2_LSHIFT) {
-				PicoIn.ps2 = (PicoIn.ps2 & 0x00ff) | (action << 8);
+		if (actions_kbd[i]) {
+			unsigned int action = actions_kbd[i];
+			unsigned int key = (action & 0xff);
+			if (key == PEVB_KBD_SHIFT || key == PEVB_KBD_CTRL || key == PEVB_KBD_FUNC) {
+				PicoIn.kbd = (PicoIn.kbd & 0x00ff) | (action << 8);
 			} else {
-				PicoIn.ps2 = (PicoIn.ps2 & 0xff00) | action;
+				PicoIn.kbd = (PicoIn.kbd & 0xff00) | action;
 			}
 		}
 	}

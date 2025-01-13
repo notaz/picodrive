@@ -140,92 +140,92 @@ static u8 vdp_hcounter(int cycles)
 // row 1: q  w  e  r  t  y  u
 // row 2: a  s  d  f  g  h  j
 // row 3: z  x  c  v  b  n  m
-// row 4: ED SP CL DL
-// row 5: ,  .  /  PI v  <  >
-// row 6: k  l  ;  :  ]  CR ^
+// row 4: ED SP CL DL            kana space clear/home del/ins
+// row 5: ,  .  /  PI v  <  >    pi
+// row 6: k  l  ;  :  ]  CR ^    enter
 // row 7: i  o  p  @  [
 // port B @0xdd:
-// row 8: 8  9  0  -  ^  YN BR
-// row 9:                   GR
-// row 10:                  CTL
-// row 11:               FN SFT
+// row 8: 8  9  0  -  ^  YN BR   yen break
+// row 9:                   GR   graph
+// row 10:                  CTL  control
+// row 11:               FN SFT  func shift
 static unsigned char kbd_matrix[12];
 
 // row | col
 static unsigned char kbd_map[] = {
-  [PEVB_PICO_PS2_1]         = 0x00,
-  [PEVB_PICO_PS2_2]         = 0x01,
-  [PEVB_PICO_PS2_3]         = 0x02,
-  [PEVB_PICO_PS2_4]         = 0x03,
-  [PEVB_PICO_PS2_5]         = 0x04,
-  [PEVB_PICO_PS2_6]         = 0x05,
-  [PEVB_PICO_PS2_7]         = 0x06,
-  [PEVB_PICO_PS2_8]         = 0x80,
-  [PEVB_PICO_PS2_9]         = 0x81,
-  [PEVB_PICO_PS2_0]         = 0x82,
-  [PEVB_PICO_PS2_MINUS]     = 0x83,
-  [PEVB_PICO_PS2_CARET]     = 0x84,
-  [PEVB_PICO_PS2_YEN]       = 0x85,
-  [PEVB_PICO_PS2_ESCAPE]    = 0x86, // break
+  [PEVB_KBD_1]         = 0x00,
+  [PEVB_KBD_2]         = 0x01,
+  [PEVB_KBD_3]         = 0x02,
+  [PEVB_KBD_4]         = 0x03,
+  [PEVB_KBD_5]         = 0x04,
+  [PEVB_KBD_6]         = 0x05,
+  [PEVB_KBD_7]         = 0x06,
+  [PEVB_KBD_8]         = 0x80,
+  [PEVB_KBD_9]         = 0x81,
+  [PEVB_KBD_0]         = 0x82,
+  [PEVB_KBD_MINUS]     = 0x83,
+  [PEVB_KBD_CARET]     = 0x84,
+  [PEVB_KBD_YEN]       = 0x85,
+  [PEVB_KBD_ESCAPE]    = 0x86, // break
 
-  [PEVB_PICO_PS2_q]         = 0x10,
-  [PEVB_PICO_PS2_w]         = 0x11,
-  [PEVB_PICO_PS2_e]         = 0x12,
-  [PEVB_PICO_PS2_r]         = 0x13,
-  [PEVB_PICO_PS2_t]         = 0x14,
-  [PEVB_PICO_PS2_y]         = 0x15,
-  [PEVB_PICO_PS2_u]         = 0x16,
-  [PEVB_PICO_PS2_i]         = 0x70,
-  [PEVB_PICO_PS2_o]         = 0x71,
-  [PEVB_PICO_PS2_p]         = 0x72,
-  [PEVB_PICO_PS2_AT]        = 0x73,
-  [PEVB_PICO_PS2_LEFTBRACKET] = 0x74,
+  [PEVB_KBD_q]         = 0x10,
+  [PEVB_KBD_w]         = 0x11,
+  [PEVB_KBD_e]         = 0x12,
+  [PEVB_KBD_r]         = 0x13,
+  [PEVB_KBD_t]         = 0x14,
+  [PEVB_KBD_y]         = 0x15,
+  [PEVB_KBD_u]         = 0x16,
+  [PEVB_KBD_i]         = 0x70,
+  [PEVB_KBD_o]         = 0x71,
+  [PEVB_KBD_p]         = 0x72,
+  [PEVB_KBD_AT]        = 0x73,
+  [PEVB_KBD_LEFTBRACKET] = 0x74,
 
-  [PEVB_PICO_PS2_a]         = 0x20,
-  [PEVB_PICO_PS2_s]         = 0x21,
-  [PEVB_PICO_PS2_d]         = 0x22,
-  [PEVB_PICO_PS2_f]         = 0x23,
-  [PEVB_PICO_PS2_g]         = 0x24,
-  [PEVB_PICO_PS2_h]         = 0x25,
-  [PEVB_PICO_PS2_j]         = 0x26,
-  [PEVB_PICO_PS2_k]         = 0x60,
-  [PEVB_PICO_PS2_l]         = 0x61,
-  [PEVB_PICO_PS2_SEMICOLON] = 0x62,
-  [PEVB_PICO_PS2_COLON]     = 0x63,
-  [PEVB_PICO_PS2_RIGHTBRACKET] = 0x64,
-  [PEVB_PICO_PS2_RETURN]    = 0x65,
-  [PEVB_PICO_PS2_UP]        = 0x66, // up
+  [PEVB_KBD_a]         = 0x20,
+  [PEVB_KBD_s]         = 0x21,
+  [PEVB_KBD_d]         = 0x22,
+  [PEVB_KBD_f]         = 0x23,
+  [PEVB_KBD_g]         = 0x24,
+  [PEVB_KBD_h]         = 0x25,
+  [PEVB_KBD_j]         = 0x26,
+  [PEVB_KBD_k]         = 0x60,
+  [PEVB_KBD_l]         = 0x61,
+  [PEVB_KBD_SEMICOLON] = 0x62,
+  [PEVB_KBD_COLON]     = 0x63,
+  [PEVB_KBD_RIGHTBRACKET] = 0x64,
+  [PEVB_KBD_RETURN]    = 0x65,
+  [PEVB_KBD_UP]        = 0x66, // up
 
-  [PEVB_PICO_PS2_z]         = 0x30,
-  [PEVB_PICO_PS2_x]         = 0x31,
-  [PEVB_PICO_PS2_c]         = 0x32,
-  [PEVB_PICO_PS2_v]         = 0x33,
-  [PEVB_PICO_PS2_b]         = 0x34,
-  [PEVB_PICO_PS2_n]         = 0x35,
-  [PEVB_PICO_PS2_m]         = 0x36,
-  [PEVB_PICO_PS2_COMMA]     = 0x50,
-  [PEVB_PICO_PS2_PERIOD]    = 0x51,
-  [PEVB_PICO_PS2_SLASH]     = 0x52,
-  [PEVB_PICO_PS2_RO]        = 0x53, // pi
-  [PEVB_PICO_PS2_DOWN]      = 0x54, // down
-  [PEVB_PICO_PS2_LEFT]      = 0x55, // left
-  [PEVB_PICO_PS2_RIGHT]     = 0x56, // right
+  [PEVB_KBD_z]         = 0x30,
+  [PEVB_KBD_x]         = 0x31,
+  [PEVB_KBD_c]         = 0x32,
+  [PEVB_KBD_v]         = 0x33,
+  [PEVB_KBD_b]         = 0x34,
+  [PEVB_KBD_n]         = 0x35,
+  [PEVB_KBD_m]         = 0x36,
+  [PEVB_KBD_COMMA]     = 0x50,
+  [PEVB_KBD_PERIOD]    = 0x51,
+  [PEVB_KBD_SLASH]     = 0x52,
+  [PEVB_KBD_RO]        = 0x53, // pi
+  [PEVB_KBD_DOWN]      = 0x54, // down
+  [PEVB_KBD_LEFT]      = 0x55, // left
+  [PEVB_KBD_RIGHT]     = 0x56, // right
 
-  [PEVB_PICO_PS2_CJK]       = 0x40, // kana
-  [PEVB_PICO_PS2_SPACE]     = 0x41, // space
-  [PEVB_PICO_PS2_HOME]      = 0x42, // clear/home
-  [PEVB_PICO_PS2_BACKSPACE] = 0x43, // del/ins
+  [PEVB_KBD_CJK]       = 0x40, // kana
+  [PEVB_KBD_SPACE]     = 0x41, // space
+  [PEVB_KBD_HOME]      = 0x42, // clear/home
+  [PEVB_KBD_BACKSPACE] = 0x43, // del/ins
 
-  [PEVB_PICO_PS2_SOUND]     = 0x96, // graph
-  [PEVB_PICO_PS2_CTRL]      = 0xa6, // ctrl
-  [PEVB_PICO_PS2_CAPSLOCK]  = 0xb5, // func
-  [PEVB_PICO_PS2_LSHIFT]    = 0xb6, // shift
+  [PEVB_KBD_SOUND]     = 0x96, // graph
+  [PEVB_KBD_CAPSLOCK]  = 0xa6, // ctrl
+  [PEVB_KBD_FUNC]      = 0xb5, // func
+  [PEVB_KBD_SHIFT]     = 0xb6, // shift
 };
 
 static void kbd_update(void)
 {
-  u32 key = (PicoIn.ps2 & 0x00ff);
-  u32 sft = (PicoIn.ps2 & 0xff00) >> 8;
+  u32 key = (PicoIn.kbd & 0x00ff);
+  u32 sft = (PicoIn.kbd & 0xff00) >> 8;
 
   memset(kbd_matrix, 0, sizeof(kbd_matrix));
   if (/*PicoPicohw.kb.active &&*/ sft) {

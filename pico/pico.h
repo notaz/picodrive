@@ -134,7 +134,7 @@ typedef struct PicoInterface
 	void (*mcdTrayOpen)(void);
 	void (*mcdTrayClose)(void);
 
-	unsigned int ps2;   // PS/2 peripherals, e.g. Pico Keyboard
+	unsigned int kbd;   // PS/2 peripherals, e.g. Pico Keyboard
 } PicoInterface;
 
 extern PicoInterface PicoIn;

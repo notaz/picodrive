@@ -428,78 +428,78 @@ struct key {
 
 //pico
 struct key pico_row1[] = {
-	{  0, "esc", "esc",	PEVB_PICO_PS2_ESCAPE },
-	{  4, "1", "!",		PEVB_PICO_PS2_1 },
-	{  7, "2", "\"",	PEVB_PICO_PS2_2 },
-	{ 10, "3", "#",		PEVB_PICO_PS2_3 },
-	{ 13, "4", "$",		PEVB_PICO_PS2_4 },
-	{ 16, "5", "%",		PEVB_PICO_PS2_5 },
-	{ 19, "6", "&",		PEVB_PICO_PS2_6 },
-	{ 22, "7", "'",		PEVB_PICO_PS2_7 },
-	{ 25, "8", "(",		PEVB_PICO_PS2_8 },
-	{ 28, "9", ")",		PEVB_PICO_PS2_9 },
-	{ 31, "0", "0",		PEVB_PICO_PS2_0 },
-	{ 34, "-", "=",		PEVB_PICO_PS2_MINUS },
-	{ 37, "^", "~",		PEVB_PICO_PS2_CARET },
-	{ 40, "Y", "|",		PEVB_PICO_PS2_YEN },
-	{ 43, "bs", "bs",	PEVB_PICO_PS2_BACKSPACE },
+	{  0, "esc", "esc",	PEVB_KBD_ESCAPE },
+	{  4, "1", "!",		PEVB_KBD_1 },
+	{  7, "2", "\"",	PEVB_KBD_2 },
+	{ 10, "3", "#",		PEVB_KBD_3 },
+	{ 13, "4", "$",		PEVB_KBD_4 },
+	{ 16, "5", "%",		PEVB_KBD_5 },
+	{ 19, "6", "&",		PEVB_KBD_6 },
+	{ 22, "7", "'",		PEVB_KBD_7 },
+	{ 25, "8", "(",		PEVB_KBD_8 },
+	{ 28, "9", ")",		PEVB_KBD_9 },
+	{ 31, "0", "0",		PEVB_KBD_0 },
+	{ 34, "-", "=",		PEVB_KBD_MINUS },
+	{ 37, "^", "~",		PEVB_KBD_CARET },
+	{ 40, "Y", "|",		PEVB_KBD_YEN },
+	{ 43, "bs", "bs",	PEVB_KBD_BACKSPACE },
 	{ 0 },
 };
 struct key pico_row2[] = {
-	{  5, "q", "Q",		PEVB_PICO_PS2_q },
-	{  8, "w", "W",		PEVB_PICO_PS2_w },
-	{ 11, "e", "E",		PEVB_PICO_PS2_e },
-	{ 14, "r", "R",		PEVB_PICO_PS2_r },
-	{ 17, "t", "T",		PEVB_PICO_PS2_t },
-	{ 20, "y", "Y",		PEVB_PICO_PS2_y },
-	{ 23, "u", "U",		PEVB_PICO_PS2_u },
-	{ 26, "i", "I",		PEVB_PICO_PS2_i },
-	{ 29, "o", "O",		PEVB_PICO_PS2_o },
-	{ 32, "p", "P",		PEVB_PICO_PS2_p },
-	{ 35, "@", "`",		PEVB_PICO_PS2_AT },
-	{ 38, "[", "{",		PEVB_PICO_PS2_LEFTBRACKET },
-	{ 43, "ins", "ins",	PEVB_PICO_PS2_INSERT },
+	{  5, "q", "Q",		PEVB_KBD_q },
+	{  8, "w", "W",		PEVB_KBD_w },
+	{ 11, "e", "E",		PEVB_KBD_e },
+	{ 14, "r", "R",		PEVB_KBD_r },
+	{ 17, "t", "T",		PEVB_KBD_t },
+	{ 20, "y", "Y",		PEVB_KBD_y },
+	{ 23, "u", "U",		PEVB_KBD_u },
+	{ 26, "i", "I",		PEVB_KBD_i },
+	{ 29, "o", "O",		PEVB_KBD_o },
+	{ 32, "p", "P",		PEVB_KBD_p },
+	{ 35, "@", "`",		PEVB_KBD_AT },
+	{ 38, "[", "{",		PEVB_KBD_LEFTBRACKET },
+	{ 43, "ins", "ins",	PEVB_KBD_INSERT },
 	{ 0 },
 };
 struct key pico_row3[] = {
-	{  0, "caps", "caps",	PEVB_PICO_PS2_CAPSLOCK },
-	{  6, "a", "A",		PEVB_PICO_PS2_a },
-	{  9, "s", "S",		PEVB_PICO_PS2_s },
-	{ 12, "d", "D",		PEVB_PICO_PS2_d },
-	{ 15, "f", "F",		PEVB_PICO_PS2_f },
-	{ 18, "g", "G",		PEVB_PICO_PS2_g },
-	{ 21, "h", "H",		PEVB_PICO_PS2_h },
-	{ 24, "j", "J",		PEVB_PICO_PS2_j },
-	{ 27, "k", "K",		PEVB_PICO_PS2_k },
-	{ 30, "l", "L",		PEVB_PICO_PS2_l },
-	{ 33, ";", "+",		PEVB_PICO_PS2_SEMICOLON },
-	{ 36, ":", "*",		PEVB_PICO_PS2_COLON },
-	{ 39, "]", "}",		PEVB_PICO_PS2_RIGHTBRACKET },
-	{ 43, "del", "del",	PEVB_PICO_PS2_DELETE },
+	{  0, "caps", "caps",	PEVB_KBD_CAPSLOCK },
+	{  6, "a", "A",		PEVB_KBD_a },
+	{  9, "s", "S",		PEVB_KBD_s },
+	{ 12, "d", "D",		PEVB_KBD_d },
+	{ 15, "f", "F",		PEVB_KBD_f },
+	{ 18, "g", "G",		PEVB_KBD_g },
+	{ 21, "h", "H",		PEVB_KBD_h },
+	{ 24, "j", "J",		PEVB_KBD_j },
+	{ 27, "k", "K",		PEVB_KBD_k },
+	{ 30, "l", "L",		PEVB_KBD_l },
+	{ 33, ";", "+",		PEVB_KBD_SEMICOLON },
+	{ 36, ":", "*",		PEVB_KBD_COLON },
+	{ 39, "]", "}",		PEVB_KBD_RIGHTBRACKET },
+	{ 43, "del", "del",	PEVB_KBD_DELETE },
 	{ 0 },
 };
 struct key pico_row4[] = {
-	{  0, "shift", "shift",	PEVB_PICO_PS2_LSHIFT },
-	{  7, "z", "Z",		PEVB_PICO_PS2_z },
-	{ 10, "x", "X",		PEVB_PICO_PS2_x },
-	{ 13, "c", "C",		PEVB_PICO_PS2_c },
-	{ 16, "v", "V",		PEVB_PICO_PS2_v },
-	{ 19, "b", "B",		PEVB_PICO_PS2_b },
-	{ 22, "n", "N",		PEVB_PICO_PS2_n },
-	{ 25, "m", "M",		PEVB_PICO_PS2_m },
-	{ 28, ",", "<",		PEVB_PICO_PS2_COMMA },
-	{ 31, ".", ">",		PEVB_PICO_PS2_PERIOD },
-	{ 34, "/", "?",		PEVB_PICO_PS2_SLASH },
-	{ 37, "_", "_",		PEVB_PICO_PS2_RO },
-	{ 41, "enter", "enter",	PEVB_PICO_PS2_RETURN },
+	{  0, "shift", "shift",	PEVB_KBD_SHIFT },
+	{  7, "z", "Z",		PEVB_KBD_z },
+	{ 10, "x", "X",		PEVB_KBD_x },
+	{ 13, "c", "C",		PEVB_KBD_c },
+	{ 16, "v", "V",		PEVB_KBD_v },
+	{ 19, "b", "B",		PEVB_KBD_b },
+	{ 22, "n", "N",		PEVB_KBD_n },
+	{ 25, "m", "M",		PEVB_KBD_m },
+	{ 28, ",", "<",		PEVB_KBD_COMMA },
+	{ 31, ".", ">",		PEVB_KBD_PERIOD },
+	{ 34, "/", "?",		PEVB_KBD_SLASH },
+	{ 37, "_", "_",		PEVB_KBD_RO },
+	{ 41, "enter", "enter",	PEVB_KBD_RETURN },
 	{ 0 },
 };
 struct key pico_row5[] = {
-	{  0, "muhenkan", "muhenkan",	PEVB_PICO_PS2_SOUND },
-	{ 13, "space", "space",		PEVB_PICO_PS2_SPACE },
-	{ 22, "henkan", "henkan",	PEVB_PICO_PS2_HOME },
-	{ 29, "kana", "kana",		PEVB_PICO_PS2_CJK },
-	{ 34, "romaji", "romaji",	PEVB_PICO_PS2_ROMAJI },
+	{  0, "muhenkan", "muhenkan",	PEVB_KBD_SOUND },
+	{ 13, "space", "space",		PEVB_KBD_SPACE },
+	{ 22, "henkan", "henkan",	PEVB_KBD_HOME },
+	{ 29, "kana", "kana",		PEVB_KBD_CJK },
+	{ 34, "romaji", "romaji",	PEVB_KBD_ROMAJI },
 	{ 0 },
 };
 
@@ -555,7 +555,7 @@ int key_config_kbd_loop(int id, int keys)
 	for (;;) {
 		key = &pico_kbd[keyy][keyx];
 		for (dev = 0; dev < IN_MAX_DEVS-1; dev++)
-			if ((binds = in_get_dev_ps2_binds(dev))) break;
+			if ((binds = in_get_dev_kbd_binds(dev))) break;
 		in_get_config(dev, IN_CFG_BIND_COUNT, &bc);
 		for (bc--; bc >= 0 && binds[bc] != key->key; bc--) ;
 
@@ -601,8 +601,8 @@ int key_config_kbd_loop(int id, int keys)
 			for (is_down = 1; is_down; )
 				kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
 
-			in_bind_ps2_key(bind_dev_id, bc, 0); /* ?? */
-			in_bind_ps2_key(bind_dev_id, kc, pico_kbd[keyy][keyx].key);
+			in_bind_kbd_key(bind_dev_id, bc, 0); /* ?? */
+			in_bind_kbd_key(bind_dev_id, kc, pico_kbd[keyy][keyx].key);
 		}
 	}
 

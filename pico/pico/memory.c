@@ -139,8 +139,8 @@ static u32 PicoRead8_pico_kb(u32 a)
 
   PicoPicohw.kb.has_read = 1;
 
-  u32 key_shift = (PicoIn.ps2 & 0xff00) >> 8;
-  u32 key = (PicoIn.ps2 & 0x00ff);
+  u32 key_shift = (PicoIn.kbd & 0xff00) >> 8;
+  u32 key = (PicoIn.kbd & 0x00ff);
 
   // The Shift key requires 2 key up events to be registered:
   // SHIFT_UP_HELD_DOWN to allow the game to register the key down event
@@ -148,14 +148,14 @@ static u32 PicoRead8_pico_kb(u32 a)
   // is no longer held down.
   //
   // For the second key up event, we need to
-  // override the parsed key code with PEVB_PICO_PS2_LSHIFT,
+  // override the parsed key code with PEVB_KBD_SHIFT,
   // otherwise it will be zero and the game won't clear its Shift key state.
   u32 key_code = (key_shift
       && !key
       && PicoPicohw.kb.key_state != KEY_UP
       && PicoPicohw.kb.shift_state != SHIFT_UP_HELD_DOWN)
     ? key_shift
-    : PicoPicohw.kb.shift_state == SHIFT_UP ? PEVB_PICO_PS2_LSHIFT : key;
+    : PicoPicohw.kb.shift_state == SHIFT_UP ? PEVB_KBD_SHIFT : key;
   u32 key_code_7654 = (key_code & 0xf0) >> 4;
   u32 key_code_3210 = (key_code & 0x0f);
   switch(PicoPicohw.kb.i) {
@@ -175,7 +175,7 @@ static u32 PicoRead8_pico_kb(u32 a)
       break;
     case 0x7: // cap/num/scr
       if (PicoPicohw.kb.active) {
-        if (key == PEVB_PICO_PS2_CAPSLOCK && PicoPicohw.kb.has_caps_lock == 1) {
+        if (key == PEVB_KBD_CAPSLOCK && PicoPicohw.kb.has_caps_lock == 1) {
           PicoPicohw.kb.caps_lock = PicoPicohw.kb.caps_lock == 4 ? 0 : 4;
           PicoPicohw.kb.has_caps_lock = 0;
         }
@@ -216,8 +216,8 @@ static u32 PicoRead8_pico_kb(u32 a)
           PicoPicohw.kb.time_keydown = get_ticks() - PicoPicohw.kb.start_time_keydown;
           if (PicoPicohw.kb.time_keydown > 350
                   // Modifier keys don't have typematic
-                  && key_code != PEVB_PICO_PS2_CAPSLOCK
-                  && key_code != PEVB_PICO_PS2_LSHIFT) {
+                  && key_code != PEVB_KBD_CAPSLOCK
+                  && key_code != PEVB_KBD_SHIFT) {
             d |= 8; // Send key down a.k.a. make
            if (PicoPicohw.kb.key_state == KEY_DOWN)
               elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: KEY DOWN\n");
