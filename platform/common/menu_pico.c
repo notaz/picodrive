@@ -420,108 +420,7 @@ static const char *mgn_dev_name(int id, int *offs)
 	return name;
 }
 
-struct key {
-	int xpos;
-	char *lower, *upper;
-	int key;
-};
-
-//pico
-struct key pico_row1[] = {
-	{  0, "esc", "esc",	PEVB_KBD_ESCAPE },
-	{  4, "1", "!",		PEVB_KBD_1 },
-	{  7, "2", "\"",	PEVB_KBD_2 },
-	{ 10, "3", "#",		PEVB_KBD_3 },
-	{ 13, "4", "$",		PEVB_KBD_4 },
-	{ 16, "5", "%",		PEVB_KBD_5 },
-	{ 19, "6", "&",		PEVB_KBD_6 },
-	{ 22, "7", "'",		PEVB_KBD_7 },
-	{ 25, "8", "(",		PEVB_KBD_8 },
-	{ 28, "9", ")",		PEVB_KBD_9 },
-	{ 31, "0", "0",		PEVB_KBD_0 },
-	{ 34, "-", "=",		PEVB_KBD_MINUS },
-	{ 37, "^", "~",		PEVB_KBD_CARET },
-	{ 40, "Y", "|",		PEVB_KBD_YEN },
-	{ 43, "bs", "bs",	PEVB_KBD_BACKSPACE },
-	{ 0 },
-};
-struct key pico_row2[] = {
-	{  5, "q", "Q",		PEVB_KBD_q },
-	{  8, "w", "W",		PEVB_KBD_w },
-	{ 11, "e", "E",		PEVB_KBD_e },
-	{ 14, "r", "R",		PEVB_KBD_r },
-	{ 17, "t", "T",		PEVB_KBD_t },
-	{ 20, "y", "Y",		PEVB_KBD_y },
-	{ 23, "u", "U",		PEVB_KBD_u },
-	{ 26, "i", "I",		PEVB_KBD_i },
-	{ 29, "o", "O",		PEVB_KBD_o },
-	{ 32, "p", "P",		PEVB_KBD_p },
-	{ 35, "@", "`",		PEVB_KBD_AT },
-	{ 38, "[", "{",		PEVB_KBD_LEFTBRACKET },
-	{ 43, "ins", "ins",	PEVB_KBD_INSERT },
-	{ 0 },
-};
-struct key pico_row3[] = {
-	{  0, "caps", "caps",	PEVB_KBD_CAPSLOCK },
-	{  6, "a", "A",		PEVB_KBD_a },
-	{  9, "s", "S",		PEVB_KBD_s },
-	{ 12, "d", "D",		PEVB_KBD_d },
-	{ 15, "f", "F",		PEVB_KBD_f },
-	{ 18, "g", "G",		PEVB_KBD_g },
-	{ 21, "h", "H",		PEVB_KBD_h },
-	{ 24, "j", "J",		PEVB_KBD_j },
-	{ 27, "k", "K",		PEVB_KBD_k },
-	{ 30, "l", "L",		PEVB_KBD_l },
-	{ 33, ";", "+",		PEVB_KBD_SEMICOLON },
-	{ 36, ":", "*",		PEVB_KBD_COLON },
-	{ 39, "]", "}",		PEVB_KBD_RIGHTBRACKET },
-	{ 43, "del", "del",	PEVB_KBD_DELETE },
-	{ 0 },
-};
-struct key pico_row4[] = {
-	{  0, "shift", "shift",	PEVB_KBD_SHIFT },
-	{  7, "z", "Z",		PEVB_KBD_z },
-	{ 10, "x", "X",		PEVB_KBD_x },
-	{ 13, "c", "C",		PEVB_KBD_c },
-	{ 16, "v", "V",		PEVB_KBD_v },
-	{ 19, "b", "B",		PEVB_KBD_b },
-	{ 22, "n", "N",		PEVB_KBD_n },
-	{ 25, "m", "M",		PEVB_KBD_m },
-	{ 28, ",", "<",		PEVB_KBD_COMMA },
-	{ 31, ".", ">",		PEVB_KBD_PERIOD },
-	{ 34, "/", "?",		PEVB_KBD_SLASH },
-	{ 37, "_", "_",		PEVB_KBD_RO },
-	{ 41, "enter", "enter",	PEVB_KBD_RETURN },
-	{ 0 },
-};
-struct key pico_row5[] = {
-	{  0, "muhenkan", "muhenkan",	PEVB_KBD_SOUND },
-	{ 13, "space", "space",		PEVB_KBD_SPACE },
-	{ 22, "henkan", "henkan",	PEVB_KBD_HOME },
-	{ 29, "kana", "kana",		PEVB_KBD_CJK },
-	{ 34, "romaji", "romaji",	PEVB_KBD_ROMAJI },
-	{ 0 },
-};
-
-struct key *pico_kbd[] = {
-	pico_row1, pico_row2, pico_row3, pico_row4, pico_row5, NULL
-};
-
-static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct key *hi)
-{
-	int i, j;
-	struct key *key;
-
-	for (i = 0; desc[i]; i++) {
-		// clear line?
-		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
-			int color = (key == hi ? PXMAKE(0xff, 0x00, 0x00) :
-						 PXMAKE(0xff, 0xff, 0xff));
-			char *text = (shift ? key->upper : key->lower);
-			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
-		}
-	}
-}
+#include "keyboard.c"
 
 static int find_xpos(struct key *keys, int xpos)
 {
@@ -538,31 +437,42 @@ static int find_xpos(struct key *keys, int xpos)
 
 int key_config_kbd_loop(int id, int keys)
 {
-	int keyx = 0, keyy = 0;
+	struct key **kbd = kbd_pico;
+	int keyx = 0, keyy = 0, shift = 0, toggle = 0;
+	char mok[20], ma2[20], r[20], l[20];
 	int inp;
 	int dev;
 
-	int w = 20 * me_mfont_w;
+	int w = 30 * me_mfont_w;
 	int x = g_menuscreen_w / 2 - w / 2;
 
 	struct key *key;
 	const int *binds;
 	int bc;
 
+	snprintf(mok, sizeof(mok), "%s", in_get_key_name(-1, -PBTN_MOK));
+	snprintf(ma2, sizeof(ma2), "%s", in_get_key_name(-1, -PBTN_MA2));
+	snprintf(r, sizeof(r), "%s", in_get_key_name(-1, -PBTN_R));
+	snprintf(l, sizeof(r), "%s", in_get_key_name(-1, -PBTN_L));
+	w = (strlen(mok)+strlen(ma2)) * me_mfont_w / 2;
+
+	for (dev = 0; dev < IN_MAX_DEVS-1; dev++)
+		if ((binds = in_get_dev_kbd_binds(dev))) break;
+
 	while (in_menu_wait_any(NULL, 50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU))
 		;
 
 	for (;;) {
-		key = &pico_kbd[keyy][keyx];
-		for (dev = 0; dev < IN_MAX_DEVS-1; dev++)
-			if ((binds = in_get_dev_kbd_binds(dev))) break;
+		key = &kbd[keyy][keyx];
 		in_get_config(dev, IN_CFG_BIND_COUNT, &bc);
 		for (bc--; bc >= 0 && binds[bc] != key->key; bc--) ;
 
 		menu_draw_begin(1, 0);
-		kbd_draw(pico_kbd, 0, (g_menuscreen_w - 320)/2, 4, key);
-		text_out16(x, g_menuscreen_h - 6 * me_mfont_h, "currently bound to %s", in_get_key_name(-1, bc));
-		text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "%s - bind, %s - clear", in_get_key_name(-1, -PBTN_MOK), in_get_key_name(-1, -PBTN_MA2));
+		text_out16(x, 2 * me_mfont_h, "-- %s Keyboard --", toggle ? "SC-3000" : "Pico");
+		kbd_draw(kbd, shift, (g_menuscreen_w - 320)/2, 4 * me_mfont_h, key);
+		text_out16(x - w, g_menuscreen_h - 7 * me_mfont_h, "currently bound to %s", in_get_key_name(-1, bc));
+		text_out16(x - w, g_menuscreen_h - 5 * me_mfont_h, "%s - bind, %s - clear", mok, ma2);
+		text_out16(x - w, g_menuscreen_h - 4 * me_mfont_h, "%s - toggle, %s - shift", r, l);
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
@@ -571,18 +481,26 @@ int key_config_kbd_loop(int id, int keys)
 			break;
 
 		if (inp & PBTN_UP) {
-			if (--keyy < 0) while (pico_kbd[keyy+1]) keyy++;
-			keyx = find_xpos(pico_kbd[keyy], key->xpos);
+			if (--keyy < 0) while (kbd[keyy+1]) keyy++;
+			keyx = find_xpos(kbd[keyy], key->xpos);
 		}
 		if (inp & PBTN_DOWN) {
-			if (pico_kbd[++keyy] == NULL) keyy = 0;	
-			keyx = find_xpos(pico_kbd[keyy], key->xpos);
+			if (kbd[++keyy] == NULL) keyy = 0;
+			keyx = find_xpos(kbd[keyy], key->xpos);
 		}
 		if (inp & PBTN_LEFT) {
-			if (--keyx < 0) while (pico_kbd[keyy][keyx+1].lower) keyx++;
+			if (--keyx < 0) while (kbd[keyy][keyx+1].lower) keyx++;
 		}
 		if (inp & PBTN_RIGHT) {
-			if (pico_kbd[keyy][++keyx].lower == NULL) keyx = 0;
+			if (kbd[keyy][++keyx].lower == NULL) keyx = 0;
+		}
+		if (inp & PBTN_L) {
+			shift = !shift;
+		}
+		if (inp & PBTN_R) {
+			toggle = !toggle;
+			kbd = (toggle ? kbd_sc3000 : kbd_pico);
+			keyx = find_xpos(kbd[keyy], key->xpos);
 		}
 
 		if (inp & PBTN_MOK) {
@@ -591,9 +509,10 @@ int key_config_kbd_loop(int id, int keys)
 			while (in_menu_wait_any(NULL, 30) & PBTN_MOK)
 				;
 
-			key = &pico_kbd[keyy][keyx];
+			key = &kbd[keyy][keyx];
 			menu_draw_begin(1, 0);
-			kbd_draw(pico_kbd, 0, (g_menuscreen_w - 320)/2, 4, key);
+			text_out16(x, 2 * me_mfont_h, "== %s Keyboard ==", toggle ? "SC-3000" : "Pico");
+			kbd_draw(kbd, shift, (g_menuscreen_w - 320)/2, 4 * me_mfont_h, key);
 			text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "Press a button to bind/unbind");
 			menu_draw_end();
 
@@ -602,7 +521,7 @@ int key_config_kbd_loop(int id, int keys)
 				kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
 
 			in_bind_kbd_key(bind_dev_id, bc, 0); /* ?? */
-			in_bind_kbd_key(bind_dev_id, kc, pico_kbd[keyy][keyx].key);
+			in_bind_kbd_key(bind_dev_id, kc, kbd[keyy][keyx].key);
 		}
 	}
 

@@ -52,7 +52,7 @@ static u32 PicoRead16_pico(u32 a)
                d |= (PicoIn.pad[0]&0x20) << 2; // pen push -> C
                d  = ~d;
                break;
-    case 0x04: d = (PicoPicohw.pen_pos[0] >> 8);  break; // what is MS bit for? Games read it..
+    case 0x04: d = (PicoPicohw.pen_pos[0] >> 8);  break;
     case 0x06: d =  PicoPicohw.pen_pos[0] & 0xff; break;
     case 0x08: d = (PicoPicohw.pen_pos[1] >> 8);  break;
     case 0x0a: d =  PicoPicohw.pen_pos[1] & 0xff; break;
