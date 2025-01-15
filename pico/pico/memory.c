@@ -155,7 +155,7 @@ static u32 PicoRead8_pico_kb(u32 a)
       && PicoPicohw.kb.key_state != KEY_UP
       && PicoPicohw.kb.shift_state != SHIFT_UP_HELD_DOWN)
     ? key_shift
-    : PicoPicohw.kb.shift_state == SHIFT_UP ? PEVB_KBD_SHIFT : key;
+    : PicoPicohw.kb.shift_state == SHIFT_UP ? PEVB_KBD_LSHIFT : key;
   u32 key_code_7654 = (key_code & 0xf0) >> 4;
   u32 key_code_3210 = (key_code & 0x0f);
   switch(PicoPicohw.kb.i) {
@@ -217,7 +217,7 @@ static u32 PicoRead8_pico_kb(u32 a)
           if (PicoPicohw.kb.time_keydown > 350
                   // Modifier keys don't have typematic
                   && key_code != PEVB_KBD_CAPSLOCK
-                  && key_code != PEVB_KBD_SHIFT) {
+                  && key_code != PEVB_KBD_LSHIFT) {
             d |= 8; // Send key down a.k.a. make
            if (PicoPicohw.kb.key_state == KEY_DOWN)
               elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: KEY DOWN\n");

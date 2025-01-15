@@ -30,7 +30,8 @@
 #define PEVB_PICO_STORY 19
 #define PEVB_PICO_PAD   18
 #define PEVB_PICO_PENST 17
-#define PEVB_RESET      16
+#define PEVB_SWITCH_KBD 16
+#define PEVB_RESET      15
 
 #define PEV_VOL_DOWN    (1 << PEVB_VOL_DOWN)
 #define PEV_VOL_UP      (1 << PEVB_VOL_UP)
@@ -46,9 +47,10 @@
 #define PEV_PICO_STORY  (1 << PEVB_PICO_STORY)
 #define PEV_PICO_PAD    (1 << PEVB_PICO_PAD)
 #define PEV_PICO_PENST  (1 << PEVB_PICO_PENST)
+#define PEV_SWITCH_KBD  (1 << PEVB_SWITCH_KBD)
 #define PEV_RESET       (1 << PEVB_RESET)
 
-#define PEV_MASK 0x7fff0000
+#define PEV_MASK 0x7fff8000
 
 /* Keyboard Pico */
 
@@ -112,7 +114,7 @@
 
 // Orange buttons on left
 #define PEVB_KBD_CAPSLOCK 0x58
-#define PEVB_KBD_SHIFT 0x12 // left shift
+#define PEVB_KBD_LSHIFT 0x12 // left shift
 
 // Green buttons on right
 #define PEVB_KBD_BACKSPACE 0x66
@@ -129,6 +131,7 @@
 #define PEVB_KBD_ROMAJI 0x17
 
 // Other buttons for SC-3000
+#define PEVB_KBD_RSHIFT 0x59 // right shift
 #define PEVB_KBD_CTRL 0x14
 #define PEVB_KBD_FUNC 0x11
 #define PEVB_KBD_UP 0x75

@@ -32,6 +32,7 @@ const struct in_default_bind _in_sdl_defbinds[] = {
 	{ SDLK_F8,     IN_BINDTYPE_EMU, PEVB_PICO_STORY },
 	{ SDLK_F9,     IN_BINDTYPE_EMU, PEVB_PICO_PAD },
 	{ SDLK_F10,    IN_BINDTYPE_EMU, PEVB_PICO_PENST },
+	{ SDLK_F12,    IN_BINDTYPE_EMU, PEVB_SWITCH_KBD },
 	{ SDLK_BACKSPACE, IN_BINDTYPE_EMU, PEVB_FF },
 
 	{ 0, 0, 0 }
@@ -103,7 +104,7 @@ const struct in_default_bind in_sdl_kbd_map[] = {
 	// NB caps lock generates only a pulse on most keyboards, even if the
 	// button is kept pressed. Using ctrl key for complete up/down handling.
 	{ SDLK_LCTRL, IN_BINDTYPE_KEYBOARD, PEVB_KBD_CAPSLOCK }, // Also switches english input
-	{ SDLK_LSHIFT, IN_BINDTYPE_KEYBOARD, PEVB_KBD_SHIFT },
+	{ SDLK_LSHIFT, IN_BINDTYPE_KEYBOARD, PEVB_KBD_LSHIFT },
 
 	// Green buttons on right
 	{ SDLK_BACKSPACE, IN_BINDTYPE_KEYBOARD, PEVB_KBD_BACKSPACE },

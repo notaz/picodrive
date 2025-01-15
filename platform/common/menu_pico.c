@@ -375,6 +375,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
 	{ "Pico Pen state ", PEV_PICO_PENST },
+	{ "Switch Keyboard", PEV_SWITCH_KBD },
 	{ NULL,                0 }
 };
 
@@ -443,8 +444,8 @@ int key_config_kbd_loop(int id, int keys)
 	int inp;
 	int dev;
 
-	int w = 30 * me_mfont_w;
-	int x = g_menuscreen_w / 2 - w / 2;
+	int w = 20 * me_mfont_w / 2;
+	int x = g_menuscreen_w / 2;
 
 	struct key *key;
 	const int *binds;
@@ -454,7 +455,6 @@ int key_config_kbd_loop(int id, int keys)
 	snprintf(ma2, sizeof(ma2), "%s", in_get_key_name(-1, -PBTN_MA2));
 	snprintf(r, sizeof(r), "%s", in_get_key_name(-1, -PBTN_R));
 	snprintf(l, sizeof(r), "%s", in_get_key_name(-1, -PBTN_L));
-	w = (strlen(mok)+strlen(ma2)) * me_mfont_w / 2;
 
 	for (dev = 0; dev < IN_MAX_DEVS-1; dev++)
 		if ((binds = in_get_dev_kbd_binds(dev))) break;
@@ -468,14 +468,16 @@ int key_config_kbd_loop(int id, int keys)
 		for (bc--; bc >= 0 && binds[bc] != key->key; bc--) ;
 
 		menu_draw_begin(1, 0);
-		text_out16(x, 2 * me_mfont_h, "-- %s Keyboard --", toggle ? "SC-3000" : "Pico");
+		text_out16(x - w, 2 * me_mfont_h, "Keyboard type: %s", toggle ? "SC-3000" : "Pico");
 		kbd_draw(kbd, shift, (g_menuscreen_w - 320)/2, 4 * me_mfont_h, key);
-		text_out16(x - w, g_menuscreen_h - 7 * me_mfont_h, "currently bound to %s", in_get_key_name(-1, bc));
-		text_out16(x - w, g_menuscreen_h - 5 * me_mfont_h, "%s - bind, %s - clear", mok, ma2);
-		text_out16(x - w, g_menuscreen_h - 4 * me_mfont_h, "%s - toggle, %s - shift", r, l);
+		text_out16(x - 2*w, g_menuscreen_h - 7 * me_mfont_h, "currently bound to %s",
+				bc >= 0 ? in_get_key_name(-1, bc) : "nothing");
+		if (!shift)
+			text_out16(x - 2*w, g_menuscreen_h - 5 * me_mfont_h, "%s - bind, %s - clear", mok, ma2);
+		text_out16(x - 2*w, g_menuscreen_h - 4 * me_mfont_h, "%s - swap type, %s - shift view", r, l);
 		menu_draw_end();
 
-		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MA2|
 			PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, NULL, 70);
 		if (inp & (PBTN_MENU|PBTN_MBACK))
 			break;
@@ -508,6 +510,7 @@ int key_config_kbd_loop(int id, int keys)
 
 			while (in_menu_wait_any(NULL, 30) & PBTN_MOK)
 				;
+			if (shift) continue;
 
 			key = &kbd[keyy][keyx];
 			menu_draw_begin(1, 0);
@@ -520,8 +523,11 @@ int key_config_kbd_loop(int id, int keys)
 			for (is_down = 1; is_down; )
 				kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
 
-			in_bind_kbd_key(bind_dev_id, bc, 0); /* ?? */
+			in_bind_kbd_key(dev, bc, -1);
 			in_bind_kbd_key(bind_dev_id, kc, kbd[keyy][keyx].key);
+		}
+		if (inp & PBTN_MA2) {
+			in_bind_kbd_key(dev, bc, -1);
 		}
 	}
 
@@ -1412,8 +1418,9 @@ static int main_menu_handler(int id, int keys)
 
 static const char *mgn_picopage(int id, int *offs)
 {
-	strcpy(static_buff, "   ");
-	sprintf(static_buff, "%i", PicoPicohw.page);
+	if (PicoPicohw.page != 7)
+		sprintf(static_buff, "%i", PicoPicohw.page);
+	else	sprintf(static_buff, "Test");
 	return static_buff;
 }
 
@@ -1421,8 +1428,8 @@ static int mh_picopage(int id, int keys)
 {
 	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
 		PicoPicohw.page += (keys & PBTN_LEFT) ? -1 : 1;
-		if (PicoPicohw.page < 0) PicoPicohw.page = 6;
-		else if (PicoPicohw.page > 6) PicoPicohw.page = 0;
+		if (PicoPicohw.page < 0) PicoPicohw.page = 7;
+		else if (PicoPicohw.page > 7) PicoPicohw.page = 0;
 		return 0;
 	}
 	return 1;

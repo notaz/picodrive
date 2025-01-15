@@ -60,7 +60,7 @@ static struct key kbd_pico_row3[] = {
 	{ 0 },
 };
 static struct key kbd_pico_row4[] = {
-	{  0, "shift", "shift",	PEVB_KBD_SHIFT },
+	{  0, "shift", "shift",	PEVB_KBD_LSHIFT },
 	{  7, "z", "Z",		PEVB_KBD_z },
 	{ 10, "x", "X",		PEVB_KBD_x },
 	{ 13, "c", "C",		PEVB_KBD_c },
@@ -76,9 +76,9 @@ static struct key kbd_pico_row4[] = {
 	{ 0 },
 };
 static struct key kbd_pico_row5[] = {
-	{  0, "muhenkan", "muhenkan",	PEVB_KBD_SOUND },
+	{  0, "muhenkan", "muhenkan",	PEVB_KBD_SOUND }, // Korean: sound
 	{ 13, "space", "space",		PEVB_KBD_SPACE },
-	{ 22, "henkan", "henkan",	PEVB_KBD_HOME },
+	{ 22, "henkan", "henkan",	PEVB_KBD_HOME }, // Korean: home
 	{ 29, "kana", "kana",		PEVB_KBD_CJK },
 	{ 34, "romaji", "romaji",	PEVB_KBD_ROMAJI },
 	{ 0 },
@@ -123,7 +123,7 @@ static struct key kbd_sc3000_row2[] = {
 	{ 0 },
 };
 static struct key kbd_sc3000_row3[] = {
-	{  0, "ctrl", "ctrl",	PEVB_KBD_CTRL },
+	{  0, "ctrl", "ctrl",	PEVB_KBD_CAPSLOCK },
 	{  6, "a", "A",		PEVB_KBD_a },
 	{  9, "s", "S",		PEVB_KBD_s },
 	{ 12, "d", "D",		PEVB_KBD_d },
@@ -142,7 +142,7 @@ static struct key kbd_sc3000_row3[] = {
 	{ 0 },
 };
 static struct key kbd_sc3000_row4[] = {
-	{  0, "shift", "shift",	PEVB_KBD_SHIFT },
+	{  0, "shift", "shift",	PEVB_KBD_LSHIFT },
 	{  7, "z", "Z",		PEVB_KBD_z },
 	{ 10, "x", "X",		PEVB_KBD_x },
 	{ 13, "c", "C",		PEVB_KBD_c },
@@ -154,7 +154,7 @@ static struct key kbd_sc3000_row4[] = {
 	{ 31, ".", ">",		PEVB_KBD_PERIOD },
 	{ 34, "/", "?",		PEVB_KBD_SLASH },
 	{ 37, "pi", "pi",	PEVB_KBD_RO },
-	{ 41, "shift", "shift",	PEVB_KBD_SHIFT },
+	{ 41, "shift", "shift",	PEVB_KBD_RSHIFT },
 	{ 50, "v", "v",		PEVB_KBD_DOWN },
 	{ 0 },
 };

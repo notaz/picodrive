@@ -59,6 +59,12 @@ int pico_inp_mode;
 int flip_after_sync;
 int engineState = PGS_Menu;
 
+static int kbd_mode;
+
+static int pico_page;
+static int pico_w, pico_h;
+static u16 *pico_overlay;
+
 static short __attribute__((aligned(4))) sndBuffer[2*54000/50];
 
 /* tmp buff to reduce stack usage for plats with small stack */
@@ -1049,10 +1055,6 @@ void emu_reset_game(void)
 	reset_timing = 1;
 }
 
-static int pico_page;
-static int pico_w, pico_h;
-static u16 *pico_overlay;
-
 static u16 *load_pico_overlay(int page, int w, int h)
 {
 	static const char *pic_exts[] = { "png", "PNG" };
@@ -1129,13 +1131,12 @@ void run_events_pico(unsigned int events)
 		PicoPicohw.page++;
 		if (PicoPicohw.page > 7)
 			PicoPicohw.page = 7;
-        if (PicoPicohw.page == 7) {
-            // Used in games that require the Keyboard Pico peripheral
-            emu_status_msg("Test Page");
-        }
-        else {
-            emu_status_msg("Page %i", PicoPicohw.page);
-        }
+		if (PicoPicohw.page == 7) {
+			// Used in games that require the Keyboard Pico peripheral
+			emu_status_msg("Test Page");
+		} else {
+			emu_status_msg("Page %i", PicoPicohw.page);
+		}
 	}
 	if (events & PEV_PICO_STORY) {
 		if (pico_inp_mode == 1) {
@@ -1148,9 +1149,6 @@ void run_events_pico(unsigned int events)
 	}
 	if (events & PEV_PICO_PAD) {
 		if (pico_inp_mode == 2) {
-			pico_inp_mode = (PicoIn.opt & POPT_EN_PICO_KBD ? 3 : 0);
-			emu_status_msg("Input: %s", pico_inp_mode ? "Keyboard" : "D-Pad");
-		} else if (pico_inp_mode == 3) {
 			pico_inp_mode = 0;
 			emu_status_msg("Input: D-Pad");
 		} else {
@@ -1164,16 +1162,15 @@ void run_events_pico(unsigned int events)
 		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
 	}
 
-	if (((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
-			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) ||
-	    (!(PicoIn.opt & POPT_EN_PICO_KBD) && pico_inp_mode == 3)) {
+	if ((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
+			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) {
 		pico_inp_mode = 0;
 		emu_status_msg("Input: D-Pad");
 	}
 
-	PicoPicohw.kb.active = pico_inp_mode == 3;
+	PicoPicohw.kb.active = (PicoIn.opt & POPT_EN_PICO_KBD ? kbd_mode : 0);
 
-	if (pico_inp_mode == 0 || pico_inp_mode == 3)
+	if (pico_inp_mode == 0)
 		return;
 
 	/* handle other input modes */
@@ -1266,10 +1263,6 @@ static void run_events_ui(unsigned int which)
 		}
 		plat_status_msg_busy_done();
 	}
-	if (which & PEV_SWITCH_RND)
-	{
-		plat_video_toggle_renderer(1, 0);
-	}
 	if (which & (PEV_SSLOT_PREV|PEV_SSLOT_NEXT))
 	{
 		if (which & PEV_SSLOT_PREV) {
@@ -1284,6 +1277,15 @@ static void run_events_ui(unsigned int which)
 
 		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
 			emu_check_save_file(state_slot, NULL) ? "USED" : "FREE");
+	}
+	if (which & PEV_SWITCH_RND)
+	{
+		plat_video_toggle_renderer(1, 0);
+	}
+	if (which & PEV_SWITCH_KBD)
+	{
+		kbd_mode = !kbd_mode;
+		emu_status_msg("Keyboard %s", kbd_mode ? "on" : "off");
 	}
 	if (which & PEV_RESET)
 		emu_reset_game();
@@ -1300,19 +1302,6 @@ void emu_update_input(void)
 	int events;
 
 	in_update(actions);
-	in_update_kbd(actions_kbd);
-	PicoIn.kbd = 0;
-	for (int i = 0; i < IN_BIND_LAST; i++) {
-		if (actions_kbd[i]) {
-			unsigned int action = actions_kbd[i];
-			unsigned int key = (action & 0xff);
-			if (key == PEVB_KBD_SHIFT || key == PEVB_KBD_CTRL || key == PEVB_KBD_FUNC) {
-				PicoIn.kbd = (PicoIn.kbd & 0x00ff) | (action << 8);
-			} else {
-				PicoIn.kbd = (PicoIn.kbd & 0xff00) | action;
-			}
-		}
-	}
 
 	pl_actions[0] = actions[IN_BINDTYPE_PLAYER12];
 	pl_actions[1] = actions[IN_BINDTYPE_PLAYER12] >> 16;
@@ -1321,20 +1310,23 @@ void emu_update_input(void)
 
 	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 
-	if (pico_inp_mode == 3) {
+	if (kbd_mode) {
+		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);
+		in_update_kbd(actions_kbd);
+
 		// FIXME: Only passthrough joystick input to avoid collisions
 		// with PS/2 bindings. Ideally we should check if the device this
 		// input originated from is the same as the device used for
 		// PS/2 input, and passthrough if they are different devices.
-		PicoIn.pad[0] = pl_actions[0] & 0xf;
-		PicoIn.pad[1] = pl_actions[1] & 0xf;
-		PicoIn.pad[2] = pl_actions[2] & 0xf;
-		PicoIn.pad[3] = pl_actions[3] & 0xf;
+		PicoIn.pad[0] = pl_actions[0] & mask;
+		PicoIn.pad[1] = pl_actions[1] & mask;
+		PicoIn.pad[2] = pl_actions[2] & mask;
+		PicoIn.pad[3] = pl_actions[3] & mask;
 
 		// Ignore events mapped to bindings that collide with PS/2 peripherals.
 		// Note that calls to emu_set_fastforward() should be avoided as well,
 		// since fast-forward activates even with parameter set_on = 0.
-		events &= ~PEV_MENU;
+		events &= PEV_SWITCH_KBD;
 	} else {
 		PicoIn.pad[0] = pl_actions[0] & 0xfff;
 		PicoIn.pad[1] = pl_actions[1] & 0xfff;
@@ -1363,7 +1355,22 @@ void emu_update_input(void)
 
 	events &= ~prev_events;
 
-	if (PicoIn.AHW == PAHW_PICO)
+	// update keyboard input, actions only updated if keyboard mode active
+	PicoIn.kbd = 0;
+	for (int i = 0; i < IN_BIND_LAST; i++) {
+		if (actions_kbd[i]) {
+			unsigned int action = actions_kbd[i];
+			unsigned int key = (action & 0xff);
+			if (key == PEVB_KBD_LSHIFT || key == PEVB_KBD_RSHIFT ||
+			    key == PEVB_KBD_CTRL || key == PEVB_KBD_FUNC) {
+				PicoIn.kbd = (PicoIn.kbd & 0x00ff) | (action << 8);
+			} else {
+				PicoIn.kbd = (PicoIn.kbd & 0xff00) | action;
+			}
+		}
+	}
+
+	if (PicoIn.AHW & PAHW_PICO)
 		run_events_pico(events);
 	if (events)
 		run_events_ui(events);

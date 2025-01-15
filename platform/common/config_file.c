@@ -68,6 +68,7 @@ static void keys_write(FILE *fn, int dev_id, const int *binds, const int *kbd_bi
 
 		name = in_get_key_name(dev_id, k);
 		if (strcmp(name, "#") == 0) name = "\\x23"; // replace comment sign
+		if (strcmp(name, "=") == 0) name = "\\x3d"; // replace assignment sign
 
 		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
 			mask = me_ctrl_actions[i].mask;
@@ -107,6 +108,7 @@ static void keys_write(FILE *fn, int dev_id, const int *binds, const int *kbd_bi
 	for (k = 0; k < key_count; k++) {
 		const char *name = in_get_key_name(dev_id, k);
 		if (strcmp(name, "#") == 0) name = "\\x23"; // replace comment sign
+		if (strcmp(name, "=") == 0) name = "\\x3d"; // replace assignment sign
 		if (kbd_binds[k])
 			fprintf(fn, "bind %s = key%02x" NL, name, kbd_binds[k]);
 	}

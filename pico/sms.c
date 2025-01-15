@@ -1,7 +1,7 @@
 /*
  * SMS emulation
  * (C) notaz, 2009-2010
- * (C) irixxxx, 2021-2024
+ * (C) irixxxx, 2021-2025
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -219,7 +219,8 @@ static unsigned char kbd_map[] = {
   [PEVB_KBD_SOUND]     = 0x96, // graph
   [PEVB_KBD_CAPSLOCK]  = 0xa6, // ctrl
   [PEVB_KBD_FUNC]      = 0xb5, // func
-  [PEVB_KBD_SHIFT]     = 0xb6, // shift
+  [PEVB_KBD_LSHIFT]    = 0xb6, // shift (both keys on the same column)
+  [PEVB_KBD_RSHIFT]    = 0xb6,
 };
 
 static void kbd_update(void)
@@ -390,7 +391,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
       case 0xc0:
         // SG-1000 has a 8255 chip, mapped to 0xdc-0xdf
         if ((PicoIn.AHW & PAHW_SC) && (a & 0x2))
-          Pico.ms.io_sg = d; // 0xc2 = kbd/pad select
+          Pico.ms.io_sg = d; // 0xc2 = kbd/pad matrix column select
     }
   }
 }
