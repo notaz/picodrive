@@ -1299,7 +1299,7 @@ void emu_update_input(void)
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
-	int events;
+	int events, i;
 
 	in_update(actions);
 
@@ -1357,7 +1357,7 @@ void emu_update_input(void)
 
 	// update keyboard input, actions only updated if keyboard mode active
 	PicoIn.kbd = 0;
-	for (int i = 0; i < IN_BIND_LAST; i++) {
+	for (i = 0; i < IN_BIND_LAST; i++) {
 		if (actions_kbd[i]) {
 			unsigned int action = actions_kbd[i];
 			unsigned int key = (action & 0xff);

@@ -152,10 +152,10 @@ static u32 PicoRead8_pico_kb(u32 a)
   // otherwise it will be zero and the game won't clear its Shift key state.
   u32 key_code = (key_shift
       && !key
-      && PicoPicohw.kb.key_state != KEY_UP
-      && PicoPicohw.kb.shift_state != SHIFT_UP_HELD_DOWN)
+      && PicoPicohw.kb.key_state != PKEY_UP
+      && PicoPicohw.kb.shift_state != PSHIFT_UP_HELD_DOWN)
     ? key_shift
-    : PicoPicohw.kb.shift_state == SHIFT_UP ? PEVB_KBD_LSHIFT : key;
+    : PicoPicohw.kb.shift_state == PSHIFT_UP ? PEVB_KBD_LSHIFT : key;
   u32 key_code_7654 = (key_code & 0xf0) >> 4;
   u32 key_code_3210 = (key_code & 0x0f);
   switch(PicoPicohw.kb.i) {
@@ -186,31 +186,31 @@ static u32 PicoRead8_pico_kb(u32 a)
       d = 6;
       if (PicoPicohw.kb.active) {
         if (key) {
-          PicoPicohw.kb.key_state = KEY_DOWN;
+          PicoPicohw.kb.key_state = PKEY_DOWN;
         }
         if (!key) {
-          PicoPicohw.kb.key_state = !PicoPicohw.kb.key_state ? 0 : (PicoPicohw.kb.key_state + 1) % (KEY_UP + 1);
+          PicoPicohw.kb.key_state = !PicoPicohw.kb.key_state ? 0 : (PicoPicohw.kb.key_state + 1) % (PKEY_UP + 1);
           PicoPicohw.kb.start_time_keydown = 0;
         }
         if (key_shift && !key) {
-          if (PicoPicohw.kb.shift_state < SHIFT_RELEASED_HELD_DOWN) {
+          if (PicoPicohw.kb.shift_state < PSHIFT_RELEASED_HELD_DOWN) {
             PicoPicohw.kb.shift_state++;
           }
           PicoPicohw.kb.start_time_keydown = 0;
         }
         if (!key_shift) {
-          PicoPicohw.kb.shift_state = !PicoPicohw.kb.shift_state ? 0 : (PicoPicohw.kb.shift_state + 1) % (SHIFT_UP + 1);
+          PicoPicohw.kb.shift_state = !PicoPicohw.kb.shift_state ? 0 : (PicoPicohw.kb.shift_state + 1) % (PSHIFT_UP + 1);
         }
 
-        if (PicoPicohw.kb.key_state == KEY_DOWN || PicoPicohw.kb.shift_state == SHIFT_DOWN) {
+        if (PicoPicohw.kb.key_state == PKEY_DOWN || PicoPicohw.kb.shift_state == PSHIFT_DOWN) {
           if (PicoPicohw.kb.start_time_keydown == 0) {
             d |= 8; // Send key down a.k.a. make
             PicoPicohw.kb.time_keydown = 0;
             PicoPicohw.kb.start_time_keydown = get_ticks();
-           if (PicoPicohw.kb.key_state == KEY_DOWN)
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: KEY DOWN\n");
+           if (PicoPicohw.kb.key_state == PKEY_DOWN)
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PKEY DOWN\n");
            else
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: SHIFT DOWN\n");
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PSHIFT DOWN\n");
           }
           // Simulate key repeat while held down a.k.a. typematic
           PicoPicohw.kb.time_keydown = get_ticks() - PicoPicohw.kb.start_time_keydown;
@@ -219,25 +219,25 @@ static u32 PicoRead8_pico_kb(u32 a)
                   && key_code != PEVB_KBD_CAPSLOCK
                   && key_code != PEVB_KBD_LSHIFT) {
             d |= 8; // Send key down a.k.a. make
-           if (PicoPicohw.kb.key_state == KEY_DOWN)
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: KEY DOWN\n");
+           if (PicoPicohw.kb.key_state == PKEY_DOWN)
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PKEY DOWN\n");
            else
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: SHIFT DOWN\n");
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PSHIFT DOWN\n");
           }
           // Must register key up while typematic not active (expected by Kibodeu Piko)
           if ((d & 8) == 0) {
             d |= 1; // Send key up a.k.a. break
           }
         }
-        if (PicoPicohw.kb.key_state == KEY_UP
-            || PicoPicohw.kb.shift_state == SHIFT_UP_HELD_DOWN
-            || PicoPicohw.kb.shift_state == SHIFT_UP) {
+        if (PicoPicohw.kb.key_state == PKEY_UP
+            || PicoPicohw.kb.shift_state == PSHIFT_UP_HELD_DOWN
+            || PicoPicohw.kb.shift_state == PSHIFT_UP) {
           d |= 1; // Send key up a.k.a. break
           PicoPicohw.kb.start_time_keydown = 0;
-           if (PicoPicohw.kb.key_state == KEY_UP)
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: KEY UP\n");
+           if (PicoPicohw.kb.key_state == PKEY_UP)
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PKEY UP\n");
            else
-              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: SHIFT UP\n");
+              elprintf(EL_PICOHW, "PicoPicohw.kb.key_state: PSHIFT UP\n");
         }
       }
       break;

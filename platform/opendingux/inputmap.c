@@ -95,6 +95,11 @@ const char * _in_sdl_key_names[SDLK_LAST] = {
 };
 const char * const *in_sdl_key_names = _in_sdl_key_names;
 
+const struct in_default_bind in_sdl_kbd_map[] = {
+	// Opendingux devices usually don't have a keyboard.
+	{ 0, 0, 0 }
+};
+
 
 static void nameset(int x1, const char *name)
 {

@@ -271,6 +271,6 @@ void in_ps2_init(struct in_default_bind *defbinds)
 	in_ps2_keys[lg2(PAD_CROSS)] = "Cross";
 	in_ps2_keys[lg2(PAD_SQUARE)] = "Square";
 
-	in_register_driver(&in_ps2_drv, defbinds, NULL);
+	in_register_driver(&in_ps2_drv, defbinds, NULL, NULL);
 }
 

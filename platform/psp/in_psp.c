@@ -229,6 +229,6 @@ void in_psp_init(struct in_default_bind *defbinds)
 	in_psp_keys[lg2(PSP_NUB_DOWN)] = "Analog down";
 	in_psp_keys[lg2(PSP_NUB_RIGHT)] = "Analog right";
 
-	in_register_driver(&in_psp_drv, defbinds, NULL);
+	in_register_driver(&in_psp_drv, defbinds, NULL, NULL);
 }
 
