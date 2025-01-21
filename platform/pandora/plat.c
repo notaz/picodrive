@@ -20,6 +20,7 @@
 #include "../common/emu.h"
 #include "../common/arm_utils.h"
 #include "../common/input_pico.h"
+#include "../common/keyboard.h"
 #include "../common/version.h"
 #include "../libpicofe/input.h"
 #include "../libpicofe/menu.h"
@@ -180,6 +181,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	}
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
+	// draw virtual keyboard on display
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
+		vkbd_draw(vkbd);
 }
 
 void plat_video_flip(void)
@@ -189,6 +193,11 @@ void plat_video_flip(void)
 
 	// XXX: drain OS event queue here, maybe we'll actually use it someday..
 	xenv_update(NULL, NULL, NULL, NULL);
+}
+
+void plat_video_clear_buffers(void)
+{
+	vout_fbdev_clear(layer_fb);
 }
 
 // pnd doesn't use multiple renderers, but we have to handle this since it's

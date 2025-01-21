@@ -26,6 +26,7 @@
 #include "asm_utils.h"
 #include "../common/emu.h"
 #include "../common/input_pico.h"
+#include "../common/keyboard.h"
 #include "platform/libpicofe/input.h"
 #include "platform/libpicofe/menu.h"
 #include "platform/libpicofe/plat.h"
@@ -713,6 +714,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			draw_pico_ptr();
 	}
 
+	// draw virtual keyboard on display
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
+		vkbd_draw(vkbd);
+
 	osd_buf_cnt = 0;
 	if (notice)
 		osd_text(4, notice);
@@ -832,6 +837,12 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	if (!no_scale)
 		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
 	emu_cmn_forced_frame(no_scale, do_emu, g_screen_ptr);
+}
+
+/* clear all video buffers to remove remnants in borders */
+void plat_video_clear_buffers(void)
+{
+	// not needed since output buffer is cleared in flip anyway
 }
 
 /* change the platform output rendering */

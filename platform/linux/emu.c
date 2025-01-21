@@ -18,6 +18,7 @@
 #include "../common/emu.h"
 #include "../common/arm_utils.h"
 #include "../common/upscale.h"
+#include "../common/keyboard.h"
 #include "../common/version.h"
 
 #include <pico/pico_int.h>
@@ -226,6 +227,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		if (pico_inp_mode /*== 2 || overlay*/)
 			draw_pico_ptr();
 	}
+
+	// draw virtual keyboard on display
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
+		vkbd_draw(vkbd);
 
 	if (notice)
 		emu_osd_text16(4, g_screen_height - 8, notice);

@@ -132,7 +132,7 @@ static void PicoWrite16_pico(u32 a, u32 d)
 static u32 PicoRead8_pico_kb(u32 a)
 {
   u32 d = 0;
-  if (!(PicoIn.opt & POPT_EN_PICO_KBD)) {
+  if (!(PicoIn.opt & POPT_EN_KBD)) {
     elprintf(EL_PICOHW, "kb: r @%06X %04X = %04X\n", SekPc, a, d);
     return d;
   }

@@ -23,6 +23,7 @@
 #include "../libpicofe/readpng.h"
 #include "../libpicofe/plat.h"
 #include "emu.h"
+#include "keyboard.h"
 #include "input_pico.h"
 #include "menu_pico.h"
 #include "config_file.h"
@@ -59,7 +60,8 @@ int pico_inp_mode;
 int flip_after_sync;
 int engineState = PGS_Menu;
 
-static int kbd_mode;
+int kbd_mode;
+struct vkbd *vkbd;
 
 static int pico_page;
 static int pico_w, pico_h;
@@ -1168,7 +1170,7 @@ void run_events_pico(unsigned int events)
 		emu_status_msg("Input: D-Pad");
 	}
 
-	PicoPicohw.kb.active = (PicoIn.opt & POPT_EN_PICO_KBD ? kbd_mode : 0);
+	PicoPicohw.kb.active = (PicoIn.opt & POPT_EN_KBD ? kbd_mode : 0);
 
 	if (pico_inp_mode == 0)
 		return;
@@ -1284,8 +1286,15 @@ static void run_events_ui(unsigned int which)
 	}
 	if (which & PEV_SWITCH_KBD)
 	{
-		kbd_mode = !kbd_mode;
-		emu_status_msg("Keyboard %s", kbd_mode ? "on" : "off");
+		if (! (PicoIn.opt & POPT_EN_KBD)) {
+			kbd_mode = 0;
+			emu_status_msg("Keyboard not enabled");
+		} else {
+			kbd_mode = !kbd_mode;
+			emu_status_msg("Keyboard %s", kbd_mode ? "on" : "off");
+		}
+		if (! kbd_mode)
+			plat_video_clear_buffers();
 	}
 	if (which & PEV_RESET)
 		emu_reset_game();
@@ -1299,6 +1308,7 @@ void emu_update_input(void)
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
+	int count_kbd = 0;
 	int events, i;
 
 	in_update(actions);
@@ -1312,7 +1322,10 @@ void emu_update_input(void)
 
 	if (kbd_mode) {
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);
-		in_update_kbd(actions_kbd);
+		if (currentConfig.keyboard == 0)
+			count_kbd = in_update_kbd(actions_kbd);
+		else if (currentConfig.keyboard == 1)
+			count_kbd = vkbd_update(vkbd, pl_actions[0], actions_kbd);
 
 		// FIXME: Only passthrough joystick input to avoid collisions
 		// with PS/2 bindings. Ideally we should check if the device this
@@ -1357,15 +1370,14 @@ void emu_update_input(void)
 
 	// update keyboard input, actions only updated if keyboard mode active
 	PicoIn.kbd = 0;
-	for (i = 0; i < IN_BIND_LAST; i++) {
+	for (i = 0; i < count_kbd; i++) {
 		if (actions_kbd[i]) {
-			unsigned int action = actions_kbd[i];
-			unsigned int key = (action & 0xff);
+			unsigned int key = (actions_kbd[i] & 0xff);
 			if (key == PEVB_KBD_LSHIFT || key == PEVB_KBD_RSHIFT ||
 			    key == PEVB_KBD_CTRL || key == PEVB_KBD_FUNC) {
-				PicoIn.kbd = (PicoIn.kbd & 0x00ff) | (action << 8);
+				PicoIn.kbd = (PicoIn.kbd & 0x00ff) | (key << 8);
 			} else {
-				PicoIn.kbd = (PicoIn.kbd & 0xff00) | action;
+				PicoIn.kbd = (PicoIn.kbd & 0xff00) | key;
 			}
 		}
 	}
@@ -1533,6 +1545,15 @@ static void emu_loop_prep(void)
 	}
 
 	plat_target_gamma_set(currentConfig.gamma, 0);
+
+	vkbd = NULL;
+	if (currentConfig.keyboard == 1) {
+		if (PicoIn.AHW & PAHW_SMS) vkbd = &vkbd_sc3000;
+		else if (PicoIn.AHW & PAHW_PICO) vkbd = &vkbd_pico;
+	}
+	PicoIn.opt &= ~POPT_EN_KBD;
+	if ((currentConfig.EmuOpt & EOPT_PICO_KBD) || (PicoIn.AHW & PAHW_SMS))
+		PicoIn.opt |= POPT_EN_KBD;
 
 	pemu_loop_prep();
 }

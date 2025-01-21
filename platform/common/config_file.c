@@ -364,6 +364,12 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			currentConfig.max_skip = atoi(val);
 			return 1;
 
+		case MA_CTRL_KEYBOARD:
+			currentConfig.keyboard = 0;
+			if (strcasecmp(val, "virtual") == 0)
+				currentConfig.keyboard = 1;
+			return 1;
+
 		/* PSP */
 		case MA_OPT3_VSYNC:
 			// XXX: use enum

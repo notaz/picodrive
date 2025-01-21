@@ -13,6 +13,7 @@
 #include "emu.h"
 #include "menu_pico.h"
 #include "input_pico.h"
+#include "keyboard.h"
 #include "version.h"
 
 #include "../libpicofe/plat.h"
@@ -421,19 +422,19 @@ static const char *mgn_dev_name(int id, int *offs)
 	return name;
 }
 
-#include "keyboard.c"
-
-static int find_xpos(struct key *keys, int xpos)
+static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct key *hi)
 {
-	int i;
+	int i, j;
+	struct key *key;
 
-	for (i = 0; keys[i].lower && keys[i].xpos < xpos; i++)
-		;
-
-	if (i == 0)			return i;
-	else if (keys[i].lower == NULL)	return i-1;
-	else if (keys[i].xpos - xpos < xpos - keys[i-1].xpos) return i;
-	else				return i-1;
+	for (i = 0; desc[i]; i++) {
+		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
+			int color = (key != hi ? PXMAKE(0xa0, 0xa0, 0xa0) :
+						 PXMAKE(0xff, 0xff, 0xff));
+			char *text = (shift ? key->upper : key->lower);
+			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
+		}
+	}
 }
 
 int key_config_kbd_loop(int id, int keys)
@@ -484,11 +485,11 @@ int key_config_kbd_loop(int id, int keys)
 
 		if (inp & PBTN_UP) {
 			if (--keyy < 0) while (kbd[keyy+1]) keyy++;
-			keyx = find_xpos(kbd[keyy], key->xpos);
+			keyx = vkbd_find_xpos(kbd[keyy], key->xpos);
 		}
 		if (inp & PBTN_DOWN) {
 			if (kbd[++keyy] == NULL) keyy = 0;
-			keyx = find_xpos(kbd[keyy], key->xpos);
+			keyx = vkbd_find_xpos(kbd[keyy], key->xpos);
 		}
 		if (inp & PBTN_LEFT) {
 			if (--keyx < 0) while (kbd[keyy][keyx+1].lower) keyx++;
@@ -502,7 +503,7 @@ int key_config_kbd_loop(int id, int keys)
 		if (inp & PBTN_R) {
 			toggle = !toggle;
 			kbd = (toggle ? kbd_sc3000 : kbd_pico);
-			keyx = find_xpos(kbd[keyy], key->xpos);
+			keyx = vkbd_find_xpos(kbd[keyy], key->xpos);
 		}
 
 		if (inp & PBTN_MOK) {
@@ -538,17 +539,69 @@ int key_config_kbd_loop(int id, int keys)
 const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
 const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
 
+static char h_play12[55];
+static char h_kbd[55];
 static char h_play34[] = "Works only for Mega Drive/CD/32X games having\n"
 				"support for Team player, 4 way play, or J-cart";
 
+static char player[] = "Player 1";
+
+static const char *mgn_nothing(int id, int *offs)
+{
+	return "";
+}
+
+static int key_config_players(int id, int keys)
+{
+	int pid = player[strlen(player)-1] - '0';
+
+	if (keys & PBTN_LEFT)
+		if (--pid < 1) pid = 4;
+	if (keys & PBTN_RIGHT)
+		if (++pid > 4) pid = 1;
+
+	player[strlen(player)-1] = pid + '0';
+	e_menu_keyconfig[0].help = (pid >= 3 ? h_play34 : h_play12);
+
+	if (keys & PBTN_MOK)
+		key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, pid-1);
+
+	return 0;
+}
+
+static const char *mgn_keyboard(int id, int *offs)
+{
+	static char *kbds[] = { "physical", "virtual" };
+	if (currentConfig.keyboard < 0 || currentConfig.keyboard > 1)
+		return kbds[0];
+	return kbds[currentConfig.keyboard];
+}
+
+static int key_config_keyboard(int id, int keys)
+{
+	int kid = currentConfig.keyboard;
+
+	if (keys & PBTN_LEFT)
+		if (--kid < 0) kid = 1;
+	if (keys & PBTN_RIGHT)
+		if (++kid > 1) kid = 0;
+
+	currentConfig.keyboard = kid;
+
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 0 ? h_kbd : NULL);
+
+	if (keys & PBTN_MOK)
+		if (currentConfig.keyboard == 1)
+			key_config_kbd_loop(MA_CTRL_KEYBOARD, 0);
+
+	return 0;
+}
+
 static menu_entry e_menu_keyconfig[] =
 {
-	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
-	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
-	mee_handler_id_h("Player 3",        MA_CTRL_PLAYER3,    key_config_loop_wrap, h_play34),
-	mee_handler_id_h("Player 4",        MA_CTRL_PLAYER4,    key_config_loop_wrap, h_play34),
+	mee_cust_nosave(player,             MA_CTRL_PLAYER1,    key_config_players, mgn_nothing),
 	mee_handler_id("Emulator hotkeys",  MA_CTRL_EMU,        key_config_loop_wrap),
-	mee_handler_id("Keyboard mapping",  MA_CTRL_KEYBOARD,   key_config_kbd_loop),
+	mee_cust_h    ("Keyboard",          MA_CTRL_KEYBOARD,   key_config_keyboard, mgn_keyboard, h_kbd),
 	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev0_names),
 	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev1_names),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
@@ -574,6 +627,16 @@ static int menu_loop_keyconfig(int id, int keys)
 		it++;
 	for (it += x; x && e_menu_keyconfig[x].name; x++)
 		e_menu_keyconfig[x].enabled = x < it;
+
+	char l[20], r[20];
+	snprintf(l,sizeof(l),"%s", in_get_key_name(-1, -PBTN_LEFT));
+	snprintf(r,sizeof(r),"%s", in_get_key_name(-1, -PBTN_RIGHT));
+	snprintf(h_play12, sizeof(h_play12), "%s/%s - select, %s - configure", l, r, in_get_key_name(-1, -PBTN_MOK));
+	snprintf(h_kbd, sizeof(h_kbd), "%s - configure", in_get_key_name(-1, -PBTN_MOK));
+
+	player[strlen(player)-1] = '1';
+	e_menu_keyconfig[0].help = h_play12;
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 0 ? h_kbd : NULL);
 
 	me_loop_d(e_menu_keyconfig, &sel, menu_draw_prep, NULL);
 
@@ -601,7 +664,7 @@ static menu_entry e_menu_md_options[] =
 	mee_onoff_h   ("FM filter",                 MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
 	mee_onoff_h   ("FM DAC noise",              MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
 	mee_onoff_h   ("Pen button shows screen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN, h_picopen),
-	mee_onoff     ("Pico Keyboard",             MA_OPT_PICO_KBD, PicoIn.opt, POPT_EN_PICO_KBD),
+	mee_onoff     ("Pico keyboard",             MA_OPT_PICO_KBD, currentConfig.EmuOpt, EOPT_PICO_KBD),
 	mee_end,
 };
 
@@ -1686,7 +1749,7 @@ void menu_init(void)
 		plat_target.hwfilters != NULL);
 
 	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA,
-                plat_target.gamma_set != NULL);
+		plat_target.gamma_set != NULL);
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
 	e_menu_options[i].enabled = 0;

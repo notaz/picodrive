@@ -23,6 +23,7 @@
 #include "../libpicofe/menu.h"
 #include "../common/input_pico.h"
 #include "../common/emu.h"
+#include "../common/keyboard.h"
 
 #include <pico/pico_int.h>
 
@@ -820,6 +821,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			draw_pico_ptr();
 	}
 
+	// draw virtual keyboard on display
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
+		vkbd_draw(vkbd);
+
 	osd_buf_cnt = 0;
 	if (notice)      osd_text(4, notice);
 	if (emu_opt & 2) osd_text(OSD_FPS_X, fps);
@@ -829,6 +834,12 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		cd_leds();
 
 	FlushCache(WRITEBACK_DCACHE);
+}
+
+/* clear all video buffers to remove remnants in borders */
+void plat_video_clear_buffers(void)
+{
+	// not needed since output buffer is cleared in flip anyway
 }
 
 /* display a completed frame buffer and prepare a new render buffer */

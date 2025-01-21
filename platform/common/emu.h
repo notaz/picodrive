@@ -35,6 +35,7 @@ extern int g_screen_ppitch; // pitch in pixels
 #define EOPT_WIZ_TEAR_FIX (1<<19)
 #define EOPT_EXT_FRMLIMIT (1<<20) // no internal frame limiter (limited by snd, etc)
 #define EOPT_PICO_PEN     (1<<21)
+#define EOPT_PICO_KBD     (1<<22)
 
 enum {
 	EOPT_SCALE_NONE = 0,
@@ -93,6 +94,7 @@ typedef struct _currentConfig_t {
 	int filter;  // EOPT_FILTER_* video filter
 	int ghosting;
 	int analog_deadzone;
+	int keyboard;
 	int msh2_khz;
 	int ssh2_khz;
 	int overclock_68k;
@@ -106,6 +108,8 @@ extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
 extern int reset_timing;
 extern int flip_after_sync;
+extern int kbd_mode;
+extern struct vkbd *vkbd;
 
 #define PICO_PEN_ADJUST_X 1
 #define PICO_PEN_ADJUST_Y 1

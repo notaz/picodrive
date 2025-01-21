@@ -24,6 +24,7 @@
 #include "../common/menu_pico.h"
 #include "../common/arm_utils.h"
 #include "../common/emu.h"
+#include "../common/keyboard.h"
 #include "../common/config_file.h"
 #include "../common/version.h"
 #include "plat.h"
@@ -449,6 +450,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		if (pico_inp_mode /*== 2 || overlay*/)
 			draw_pico_ptr();
 	}
+	// draw virtual keyboard on display
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
+		vkbd_draw(vkbd);
 }
 
 void plat_video_flip(void)
@@ -689,6 +693,14 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	gp2x_video_RGB_setscaling(ln_offs, scalex, scaley);
 
 	// clear whole screen in all buffers
+	if (!is_16bit_mode())
+		gp2x_memset_all_buffers(0, 0xe0, 320*240);
+	else
+		gp2x_memset_all_buffers(0, 0, 320*240*2);
+}
+
+void plat_video_clear_buffers(void)
+{
 	if (!is_16bit_mode())
 		gp2x_memset_all_buffers(0, 0xe0, 320*240);
 	else
