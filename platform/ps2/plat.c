@@ -115,64 +115,27 @@ int plat_is_dir(const char *path)
 /* current time in ms */
 unsigned int plat_get_ticks_ms(void)
 {
-	struct timeval tv;
-	unsigned int ret;
-
-	gettimeofday(&tv, NULL);
-
-	ret = (unsigned)tv.tv_sec * 1000;
-	/* approximate /= 1000 */
-	ret += ((unsigned)tv.tv_usec * 4194) >> 22;
-
-	return ret;
+	return clock() / 1000;
 }
 
 /* current time in us */
 unsigned int plat_get_ticks_us(void)
 {
-	struct timeval tv;
-	unsigned int ret;
-
-	gettimeofday(&tv, NULL);
-
-	ret = (unsigned)tv.tv_sec * 1000000;
-	ret += (unsigned)tv.tv_usec;
-
-	return ret;
-}
-
-/* Unfortunately the SetTimerAlarm function in ps2sdk has a bug which makes it
- * waiting much too long in some cases. For now, replaced by SetAlarm and a
- * polling loop with RotateThreadReadyQueue for yielding to other threads.
- */
-
-static void alarm_cb(int id, unsigned short time, void *arg)
-{
-	iWakeupThread((s32)arg);
+	return clock();
 }
 
 /* sleep for some time in us */
 void plat_wait_till_us(unsigned int us_to)
 {
-	// TODO hsync depends on NTSC/PAL (15750/15625 Hz), it however doesn't
-	// matter if it falls a bit short, the while loop will catch the rest
-	int hsyncs = (us_to - plat_get_ticks_us()) * 15620 / 1000000;
-
-	if (hsyncs > 0 && SetAlarm(hsyncs, alarm_cb, (void *)GetThreadId()) >= 0)
-		SleepThread();
-	while ((int)(us_to - plat_get_ticks_us()) > 0)
-		RotateThreadReadyQueue(0);
-
-//	unsigned int ticks = plat_get_ticks_us();
-//	if ((int)(us_to - ticks) > 0)
-//		usleep(us_to - ticks);
+	unsigned int ticks = clock();
+	if (us_to > ticks)
+		usleep(us_to - ticks);
 }
 
 /* sleep for some time in ms */
 void plat_sleep_ms(int ms)
 {
-	plat_wait_till_us(plat_get_ticks_us() + ms*1000);
-//	usleep(ms * 1000);
+	usleep(ms * 1000);
 }
 
 /* wait until some event occurs, or timeout */
