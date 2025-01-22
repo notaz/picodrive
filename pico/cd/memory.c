@@ -482,10 +482,6 @@ void s68k_reg_write8(u32 a, u32 d)
       u32 d_old = Pico_mcd->s68k_regs[0x37];
       Pico_mcd->s68k_regs[0x37] = d & 7;
       if ((d ^ d_old) & 4) {
-        // ??
-	if (d & 4)
-          pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
-
         if ((d & 4) && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4)) {
           elprintf(EL_INTS, "cdd export irq 4");
           pcd_irq_s68k(4, 1);
