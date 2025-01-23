@@ -1011,9 +1011,11 @@ static bool disk_set_image_index(unsigned int index)
             disks[index].fname);
 
    ret = -1;
-   cd_type = PicoCdCheck(disks[index].fname, NULL);
-   if (cd_type >= 0 && cd_type != CT_UNKNOWN)
-      ret = cdd_load(disks[index].fname, cd_type);
+   if (PicoIn.AHW & PAHW_MCD) {
+     cd_type = PicoCdCheck(disks[index].fname, NULL);
+     if (cd_type >= 0 && cd_type != CT_UNKNOWN)
+        ret = cdd_load(disks[index].fname, cd_type);
+   }
    if (ret != 0) {
       if (log_cb)
          log_cb(RETRO_LOG_ERROR, "Load failed, invalid CD image?\n");
