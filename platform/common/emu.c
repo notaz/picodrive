@@ -868,9 +868,9 @@ char *emu_get_save_fname(int load, int is_sram, int slot, int *time)
 
 	if (is_sram)
 	{
-		strcpy(ext, (PicoIn.AHW & PAHW_MCD) ? ".brm" : ".srm");
+		strcpy(ext, (PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 ? ".brm" : ".srm");
 		romfname_ext(saveFname, sizeof(static_buff),
-			(PicoIn.AHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
+			(PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
 		if (!load)
 			return saveFname;
 
@@ -944,7 +944,7 @@ int emu_save_load_game(int load, int sram)
 		int sram_size;
 		unsigned char *sram_data;
 		int truncate = 1;
-		if (PicoIn.AHW & PAHW_MCD)
+		if ((PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0)
 		{
 			if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
 				sram_size = 0x12000;
@@ -971,7 +971,7 @@ int emu_save_load_game(int load, int sram)
 			ret = fread(sram_data, 1, sram_size, sramFile);
 			ret = ret > 0 ? 0 : -1;
 			fclose(sramFile);
-			if ((PicoIn.AHW & PAHW_MCD) && (PicoIn.opt&POPT_EN_MCD_RAMCART))
+			if ((PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 && (PicoIn.opt&POPT_EN_MCD_RAMCART))
 				memcpy(Pico_mcd->bram, sram_data, 0x2000);
 		} else {
 			// sram save needs some special processing

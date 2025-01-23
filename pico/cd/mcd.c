@@ -106,15 +106,17 @@ PICO_INTERNAL int PicoResetMCD(void)
   // reset button doesn't affect MCD hardware
 
   // use Pico.sv.data for RAM cart
-  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
-    if (Pico.sv.data == NULL)
-      Pico.sv.data = calloc(1, 0x12000);
+  if (Pico.romsize == 0) {
+    if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+      if (Pico.sv.data == NULL)
+        Pico.sv.data = calloc(1, 0x12000);
+    }
+    else if (Pico.sv.data != NULL) {
+      free(Pico.sv.data);
+      Pico.sv.data = NULL;
+    }
+    Pico.sv.start = Pico.sv.end = 0; // unused
   }
-  else if (Pico.sv.data != NULL) {
-    free(Pico.sv.data);
-    Pico.sv.data = NULL;
-  }
-  Pico.sv.start = Pico.sv.end = 0; // unused
 
   msd_reset();
   return 0;
