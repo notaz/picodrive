@@ -1288,7 +1288,7 @@ static void run_events_ui(unsigned int which)
 	{
 		if (! (PicoIn.opt & POPT_EN_KBD)) {
 			kbd_mode = 0;
-			emu_status_msg("Keyboard not enabled");
+			emu_status_msg("No keyboard");
 		} else {
 			kbd_mode = !kbd_mode;
 			emu_status_msg("Keyboard %s", kbd_mode ? "on" : "off");
@@ -1322,9 +1322,9 @@ void emu_update_input(void)
 
 	if (kbd_mode) {
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);
-		if (currentConfig.keyboard == 0)
+		if (currentConfig.keyboard == 1)
 			count_kbd = in_update_kbd(actions_kbd);
-		else if (currentConfig.keyboard == 1)
+		else if (currentConfig.keyboard == 2)
 			count_kbd = vkbd_update(vkbd, pl_actions[0], actions_kbd);
 
 		// FIXME: Only passthrough joystick input to avoid collisions
@@ -1547,12 +1547,12 @@ static void emu_loop_prep(void)
 	plat_target_gamma_set(currentConfig.gamma, 0);
 
 	vkbd = NULL;
-	if (currentConfig.keyboard == 1) {
+	if (currentConfig.keyboard == 2) {
 		if (PicoIn.AHW & PAHW_SMS) vkbd = &vkbd_sc3000;
 		else if (PicoIn.AHW & PAHW_PICO) vkbd = &vkbd_pico;
 	}
 	PicoIn.opt &= ~POPT_EN_KBD;
-	if ((currentConfig.EmuOpt & EOPT_PICO_KBD) || (PicoIn.AHW & PAHW_SMS))
+	if (((PicoIn.AHW & PAHW_PICO) || (PicoIn.AHW & PAHW_SC)) && currentConfig.keyboard)
 		PicoIn.opt |= POPT_EN_KBD;
 
 	pemu_loop_prep();

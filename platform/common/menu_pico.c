@@ -571,8 +571,8 @@ static int key_config_players(int id, int keys)
 
 static const char *mgn_keyboard(int id, int *offs)
 {
-	static char *kbds[] = { "physical", "virtual" };
-	if (currentConfig.keyboard < 0 || currentConfig.keyboard > 1)
+	static char *kbds[] = { "OFF", "physical", "virtual" };
+	if (currentConfig.keyboard < 0 || currentConfig.keyboard > 2)
 		return kbds[0];
 	return kbds[currentConfig.keyboard];
 }
@@ -582,13 +582,13 @@ static int key_config_keyboard(int id, int keys)
 	int kid = currentConfig.keyboard;
 
 	if (keys & PBTN_LEFT)
-		if (--kid < 0) kid = 1;
+		if (--kid < 0) kid = 2;
 	if (keys & PBTN_RIGHT)
-		if (++kid > 1) kid = 0;
+		if (++kid > 2) kid = 0;
 
 	currentConfig.keyboard = kid;
 
-	e_menu_keyconfig[2].help = (currentConfig.keyboard == 0 ? h_kbd : NULL);
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 1 ? h_kbd : NULL);
 
 	if (keys & PBTN_MOK)
 		if (currentConfig.keyboard == 1)
@@ -636,7 +636,7 @@ static int menu_loop_keyconfig(int id, int keys)
 
 	player[strlen(player)-1] = '1';
 	e_menu_keyconfig[0].help = h_play12;
-	e_menu_keyconfig[2].help = (currentConfig.keyboard == 0 ? h_kbd : NULL);
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 1 ? h_kbd : NULL);
 
 	me_loop_d(e_menu_keyconfig, &sel, menu_draw_prep, NULL);
 
@@ -664,7 +664,6 @@ static menu_entry e_menu_md_options[] =
 	mee_onoff_h   ("FM filter",                 MA_OPT_FM_FILTER, PicoIn.opt, POPT_EN_FM_FILTER, h_fmfilter),
 	mee_onoff_h   ("FM DAC noise",              MA_OPT2_ENABLE_YM_DAC, PicoIn.opt, POPT_EN_FM_DAC, h_dacnoise),
 	mee_onoff_h   ("Pen button shows screen",   MA_OPT_PICO_PEN, currentConfig.EmuOpt, EOPT_PICO_PEN, h_picopen),
-	mee_onoff     ("Pico keyboard",             MA_OPT_PICO_KBD, currentConfig.EmuOpt, EOPT_PICO_KBD),
 	mee_end,
 };
 
