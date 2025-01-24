@@ -366,8 +366,10 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 
 		case MA_CTRL_KEYBOARD:
 			currentConfig.keyboard = 0;
-			if (strcasecmp(val, "virtual") == 0)
+			if (strcasecmp(val, "physical") == 0)
 				currentConfig.keyboard = 1;
+			else if (strcasecmp(val, "virtual") == 0)
+				currentConfig.keyboard = 2;
 			return 1;
 
 		/* PSP */
