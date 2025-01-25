@@ -24,6 +24,11 @@ jobs:
         submodules: true
     - name: make
       run: LDFLAGS=-Wl,--no-undefined make -j$(getconf _NPROCESSORS_ONLN) -f Makefile.libretro
+    - name: artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Libretro-linux
+        path: picodrive_libretro.so
 
   build-win32:
     runs-on: ubuntu-latest
