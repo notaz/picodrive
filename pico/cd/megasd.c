@@ -192,20 +192,20 @@ void msd_reset(void)
 static u32 msd_read16(u32 a)
 {
   u16 d = 0;
+  u16 a16 = a;
 
-  a = (u16)a;
-  if (a >= 0x0f800) {
+  if (a16 >= 0x0f800) {
     d = Pico_msd.data[(a&0x7ff)>>1];
-  } else if (a >= 0xf7f6) {
-    switch (a&0xe) {
+  } else if (a16 >= 0xf7f6) {
+    switch (a16&0xe) {
       case 0x6: d = 0x5241; break; // RA
       case 0x8: d = 0x5445; break; // TE
       case 0xa: d = 0xcd54; break;
       case 0xc: d = Pico_msd.result; break;
       case 0xe: d = Pico_msd.command; break;
     }
-  } else if (Pico.romsize > 0x30000)
-    d = *(u16 *)(Pico.rom + 0x30000 + a);
+  } else if (Pico.romsize > a)
+    d = *(u16 *)(Pico.rom + a);
 
   return d;
 }
@@ -236,6 +236,9 @@ void msd_write16(u32 a, u32 d)
     } else if (Pico.romsize > base) {
       cpu68k_map_set(m68k_read8_map,  base, 0x03ffff, Pico.rom+base, 0);
       cpu68k_map_set(m68k_read16_map, base, 0x03ffff, Pico.rom+base, 0);
+      base += 0x800000; // mirror
+      cpu68k_map_set(m68k_read8_map,  base, 0x0bffff, Pico.rom+base, 0);
+      cpu68k_map_set(m68k_read16_map, base, 0x0bffff, Pico.rom+base, 0);
     }
   } else if (a == 0xf7fe) {
     // command port

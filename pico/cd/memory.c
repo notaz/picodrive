@@ -674,7 +674,7 @@ static u32 PicoReadM68k8_ramc(u32 a)
 {
   u32 d = 0;
 
-  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+  if (Pico.romsize == 0 && (PicoIn.opt & POPT_EN_MCD_RAMCART)) {
     if ((a & 0xf00001) == 0x400001) {
       if (Pico.sv.data != NULL)
         d = 3; // 64k cart
@@ -703,7 +703,7 @@ static u32 PicoReadM68k16_ramc(u32 a)
 
 static void PicoWriteM68k8_ramc(u32 a, u32 d)
 {
-  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
+  if (Pico.romsize == 0 && (PicoIn.opt & POPT_EN_MCD_RAMCART)) {
     if ((a & 0xf00001) == 0x600001) {
       if (Pico.sv.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
         Pico.sv.data[((a >> 1) & 0xffff) + 0x2000] = d;

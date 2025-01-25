@@ -188,6 +188,7 @@ void cdd_play_audio(int index, int lba)
   for (i = index; i >= 0; i--)
     if (cdd.toc.tracks[i].fd != NULL)
       break;
+  if (! is_audio(i)) return;
 
   Pico_mcd->cdda_stream = cdd.toc.tracks[i].fd;
   base = cdd.toc.tracks[index].offset;
