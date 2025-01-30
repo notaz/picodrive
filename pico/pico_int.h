@@ -1018,6 +1018,9 @@ void PicoMemSetupMS(void);
 void PicoStateLoadedMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
+int PicoPlayTape(const char *fname);
+int PicoRecordTape(const char *fname);
+void PicoCloseTape(void);
 #else
 #define PicoPowerMS()
 #define PicoResetMS()
@@ -1025,6 +1028,9 @@ void PicoFrameDrawOnlyMS(void);
 #define PicoStateLoadedMS()
 #define PicoFrameMS()
 #define PicoFrameDrawOnlyMS()
+#define PicoPlayTape(f) 1
+#define PicoRecordTape(f) 1
+#define PicoCloseTape()
 #endif
 
 // 32x/32x.c

@@ -139,6 +139,7 @@ void  emu_loop(void);
 
 int   emu_reload_rom(const char *rom_fname_in);
 int   emu_swap_cd(const char *fname);
+int   emu_play_tape(const char *fname);
 int   emu_save_load_game(int load, int sram);
 void  emu_reset_game(void);
 

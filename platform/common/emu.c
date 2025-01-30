@@ -604,6 +604,18 @@ int emu_swap_cd(const char *fname)
 	return 1;
 }
 
+int emu_play_tape(const char *fname)
+{
+	int ret;
+
+	ret = PicoPlayTape(fname);
+	if (ret != 0) {
+		menu_update_msg("loading tape failed");
+		return 0;
+	}
+	return 1;
+}
+
 // <base dir><end>
 void emu_make_path(char *buff, const char *end, int size)
 {
@@ -1288,7 +1300,7 @@ static void run_events_ui(unsigned int which)
 	{
 		if (! (PicoIn.opt & POPT_EN_KBD)) {
 			kbd_mode = 0;
-			emu_status_msg("No keyboard");
+			emu_status_msg("No keyboard configured");
 		} else {
 			kbd_mode = !kbd_mode;
 			emu_status_msg("Keyboard %s", kbd_mode ? "on" : "off");

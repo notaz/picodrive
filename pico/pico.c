@@ -54,6 +54,7 @@ void PicoExit(void)
     PicoExitMCD();
   z80_exit();
   PsndExit();
+  PicoCloseTape();
 
   free(Pico.sv.data);
   Pico.sv.data = NULL;

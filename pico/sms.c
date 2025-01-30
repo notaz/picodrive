@@ -17,6 +17,9 @@
 #include "sound/sn76496.h"
 #include "sound/emu2413/emu2413.h"
 
+#include <platform/common/input_pico.h> // for keyboard handling
+
+
 extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
@@ -132,8 +135,6 @@ static u8 vdp_hcounter(int cycles)
   return hc;
 }
 
-#include <platform/common/input_pico.h>
-
 // keyboard matrix:
 // port A @0xdc:
 // row 0: 1  2  3  4  5  6  7
@@ -229,15 +230,150 @@ static void kbd_update(void)
   u32 sft = (PicoIn.kbd & 0xff00) >> 8;
 
   memset(kbd_matrix, 0, sizeof(kbd_matrix));
-  if (/*PicoPicohw.kb.active &&*/ sft) {
+  if (sft) {
     int rc = kbd_map[sft];
     kbd_matrix[rc>>4] = (1 << (rc&0x7));
   }
-  if (/*PicoPicohw.kb.active &&*/ key) {
+  if (key) {
     int rc = kbd_map[key];
     kbd_matrix[rc>>4] = (1 << (rc&0x7));
   }
 }
+
+// tape handling
+
+static struct tape {
+  FILE *ftape;
+  int fsize;            // size of sample in bytes
+  int mode;             // "w", "r"
+
+  int cycle;            // latest polling cycle
+  int pause;            // pause tape playing
+  int poll_cycles;      // for auto play/pause detection
+  int poll_count;
+
+  int phase;            // start cycle of current sample
+  int cycles_sample;    // cycles per sample
+  u32 cycles_mult;      // Q32, inverse of cycles per sample
+
+  int isbit;            // is bitstream format?
+  u8 bitsample;         // bitstream sample
+  s16 wavsample;        // wave file sample
+} tape;
+
+static u8 tape_update(int cycle)
+{
+  struct tape *pt = &tape;
+  u8 ret = 0;
+  int phase = cycle - pt->phase;
+  int count = ((u64)phase * pt->cycles_mult) >> 32;
+  int cycles = cycle - pt->cycle;
+
+  if (cycles < 0 || pt->ftape == NULL || pt->mode != 'r') return 0;
+  pt->cycle = cycle;
+
+  // auto play/pause detection:
+  pt->poll_cycles += cycles;
+  if (pt->pause) {
+    // if in pause and poll cycles are short for 1/4s, play
+    if (cycles < OSC_NTSC/15/1000) {
+      if (pt->poll_cycles > OSC_NTSC/15/4) {
+        pt->pause = pt->poll_cycles = pt->poll_count = 0;
+      }
+    } else {
+      // long poll cycles reset the logic
+      pt->poll_cycles = 0;
+    }
+  } else {
+    // if in play and poll cycles are long for 1/4s, pause
+    if (cycles >= OSC_NTSC/15/1000) {
+      if (pt->poll_cycles > OSC_NTSC/15/4) {
+        pt->pause = 1; pt->poll_cycles = 0;
+      }
+      pt->poll_count = 0;
+    } else if (++pt->poll_count > 10) {
+      // >10 short poll cycles reset the logic. This is to cover for software
+      // polling the keyboard matrix, which is partly on PB too.
+      pt->poll_cycles = pt->poll_count = 0;
+    }
+  }
+
+  if (pt->pause) {
+    pt->phase = cycle;
+    return 0;
+  }
+
+  // skip samples if necessary
+  if (count > 1) {
+    fseek(pt->ftape, (count-1) * pt->fsize, SEEK_CUR);
+    pt->phase += (count-1) * pt->cycles_sample;
+  }
+
+  // read a new sample from file if needed
+  if (count) {
+    if (pt->isbit)
+      fread(&pt->bitsample, 1, sizeof(u8), pt->ftape);
+    else {
+      // read sample only from 1st channel
+      fread(&pt->wavsample, 1, sizeof(u16), pt->ftape);
+      if (pt->fsize > sizeof(u16)) // skip other channels
+        fseek(pt->ftape, pt->fsize - sizeof(u16), SEEK_CUR);
+#if ! CPU_IS_LE
+      pt->wavsample = (u8)(pt->wavsample >> 8) | (pt->wavsample << 8);
+#endif
+    }
+    // catch EOF and reading errors
+    if (feof(pt->ftape) || ferror(pt->ftape)) {
+      fclose(pt->ftape);
+      pt->ftape = NULL;
+    }
+    pt->phase += pt->cycles_sample;
+  }
+
+  // compute result from sample
+  if (pt->isbit) {
+    phase = cycle - pt->phase; // recompute as phase might have changed above.
+    if (pt->bitsample == '0') ret = phase >= pt->cycles_sample*1/2;
+    if (pt->bitsample == '1') ret = phase >= pt->cycles_sample*3/4 ||
+                (phase >= pt->cycles_sample*1/4 && phase < pt->cycles_sample*2/4);
+  } else
+    ret = pt->wavsample >= 0x0800; // 1/16th of the max volume
+
+  return ret;
+}
+
+static void tape_write(int cycle, int data)
+{
+  struct tape *pt = &tape;
+  int cycles = cycle - pt->cycle; // cycles since last write
+  int samples;
+
+  if (cycles < 0 || pt->ftape == NULL || pt->mode != 'w') return;
+  pt->cycle = cycle;
+  pt->poll_cycles += cycles;
+
+  // write samples to file. Stop if the sample doesn't change for more than 2s
+  if (pt->wavsample && pt->poll_cycles <= OSC_NTSC/15*2) {
+    samples = ((u64)cycles * pt->cycles_mult) >> 32;
+    while (samples-- > 0 && !ferror(pt->ftape))
+      fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+    if (ferror(pt->ftape)) {
+      fclose(pt->ftape);
+      pt->ftape = NULL;
+    }
+  }
+
+  // current sample value in little endian, for writing next time
+  if (data != -1) {
+    pt->wavsample = (data ? 0x7ff8 : 0x8008);
+#if ! CPU_IS_LE
+    pt->wavsample = (u8)(pt->wavsample >> 8) | (pt->wavsample << 8);
+#endif
+    pt->poll_cycles = 0;
+  }
+}
+
+// NB: SC-3000 has a 8255 chip, mapped to 0xdc-0xdf. Not fully emulated.
 
 static unsigned char z80_sms_in(unsigned short a)
 {
@@ -296,6 +432,7 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0xc0: /* I/O port A and B */
+        // For SC-3000: 8255 port A, assume always configured for input
         if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7) {
           d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
           if (!(Pico.ms.io_ctl & 0x01)) // TR as output
@@ -309,6 +446,7 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0xc1: /* I/O port B and miscellaneous */
+        // For SC-3000: 8255 port B, assume always configured for input
         if (! (PicoIn.AHW & PAHW_SC) || (Pico.ms.io_sg & 7) == 7) {
           d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
           d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
@@ -321,6 +459,14 @@ static unsigned char z80_sms_in(unsigned short a)
           kbd_update();
           for (i = 11; i >= 8; i--)
             d = (d<<1) | !(kbd_matrix[i] & (1<<(Pico.ms.io_sg&7)));
+          // bit 5 = printer fault
+          // bit 6 = printer busy
+          d &= ~0x60; // set so that BASIC thinks printer is connected
+        }
+        if (PicoIn.AHW & PAHW_SC) {
+          // bit 7 = tape input
+          d &= ~0x80;
+          d |= tape_update(z80_cyclesDone()) ? 0x80 : 0;
         }
         break;
     }
@@ -389,9 +535,40 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         break;
 
       case 0xc0:
-        // SG-1000 has a 8255 chip, mapped to 0xdc-0xdf
-        if ((PicoIn.AHW & PAHW_SC) && (a & 0x2))
+        if ((PicoIn.AHW & PAHW_SC) && (a & 0x2)) {
+          // For SC-3000: 8255 port C, assume always configured for output
           Pico.ms.io_sg = d; // 0xc2 = kbd/pad matrix column select
+          // bit 4 = tape output
+          // bit 5 = printer data
+          // bit 6 = printer reset
+          // bit 7 = printer feed
+        }
+        break;
+      case 0xc1:
+        if ((PicoIn.AHW & PAHW_SC) && (a & 0x2) && !(d & 0x80)) {
+          // For SC-3000: 8255 control port. BSR mode used for printer and tape.
+          // debug hack to copy printer data to stdout.
+          // Printer data is sent at about 4 KBaud, 10 bits per character:
+          // start=0, 8 data bits (LSB first), stop=1. data line is inverted.
+          // no Baud tracking needed as all bits are sent through here.
+          static int chr, bit;
+          if (d>>1 == 4) { // tape out
+            tape_write(z80_cyclesDone(), d&1);
+          } else if (d>>1 == 5) { // !data
+            if (!bit) {
+              if (d&1) // start bit
+                bit = 8;
+            } else {
+              chr = (chr>>1) | (d&1 ? 0 : 0x80);
+              if (!--bit) {
+                printf("%c",chr);
+                if (chr == 0xd) printf("\n");
+              }
+            }
+          } else if (d>>1 == 6 && !(d&1)) // !reset
+            bit = 0;
+        }
+        break;
     }
   }
 }
@@ -646,6 +823,7 @@ static void write_bank_x32k(unsigned short a, unsigned char d)
   a &= 0xc000;
   Pico.ms.carthw[0] = a >> 12;
   // NB this deactivates internal RAM and all mapper detection
+  memcpy(PicoMem.vram+0x4000+(0x8000-0x2000)/2, PicoMem.zram, 0x2000);
   z80_map_set(z80_read_map,  a, a+0x7fff, PicoMem.vram+0x4000, 0);
   z80_map_set(z80_write_map, a, a+0x7fff, PicoMem.vram+0x4000, 0);
 }
@@ -824,6 +1002,7 @@ void PicoResetMS(void)
 
   z80_reset();
   PsndReset(); // pal must be known here
+  PicoCloseTape();
 
   Pico.ms.io_ctl = (PicoIn.AHW & (PAHW_SG|PAHW_SC)) ? 0xf5 : 0xff;
   Pico.ms.fm_ctl = 0xff;
@@ -891,9 +1070,13 @@ void PicoMemSetupMS(void)
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
   z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1); // mapper detection
 
+  // SC-3000 has 2KB, but no harm in mapping the 32KB for BASIC here
+  if ((PicoIn.AHW & PAHW_SC) && mapper == PMS_MAP_AUTO)
+    mapper = PMS_MAP_32KBRAM;
   // Nemesis mapper maps last 8KB rom bank #15 to adress 0
   if (mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
     z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.rom + 0x1e000, 0);
+
 #ifdef _USE_DRZ80
   drZ80.z80_in = z80_sms_in;
   drZ80.z80_out = z80_sms_out;
@@ -932,6 +1115,8 @@ void PicoMemSetupMS(void)
     xwrite(0xfffd, 0);
     xwrite(0xfffe, 1);
     xwrite(0xffff, 2);
+  } else if (mapper == PMS_MAP_32KBRAM) {
+    xwrite(0x8000, 0);
   } else if (mapper == PMS_MAP_AUTO) {
     // pre-initialize Sega mapper to linear mapping (else state load may fail)
     Pico.ms.carthw[0xe] = 0x1;
@@ -997,7 +1182,7 @@ void PicoFrameMS(void)
 
   // for SMS the pause button generates an NMI, for GG ths is not the case
   nmi = (PicoIn.pad[0] >> 7) & 1;
-  if (!(PicoIn.AHW & PAHW_GG) && !Pico.ms.nmi_state && nmi)
+  if ((PicoIn.AHW & PAHW_8BIT) == PAHW_SMS && !Pico.ms.nmi_state && nmi)
     z80_nmi();
   Pico.ms.nmi_state = nmi;
 
@@ -1069,6 +1254,12 @@ void PicoFrameMS(void)
     z80_exec(Pico.t.z80c_line_start + cycles_line);
   }
 
+  // end of frame updates
+  tape_update(Pico.t.z80c_aim);
+  tape_write(Pico.t.z80c_aim, -1);
+  tape.cycle -= Pico.t.z80c_aim;
+  tape.phase -= Pico.t.z80c_aim;
+
   z80_resetCycles();
   PsndGetSamplesMS(lines);
 }
@@ -1089,4 +1280,100 @@ void PicoFrameDrawOnlyMS(void)
   }
 }
 
+// open tape file for reading (WAV and bitstream files)
+int PicoPlayTape(const char *fname)
+{
+  struct tape *pt = &tape;
+  const char *ext = strrchr(fname, '.');
+  int rate;
+
+  if (pt->ftape) PicoCloseTape();
+  pt->ftape = fopen(fname, "rb");
+  if (pt->ftape == NULL) return 1;
+  pt->mode = 'r';
+
+  pt->isbit = ext && ! memcmp(ext, ".bit", 4);
+  if (! pt->isbit) {
+    u8 hdr[44];
+    int chans;
+    fread(hdr, 1, sizeof(hdr), pt->ftape);
+    // TODO add checks for WAV header...
+    chans = hdr[22] | (hdr[23]<<8);
+    rate  = hdr[24] | (hdr[25]<<8) | (hdr[26]<<16) | (hdr[27]<<24);
+    pt->wavsample = 0;
+    pt->fsize = chans*sizeof(s16);
+  } else {
+    rate = 1200;
+    pt->bitsample = ' ';
+    pt->fsize = 1;
+  }
+
+  pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / rate;
+  pt->cycles_mult = (1LL<<32) / pt->cycles_sample;
+  pt->cycle = Pico.t.z80c_aim;
+  pt->phase = Pico.t.z80c_aim;
+  pt->pause = 0;
+  return 0;
+}
+
+// open tape file for writing, and write WAV hdr (44KHz, mono, 16 bit samples)
+int PicoRecordTape(const char *fname)
+{
+  struct tape *pt = &tape;
+  int i;
+
+  // WAV header "riffraff" for PCM 44KHz mono, 16 bit samples.
+  u8 hdr[44] = { // file and data size updated on file close
+    'R','I','F','F', 0,0,0,0, 'W','A','V','E',  // "RIFF", file size, "WAVE"
+    // "fmt ", hdr size, type, chans, rate, bytes/sec, bytes/sample, bits/sample
+    'f','m','t',' ', 16,0,0,0, 1,0, 1,0, 68,172,0,0, 136,88,1,0, 2,0, 16,0,
+    'd','a','t','a', 0,0,0,0 };                 // "data", data size
+
+  if (pt->ftape) PicoCloseTape();
+  pt->ftape = fopen(fname, "wb");
+  if (pt->ftape == NULL) return 1;
+  pt->mode = 'w';
+
+  pt->isbit = 0;
+  pt->wavsample = 0; // Marker for "don't write yet"
+  pt->fsize = sizeof(s16);
+
+  fwrite(hdr, 1, sizeof(hdr), pt->ftape);
+  for (i = 0; i < 44100; i++)
+    fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+
+  pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / 44100;
+  pt->cycles_mult = (1LL<<32) / pt->cycles_sample;
+  pt->cycle = Pico.t.z80c_aim;
+  pt->phase = Pico.t.z80c_aim;
+  pt->pause = 0;
+  return 0;
+}
+
+void PicoCloseTape(void)
+{
+  struct tape *pt = &tape;
+
+  // if recording, write last data, and update length in header
+  if (pt->mode == 'w') {
+    int i, le;
+    for (i = 0; i < 44100; i++)
+      fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+    le = i = ftell(pt->ftape);
+#if ! CPU_IS_LE
+    le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
+#endif
+    fseek(pt->ftape, 4, SEEK_SET);
+    fwrite(&le, 1, 4, pt->ftape);
+    le = i-44;
+#if ! CPU_IS_LE
+    le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
+#endif
+    fseek(pt->ftape, 40, SEEK_SET);
+    fwrite(&le, 1, 4, pt->ftape);
+  }
+
+  if (pt->ftape) fclose(pt->ftape);
+  pt->ftape = NULL;
+}
 // vim:ts=2:sw=2:expandtab
