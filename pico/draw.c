@@ -59,8 +59,8 @@ static u16 DefOutBuff[320*2] ALIGNED(4);
 void *DrawLineDestBase = DefOutBuff;
 int DrawLineDestIncrement;
 
-static u32 HighCacheA[41*2+1]; // caches for high layers
-static u32 HighCacheB[41*2+1];
+static u32 HighCacheA[42*2+1]; // caches for high layers
+static u32 HighCacheB[42*2+1];
 static s32 HighPreSpr[128*2*2]; // slightly preprocessed sprites (2 banks a 128)
 static int HighPreSprBank;
 
