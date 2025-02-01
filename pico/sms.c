@@ -353,23 +353,45 @@ static void tape_write(int cycle, int data)
   pt->poll_cycles += cycles;
 
   // write samples to file. Stop if the sample doesn't change for more than 2s
-  if (pt->wavsample && pt->poll_cycles <= OSC_NTSC/15*2) {
-    samples = ((u64)cycles * pt->cycles_mult) >> 32;
-    while (samples-- > 0 && !ferror(pt->ftape))
-      fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
-    if (ferror(pt->ftape)) {
-      fclose(pt->ftape);
-      pt->ftape = NULL;
+  if (pt->isbit) {
+    pt->poll_count += (data >= 0);
+    if (data >= 0 && pt->poll_cycles >= pt->cycles_sample*15/16) {
+      // determine bit, either 2400Hz, or 1200Hz, or bust
+      switch (pt->poll_count) {
+        case 4: pt->bitsample = '1';    break; // 2*2400Hz
+        case 2: pt->bitsample = '0';    break; // 1*1200Hz
+        default: pt->bitsample = ' ';   break; // ignore everything else
+      }
+
+      if (pt->poll_cycles < OSC_NTSC/15*2) {
+        samples = ((u64)pt->poll_cycles * pt->cycles_mult + 0x80000000LL) >> 32;
+        while (samples-- > 0 && !ferror(pt->ftape))
+          fwrite(&pt->bitsample, 1, sizeof(u8), pt->ftape);
+      }
+
+      pt->poll_count = pt->poll_cycles = 0;
+    }
+  } else {
+    if (pt->wavsample && pt->poll_cycles < OSC_NTSC/15*2) {
+      samples = ((u64)cycles * pt->cycles_mult) >> 32;
+      while (samples-- > 0 && !ferror(pt->ftape))
+        fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+    }
+
+    // current sample value in little endian, for writing next time
+    if (data != -1) {
+      pt->wavsample = (data ? 0x7ff8 : 0x8008);
+#if ! CPU_IS_LE
+      pt->wavsample = (u8)(pt->wavsample >> 8) | (pt->wavsample << 8);
+#endif
+      pt->poll_cycles = 0;
     }
   }
 
-  // current sample value in little endian, for writing next time
-  if (data != -1) {
-    pt->wavsample = (data ? 0x7ff8 : 0x8008);
-#if ! CPU_IS_LE
-    pt->wavsample = (u8)(pt->wavsample >> 8) | (pt->wavsample << 8);
-#endif
-    pt->poll_cycles = 0;
+  // catch write errors
+  if (ferror(pt->ftape)) {
+    fclose(pt->ftape);
+    pt->ftape = NULL;
   }
 }
 
@@ -1319,30 +1341,39 @@ int PicoPlayTape(const char *fname)
 // open tape file for writing, and write WAV hdr (44KHz, mono, 16 bit samples)
 int PicoRecordTape(const char *fname)
 {
+  const char *ext = strrchr(fname, '.');
   struct tape *pt = &tape;
-  int i;
-
-  // WAV header "riffraff" for PCM 44KHz mono, 16 bit samples.
-  u8 hdr[44] = { // file and data size updated on file close
-    'R','I','F','F', 0,0,0,0, 'W','A','V','E',  // "RIFF", file size, "WAVE"
-    // "fmt ", hdr size, type, chans, rate, bytes/sec, bytes/sample, bits/sample
-    'f','m','t',' ', 16,0,0,0, 1,0, 1,0, 68,172,0,0, 136,88,1,0, 2,0, 16,0,
-    'd','a','t','a', 0,0,0,0 };                 // "data", data size
+  int rate, i;
 
   if (pt->ftape) PicoCloseTape();
   pt->ftape = fopen(fname, "wb");
   if (pt->ftape == NULL) return 1;
   pt->mode = 'w';
 
-  pt->isbit = 0;
-  pt->wavsample = 0; // Marker for "don't write yet"
-  pt->fsize = sizeof(s16);
+  pt->isbit = ext && ! memcmp(ext, ".bit", 4);
+  if (! pt->isbit) {
+    // WAV header "riffraff" for PCM 44KHz mono, 16 bit samples.
+    u8 hdr[44] = { // file and data size updated on file close
+      'R','I','F','F', 0,0,0,0, 'W','A','V','E',  // "RIFF", file size, "WAVE"
+      // "fmt ", hdr size, type, chans, rate, bytes/sec,bytes/sample,bits/sample
+      'f','m','t',' ', 16,0,0,0, 1,0, 1,0, 68,172,0,0, 136,88,1,0, 2,0, 16,0,
+      'd','a','t','a', 0,0,0,0 };                 // "data", data size
 
-  fwrite(hdr, 1, sizeof(hdr), pt->ftape);
-  for (i = 0; i < 44100; i++)
-    fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+    rate = 44100;
+    pt->wavsample = 0; // Marker for "don't write yet"
+    pt->fsize = sizeof(s16);
 
-  pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / 44100;
+    fwrite(hdr, 1, sizeof(hdr), pt->ftape);
+    for (i = 0; i < 44100; i++)
+      fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+  } else {
+    rate = 1200;
+    pt->bitsample = ' '; // Marker for "don't write yet"
+    for (i = 0; i < 1200; i++)
+      fwrite(&pt->bitsample, 1, sizeof(u8), pt->ftape);
+  }
+
+  pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / rate;
   pt->cycles_mult = (1LL<<32) / pt->cycles_sample;
   pt->cycle = Pico.t.z80c_aim;
   pt->phase = Pico.t.z80c_aim;
@@ -1353,24 +1384,30 @@ int PicoRecordTape(const char *fname)
 void PicoCloseTape(void)
 {
   struct tape *pt = &tape;
+  int i, le;
 
   // if recording, write last data, and update length in header
   if (pt->mode == 'w') {
-    int i, le;
-    for (i = 0; i < 44100; i++)
-      fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
-    le = i = ftell(pt->ftape);
+    if (! pt->isbit) {
+      for (i = 0; i < 44100; i++)
+        fwrite(&pt->wavsample, 1, sizeof(s16), pt->ftape);
+      le = i = ftell(pt->ftape);
 #if ! CPU_IS_LE
-    le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
+      le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
 #endif
-    fseek(pt->ftape, 4, SEEK_SET);
-    fwrite(&le, 1, 4, pt->ftape);
-    le = i-44;
+      fseek(pt->ftape, 4, SEEK_SET);
+      fwrite(&le, 1, 4, pt->ftape);
+      le = i-44;
 #if ! CPU_IS_LE
-    le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
+      le = (u8)(le>>24) | ((u8)le<<24) | ((u8)(le>>16)<<8) | ((u8)(le>>8)<<16);
 #endif
-    fseek(pt->ftape, 40, SEEK_SET);
-    fwrite(&le, 1, 4, pt->ftape);
+      fseek(pt->ftape, 40, SEEK_SET);
+      fwrite(&le, 1, 4, pt->ftape);
+    } else {
+      pt->bitsample = ' ';
+      for (i = 0; i < 1200; i++)
+        fwrite(&pt->bitsample, 1, sizeof(u8), pt->ftape);
+    }
   }
 
   if (pt->ftape) fclose(pt->ftape);
