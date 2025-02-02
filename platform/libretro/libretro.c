@@ -2272,7 +2272,7 @@ void run_events_pico(unsigned int events)
             emu_status_msg("Input: Pen on Pad");
         }
     }
-    if (events & (1 << RETRO_DEVICE_ID_JOYPAD_SELECT)) {
+    if (events & (1 << RETRO_DEVICE_ID_JOYPAD_Y)) {
         if (pico_inp_mode == 1) {
             pico_inp_mode = 0;
             emu_status_msg("Input: D-Pad");
@@ -2366,7 +2366,7 @@ void retro_run(void)
        uint16_t ev = input[0] &
              ((1 << RETRO_DEVICE_ID_JOYPAD_L) | (1 << RETRO_DEVICE_ID_JOYPAD_R) |
               (1 << RETRO_DEVICE_ID_JOYPAD_X) | (1 << RETRO_DEVICE_ID_JOYPAD_SELECT) |
-              (1 << RETRO_DEVICE_ID_JOYPAD_START));
+              (1 << RETRO_DEVICE_ID_JOYPAD_START) | (1 << RETRO_DEVICE_ID_JOYPAD_Y));
        uint16_t new_ev = ev & ~pico_events;
        pico_events = ev;
        run_events_pico(new_ev);
