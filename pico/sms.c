@@ -356,12 +356,13 @@ static void tape_write(int cycle, int data)
   if (pt->isbit) {
     pt->poll_count += (data >= 0);
     if (data >= 0 && pt->poll_cycles >= pt->cycles_sample*15/16) {
-      // determine bit, either 2400Hz, or 1200Hz, or bust
+      // determine bit, duration ~1/1200s, either 2400Hz, or 1200Hz, or bust
       switch (pt->poll_count) {
         case 4: pt->bitsample = '1';    break; // 2*2400Hz
         case 2: pt->bitsample = '0';    break; // 1*1200Hz
         default: pt->bitsample = ' ';   break; // ignore everything else
       }
+      if (pt->poll_cycles >= pt->cycles_sample*17/16) pt->bitsample = ' ';
 
       if (pt->poll_cycles < OSC_NTSC/15*2) {
         samples = ((u64)pt->poll_cycles * pt->cycles_mult + 0x80000000LL) >> 32;
