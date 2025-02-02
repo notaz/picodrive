@@ -2365,8 +2365,8 @@ void retro_run(void)
    if (PicoIn.AHW == PAHW_PICO) {
        uint16_t ev = input[0] &
              ((1 << RETRO_DEVICE_ID_JOYPAD_L) | (1 << RETRO_DEVICE_ID_JOYPAD_R) |
-              (1 << RETRO_DEVICE_ID_JOYPAD_X) | (1 << RETRO_DEVICE_ID_JOYPAD_SELECT) |
-              (1 << RETRO_DEVICE_ID_JOYPAD_START) | (1 << RETRO_DEVICE_ID_JOYPAD_Y));
+              (1 << RETRO_DEVICE_ID_JOYPAD_X) | (1 << RETRO_DEVICE_ID_JOYPAD_Y) |
+              (1 << RETRO_DEVICE_ID_JOYPAD_START));
        uint16_t new_ev = ev & ~pico_events;
        pico_events = ev;
        run_events_pico(new_ev);
