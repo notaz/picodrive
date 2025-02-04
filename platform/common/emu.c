@@ -1560,8 +1560,8 @@ static void emu_loop_prep(void)
 
 	vkbd = NULL;
 	if (currentConfig.keyboard == 2) {
-		if (PicoIn.AHW & PAHW_SMS) vkbd = &vkbd_sc3000;
-		else if (PicoIn.AHW & PAHW_PICO) vkbd = &vkbd_pico;
+		if (PicoIn.AHW & PAHW_SMS) vkbd = vkbd_init(0);
+		else if (PicoIn.AHW & PAHW_PICO) vkbd = vkbd_init(1);
 	}
 	PicoIn.opt &= ~POPT_EN_KBD;
 	if (((PicoIn.AHW & PAHW_PICO) || (PicoIn.AHW & PAHW_SC)) && currentConfig.keyboard)

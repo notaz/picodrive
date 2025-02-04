@@ -427,11 +427,16 @@ static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct
 	int i, j;
 	struct key *key;
 
+	if (g_menuscreen_w >= 480)
+		xoffs -= 50;
 	for (i = 0; desc[i]; i++) {
 		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
 			int color = (key != hi ? PXMAKE(0xa0, 0xa0, 0xa0) :
 						 PXMAKE(0xff, 0xff, 0xff));
 			char *text = (shift ? key->upper : key->lower);
+			if (g_menuscreen_w >= 480)
+			text_out16_(xoffs + key->xpos*me_mfont_w, yoffs + i*me_mfont_h, text, color);
+			else
 			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
 		}
 	}
@@ -524,11 +529,11 @@ int key_config_kbd_loop(int id, int keys)
 			for (is_down = 1; is_down; )
 				kc = in_update_keycode(&bind_dev_id, &is_down, NULL, -1);
 
-			in_bind_kbd_key(dev, bc, -1);
+			in_bind_kbd_key(dev, bc, 0);
 			in_bind_kbd_key(bind_dev_id, kc, kbd[keyy][keyx].key);
 		}
 		if (inp & PBTN_MA2) {
-			in_bind_kbd_key(dev, bc, -1);
+			in_bind_kbd_key(dev, bc, 0);
 		}
 	}
 

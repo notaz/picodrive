@@ -571,7 +571,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         if ((PicoIn.AHW & PAHW_SC) && (a & 0x2) && !(d & 0x80)) {
           // For SC-3000: 8255 control port. BSR mode used for printer and tape.
           // debug hack to copy printer data to stdout.
-          // Printer data is sent at about 4 KBaud, 10 bits per character:
+          // Printer data is sent at about 4.7 KBaud, 10 bits per character:
           // start=0, 8 data bits (LSB first), stop=1. data line is inverted.
           // no Baud tracking needed as all bits are sent through here.
           static int chr, bit;

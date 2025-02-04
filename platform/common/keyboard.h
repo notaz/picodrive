@@ -29,4 +29,4 @@ extern struct vkbd vkbd_sc3000;
 int vkbd_find_xpos(struct key *keys, int xpos);
 void vkbd_draw(struct vkbd *vkbd);
 int vkbd_update(struct vkbd *vkbd, int input, int *actions);
-
+struct vkbd *vkbd_init(int is_pico);

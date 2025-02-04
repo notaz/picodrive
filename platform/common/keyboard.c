@@ -13,6 +13,8 @@
 #include "../libpicofe/plat.h"
 #include "emu.h" // for menuscreen hack
 
+#define KBD_ROWS    5
+
 // pico
 static struct key kbd_pico_row1[] = {
 	{  0, "esc", "esc",	PEVB_KBD_ESCAPE },
@@ -90,7 +92,7 @@ static struct key kbd_pico_row5[] = {
 	{ 0 },
 };
 
-struct key *kbd_pico[] =
+struct key *kbd_pico[KBD_ROWS+1] =
 	{ kbd_pico_row1, kbd_pico_row2, kbd_pico_row3, kbd_pico_row4, kbd_pico_row5, NULL };
 
 
@@ -174,7 +176,7 @@ static struct key kbd_sc3000_row5[] = {
 	{ 0 },
 };
 
-struct key *kbd_sc3000[] =
+struct key *kbd_sc3000[KBD_ROWS+1] =
 	{ kbd_sc3000_row1, kbd_sc3000_row2, kbd_sc3000_row3, kbd_sc3000_row4, kbd_sc3000_row5, NULL };
 
 
@@ -198,6 +200,7 @@ void vkbd_draw(struct vkbd *vkbd)
 {
 	int i, j, k;
 	struct key *key;
+	int ypos = (vkbd->top ? 0 : g_screen_height - KBD_ROWS*me_sfont_h);
 
 // HACK: smalltext_out is only available on menuscreen :-/
 g_menuscreen_ptr = (u16 *)g_screen_ptr;
@@ -212,7 +215,7 @@ if (g_screen_width >= 320) {
 	for (i = 0; vkbd->kbd[i]; i++) {
 		// darken background
 		for (j = 0; j < me_sfont_h; j++) {
-			u16 *p = (u16 *)g_menuscreen_ptr + (i*me_sfont_h+j)*g_menuscreen_pp;
+			u16 *p = (u16 *)g_menuscreen_ptr + (ypos+i*me_sfont_h+j)*g_menuscreen_pp;
 			for (k = 0; k < g_menuscreen_w; k++) {
 				u16 v = *p;
 				*p++ = PXMASKH(v,1)>>1;
@@ -230,7 +233,7 @@ if (g_screen_width >= 320) {
 						  PXMAKE(0xa0, 0xa0, 0xa0);
 			char *text = (vkbd->shift ? key->upper : key->lower);
 			int xpos = key->xpos*me_sfont_w * g_menuscreen_w/320;
-			smalltext_out16(xpos, i*me_sfont_h, text, color);
+			smalltext_out16(xpos, ypos+i*me_sfont_h, text, color);
 		}
 	}
 }
@@ -259,13 +262,14 @@ int vkbd_update(struct vkbd *vkbd, int input, int *actions)
 	}
 	if (pressed & (1<<GBTN_C)) {
 		vkbd->top = !vkbd->top;
+		plat_video_clear_buffers(); // if renderer isn't using full screen
 	}
 	if (pressed & (1<<GBTN_B)) {
 		vkbd->shift = !vkbd->shift;
 	}
 
 	if (pressed & (1<<GBTN_A)) {
-		for (i = 0; i < VKBD_METAS; i++)
+		for (i = 0; i < VKBD_METAS && vkbd->meta[i][0] != -1; i++)
 			if (vkbd->y == vkbd->meta[i][0] && vkbd->x == vkbd->meta[i][1])
 				vkbd->meta_state  = (vkbd->meta_state ^ (1<<i)) & (1<<i);
 	}
@@ -288,6 +292,8 @@ int vkbd_update(struct vkbd *vkbd, int input, int *actions)
 struct vkbd *vkbd_init(int is_pico)
 {
 	struct vkbd *vkbd = is_pico ? &vkbd_pico : &vkbd_sc3000;
-	memset(vkbd->meta+1, 0, sizeof(*vkbd) - sizeof(vkbd->kbd) - sizeof(vkbd->meta));
+	int offs = (u8 *)vkbd->meta - (u8 *)vkbd + sizeof(vkbd->meta);
+	memset((u8 *)vkbd + offs, 0, sizeof(*vkbd) - offs);
+	vkbd->top = 1;
 	return vkbd;
 }
