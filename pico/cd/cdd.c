@@ -188,9 +188,12 @@ void cdd_play_audio(int index, int lba)
   for (i = index; i >= 0; i--)
     if (cdd.toc.tracks[i].fd != NULL)
       break;
+  // TODO: this doesn't cover all tracks being in a single bin file properly:
+  // in that case, fd should be duplicated to work properly with this MD+ shit.
   if (! is_audio(i)) return;
 
   Pico_mcd->cdda_stream = cdd.toc.tracks[i].fd;
+  Pico_mcd->cdda_type = cdd.toc.tracks[i].type;
   base = cdd.toc.tracks[index].offset;
   lba_offset = lba - cdd.toc.tracks[index].start;
   lb_len = cdd.toc.tracks[index].end - cdd.toc.tracks[index].start;
@@ -467,7 +470,7 @@ int cdd_unload(void)
     int i;
 
     /* stop audio streaming */
-    Pico_mcd->cdda_stream = NULL;
+    if (Pico_mcd) Pico_mcd->cdda_stream = NULL;
 
     /* close CD tracks */
     if (cdd.toc.tracks[0].fd)
@@ -492,7 +495,7 @@ int cdd_unload(void)
       if (cdd.toc.tracks[i].fd)
       {
         /* close file */
-        if (Pico_mcd->cdda_type == CT_MP3)
+        if (cdd.toc.tracks[i].type == CT_MP3)
           fclose(cdd.toc.tracks[i].fd);
         else
           pm_close(cdd.toc.tracks[i].fd);
