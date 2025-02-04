@@ -91,7 +91,7 @@ PICO_INTERNAL void PsndReset(void)
 }
 
 // FM polyphase FIR resampling
-#define FMFIR_TAPS	9
+#define FMFIR_TAPS	8
 
 // resample FM from its native 53267Hz/52781Hz with polyphase FIR filter
 static int ymchans;
@@ -128,7 +128,7 @@ static void YMFM_setup_FIR(int inrate, int outrate, int stereo)
 {
   int mindiff = 999;
   int diff, mul, div;
-  int minmult = 22, maxmult = 55; // min,max interpolation factor
+  int minmult = 11, maxmult = 61; // min,max interpolation factor
 
   // compute filter ratio with largest multiplier for smallest error
   for (mul = minmult; mul <= maxmult; mul++) {
@@ -138,7 +138,7 @@ static void YMFM_setup_FIR(int inrate, int outrate, int stereo)
       mindiff = diff;
       Pico.snd.fm_fir_mul = mul;
       Pico.snd.fm_fir_div = div;
-      if (abs(mindiff) <= inrate/1000+1) break; // below error limit
+      if (abs(mindiff)*1000 <= inrate) break; // below error limit
     }
   }
   printf("FM polyphase FIR ratio=%d/%d error=%.3f%%\n",
