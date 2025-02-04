@@ -176,9 +176,9 @@ void rgb565_to_uyvy(void *d, const void *s, int w, int h, int pitch, int dpitch,
 
 void copy_intscale(void *dst, int w, int h, int pp, void *src, int sw, int sh, int spp)
 {
-	int xf = w / sw, yf = h / sh;
-	int f = xf < yf ? xf : yf, xs = f * sw, ys = f * sh;
-	int x = (w - xs)/2, y = (h - ys)/2;
+	int xf = w / sw, yf = h / sh, f = xf < yf ? xf : yf;
+	int wf = f * sw, hf = f * sh;
+	int x = (w - wf)/2, y = (h - hf)/2;
 	uint16_t *p = (uint16_t *)dst;
 	uint16_t *q = (uint16_t *)src;
 
@@ -189,10 +189,10 @@ void copy_intscale(void *dst, int w, int h, int pp, void *src, int sw, int sh, i
 		for (j = 0; j < sw; j++, q++)
 			for (l = 0; l < f; l++)
 				*p++ = *q;
-		p += pp - xs;
+		p += pp - wf;
 		q += spp - sw;
 		for (k = 1; k < f; k++) {
-			memcpy(p, p-pp, w*2);
+			memcpy(p, p-pp, wf*2);
 			p += pp;
 		}
 	}
@@ -329,7 +329,7 @@ void plat_video_clear_buffers(void)
 {
 	if (plat_sdl_overlay || plat_sdl_gl_active ||
 	    plat_sdl_screen->w >= 320*2 || plat_sdl_screen->h >= 240*2)
-		memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
+		memset(shadow_fb, 0, g_menuscreen_pp * g_menuscreen_h * 2);
 	else {
 		memset(g_screen_ptr, 0, plat_sdl_screen->pitch*plat_sdl_screen->h);
 		clear_buf_cnt = 3; // do it thrice in case of triple buffering
@@ -416,8 +416,8 @@ void plat_video_loop_prepare(void)
 			g_screen_height= (320 * g_menuscreen_h/g_menuscreen_w) & ~1;
 		}
 		g_screen_ppitch = g_screen_width;
-		g_screen_ptr = shadow_fb;
 		plat_video_set_size(g_screen_width, g_screen_height);
+		g_screen_ptr = shadow_fb;
 	}
 	else {
 		if (plat_sdl_is_windowed() &&
