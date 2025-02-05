@@ -1415,20 +1415,53 @@ static void menu_main_draw_status(void)
 			bp[(w - i) + g_menuscreen_pp * u] = menu_text_color;
 }
 
-static int menu_load_sc3000_tape(void)
+static menu_entry e_menu_main[];
+
+static int tape_record_bit;
+static const char *tape_record_exts[] = { ".wav", ".bit" };
+
+static const char *mgn_loadtape(int id, int *offs)
 {
-	static const char *rom_exts[] = { "bit", "wav", NULL };
-	const char *ret_name;
-
-	ret_name = menu_loop_romsel_d(rom_fname_loaded,
-			sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
-	if (ret_name == NULL)
-		return 0;
-
-	return emu_play_tape(ret_name);
+	return "";
 }
 
-static menu_entry e_menu_main[];
+static int mh_loadtape(int id, int keys)
+{
+	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
+		int x = me_id2offset(e_menu_main, MA_MAIN_SAVE_TAPE);
+		e_menu_main[x].enabled = !e_menu_main[x].enabled;
+		return 0;
+	}
+	if (keys & PBTN_MOK) {
+		static const char *rom_exts[] = { "bit", "wav", NULL };
+		const char *ret_name;
+
+		ret_name = menu_loop_romsel_d(rom_fname_loaded,
+				sizeof(rom_fname_loaded), rom_exts, NULL, menu_draw_prep);
+		if (ret_name == NULL)
+			return 0;
+
+		return emu_play_tape(ret_name);
+	}
+	return 1;
+}
+
+static const char *mgn_savetape(int id, int *offs)
+{
+	return tape_record_exts[!!tape_record_bit];
+}
+
+static int mh_savetape(int id, int keys)
+{
+	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
+		tape_record_bit = !tape_record_bit;
+		return 0;
+	}
+	if (keys & PBTN_MOK) {
+		return emu_record_tape(tape_record_exts[!!tape_record_bit]);
+	}
+	return 1;
+}
 
 static int main_menu_handler(int id, int keys)
 {
@@ -1473,10 +1506,6 @@ static int main_menu_handler(int id, int keys)
 				menu_loop_tray();
 			return 1;
 		}
-		break;
-	case MA_MAIN_LOAD_TAPE:
-		if (PicoIn.AHW & PAHW_SC)
-			return menu_load_sc3000_tape();
 		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits, draw_frame_credits);
@@ -1574,7 +1603,8 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Change CD",          MA_MAIN_CHANGE_CD,   main_menu_handler),
 	mee_cust_s_h  ("Storyware page",     MA_MAIN_PICO_PAGE, 0,mh_picopage, mgn_picopage, NULL),
-	mee_handler_id("Load tape",          MA_MAIN_LOAD_TAPE,   main_menu_handler),
+	mee_cust_s_h  ("Load tape",          MA_MAIN_LOAD_TAPE, 0,mh_loadtape, mgn_loadtape, NULL),
+	mee_cust_s_h  ("Save tape",          MA_MAIN_SAVE_TAPE, 0,mh_savetape, mgn_savetape, NULL),
 	mee_handler_id("Patches / GameGenie",MA_MAIN_PATCHES,     main_menu_handler),
 	mee_handler_id("Load new game",      MA_MAIN_LOAD_ROM,    main_menu_handler),
 	mee_handler   ("Change options",                          menu_loop_options),
@@ -1596,6 +1626,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_CHANGE_CD,   PicoIn.AHW & PAHW_MCD);
 	me_enable(e_menu_main, MA_MAIN_LOAD_TAPE,   PicoIn.AHW & PAHW_SC);
+	me_enable(e_menu_main, MA_MAIN_SAVE_TAPE,   0);
 	me_enable(e_menu_main, MA_MAIN_PICO_PAGE,   PicoIn.AHW & PAHW_PICO);
 	me_enable(e_menu_main, MA_MAIN_PATCHES,     PicoPatches != NULL);
 	me_enable(e_menu_main, MA_OPT_SAVECFG_GAME, PicoGameLoaded);

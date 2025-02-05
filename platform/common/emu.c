@@ -616,6 +616,19 @@ int emu_play_tape(const char *fname)
 	return 1;
 }
 
+int emu_record_tape(const char *ext)
+{
+	int ret;
+
+	fname_ext(static_buff, sizeof(static_buff), "tape"PATH_SEP, ext, rom_fname_loaded);
+	ret = PicoRecordTape(static_buff);
+	if (ret != 0) {
+		menu_update_msg("recording tape failed");
+		return 0;
+	}
+	return 1;
+}
+
 // <base dir><end>
 void emu_make_path(char *buff, const char *end, int size)
 {
@@ -1461,6 +1474,7 @@ void emu_init(void)
 	mkdir_path(path, pos, "mds");
 	mkdir_path(path, pos, "srm");
 	mkdir_path(path, pos, "brm");
+	mkdir_path(path, pos, "tape");
 	mkdir_path(path, pos, "cfg");
 
 	pprof_init();
