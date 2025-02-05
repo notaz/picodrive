@@ -32,6 +32,29 @@ if the pen is used on the storyware or pad. Details about how to correctly name
 the pages can be found in the *How to run Sega Pico games* section in
 `platform/base_readme.txt`.
 
+### Sega Pico and SC-3000 Keyboards
+
+PicoDrive provides support for the Pico and SC-3000 keyboards. This can be
+enabled in the `Controls` configuration menu. Once enabled, keyboard input may
+be activated via the `Keyboard` emulator hotkey.
+
+Both physical keyboard support and a virtual keyboard overlay are available.
+Physical keyboards are assigned a default key mapping corresponding to an
+American PC layout, but the mapping can be redefined in the `Controls`
+configuration menu. Note that only 'unmodified' physical key presses can be
+mapped to emulated keyboard input; special characters entered via 'shift'
+key combinations may not match the emulated keyboard layout.
+
+### Sega SC-3000 Cassette Drive
+
+In addition to keyboard support, PicoDrive emulates the SC-3000 cassette tape
+drive which may be used in conjunction with BASIC cartridges. Tape emulation
+includes an automatic start/stop feature, where the tape is only advanced when
+it is accessed by the SC-3000; manual pausing of the tape is unnecessary for
+multi-part loading or saving.
+
+PicoDrive supports tape files in `WAV` and `bitstream` format.
+
 ### Gallery
 
 Some images of demos and homebrew software:

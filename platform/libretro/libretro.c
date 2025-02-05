@@ -1683,7 +1683,7 @@ void *retro_get_memory_data(unsigned type)
          if ((PicoIn.AHW & PAHW_MCD) && Pico.romsize == 0 &&
                !(PicoIn.opt & POPT_EN_MCD_RAMCART))
             data = Pico_mcd->bram;
-         else
+         else // TODO: handle copying to/from bram somewhere
             data = Pico.sv.data;
          break;
       case RETRO_MEMORY_SYSTEM_RAM:
