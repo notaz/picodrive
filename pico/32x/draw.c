@@ -173,19 +173,19 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 #define make_do_loop(name, pre_code, post_code, md_code)        \
 /* Direct Color Mode */                                         \
 static void do_loop_dc##name(unsigned short *dst,               \
-    unsigned short *dram, int lines_sft_offs, int mdbg)         \
+    unsigned short *dram, unsigned lines_sft_offs, int mdbg)    \
 {                                                               \
   int inv_bit = (Pico32x.vdp_regs[0] & P32XV_PRI) ? 0x8000 : 0; \
   unsigned char  *pmd = Pico.est.Draw2FB +                      \
                           328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned short *p32x;                                         \
-  int lines = lines_sft_offs >> 16;                             \
+  int lines = (lines_sft_offs >> 16) & 0xff;                    \
   int l;                                                        \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
-    p32x = dram + dram[l];                                      \
+    p32x = dram + dram[l + (lines_sft_offs >> 24)];             \
     do_line_dc(dst, p32x, pmd, inv_bit, md_code);               \
     post_code;                                                  \
     dst += DrawLineDestIncrement32x/2 - 320;                    \
@@ -194,19 +194,19 @@ static void do_loop_dc##name(unsigned short *dst,               \
                                                                 \
 /* Packed Pixel Mode */                                         \
 static void do_loop_pp##name(unsigned short *dst,               \
-    unsigned short *dram, int lines_sft_offs, int mdbg)         \
+    unsigned short *dram, unsigned lines_sft_offs, int mdbg)    \
 {                                                               \
   unsigned short *pal = Pico32xMem->pal_native;                 \
   unsigned char  *pmd = Pico.est.Draw2FB +                      \
                           328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned char  *p32x;                                         \
-  int lines = lines_sft_offs >> 16;                             \
+  int lines = (lines_sft_offs >> 16) & 0xff;                    \
   int l;                                                        \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
-    p32x = (void *)(dram + dram[l]);                            \
+    p32x = (void *)(dram + dram[l + (lines_sft_offs >> 24)]);   \
     p32x += (lines_sft_offs >> 8) & 1;                          \
     do_line_pp(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
@@ -216,19 +216,19 @@ static void do_loop_pp##name(unsigned short *dst,               \
                                                                 \
 /* Run Length Mode */                                           \
 static void do_loop_rl##name(unsigned short *dst,               \
-    unsigned short *dram, int lines_sft_offs, int mdbg)         \
+    unsigned short *dram, unsigned lines_sft_offs, int mdbg)    \
 {                                                               \
   unsigned short *pal = Pico32xMem->pal_native;                 \
   unsigned char  *pmd = Pico.est.Draw2FB +                      \
                           328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned short *p32x;                                         \
-  int lines = lines_sft_offs >> 16;                             \
+  int lines = (lines_sft_offs >> 16) & 0xff;                    \
   int l;                                                        \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
-    p32x = dram + dram[l];                                      \
+    p32x = dram + dram[l + (lines_sft_offs >> 24)];             \
     do_line_rl(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
     dst += DrawLineDestIncrement32x/2 - 320;                    \
@@ -239,11 +239,11 @@ static void do_loop_rl##name(unsigned short *dst,               \
 #undef make_do_loop
 #define make_do_loop(name, pre_code, post_code, md_code) \
 extern void do_loop_dc##name(unsigned short *dst,        \
-    unsigned short *dram, int lines_offs, int mdbg);     \
+    unsigned short *dram, unsigned lines_offs, int mdbg);\
 extern void do_loop_pp##name(unsigned short *dst,        \
-    unsigned short *dram, int lines_offs, int mdbg);     \
+    unsigned short *dram, unsigned lines_offs, int mdbg);\
 extern void do_loop_rl##name(unsigned short *dst,        \
-    unsigned short *dram, int lines_offs, int mdbg);
+    unsigned short *dram, unsigned lines_offs, int mdbg);
 #endif
 
 make_do_loop(,,,)
@@ -251,7 +251,7 @@ make_do_loop(_md, , , MD_LAYER_CODE)
 make_do_loop(_scan, PICOSCAN_PRE, PICOSCAN_POST, )
 make_do_loop(_scan_md, PICOSCAN_PRE, PICOSCAN_POST, MD_LAYER_CODE)
 
-typedef void (*do_loop_func)(unsigned short *dst, unsigned short *dram, int lines, int mdbg);
+typedef void (*do_loop_func)(unsigned short *dst, unsigned short *dram, unsigned lines, int mdbg);
 enum { DO_LOOP, DO_LOOP_MD, DO_LOOP_SCAN, DO_LOOP_MD_SCAN };
 
 static const do_loop_func do_loop_dc_f[] = { do_loop_dc, do_loop_dc_md, do_loop_dc_scan, do_loop_dc_scan_md };
@@ -265,6 +265,8 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   unsigned short *dram;
   int lines_sft_offs;
   int which_func;
+
+  offs += Pico32x.sync_line;
 
   Pico.est.DrawLineDest = (char *)DrawLineDestBase32x + offs * DrawLineDestIncrement32x;
   Pico.est.DrawLineDestIncr = DrawLineDestIncrement32x;
@@ -299,7 +301,7 @@ do_it:
     which_func = have_scan ? DO_LOOP_MD_SCAN : DO_LOOP_MD;
   else
     which_func = have_scan ? DO_LOOP_SCAN : DO_LOOP;
-  lines_sft_offs = (lines << 16) | offs;
+  lines_sft_offs = (Pico32x.sync_line << 24) | (lines << 16) | offs;
   if (Pico32x.vdp_regs[2 / 2] & P32XV_SFT)
     lines_sft_offs |= 1 << 8;
 
@@ -313,16 +315,18 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
   unsigned short *dst = (void *)((char *)DrawLineDestBase32x + offs * DrawLineDestIncrement32x);
   unsigned char  *pmd = Pico.est.Draw2FB + 328 * offs + 8;
   unsigned short *pal = Pico.est.HighPal;
-  int poffs = 0, plen = 320;
+  int plen = 320;
   int l, p;
 
   PicoDrawUpdateHighPal();
 
-  dst += poffs;
+  offs += Pico32x.sync_line;
+  dst += Pico32x.sync_line * DrawLineDestIncrement32x;
+
   for (l = 0; l < lines; l++) {
     if (have_scan) {
       PicoScan32xBegin(l + offs);
-      dst = (unsigned short *)Pico.est.DrawLineDest + poffs;
+      dst = (unsigned short *)Pico.est.DrawLineDest;
     }
     for (p = 0; p < plen; p += 4) {
       dst[p + 0] = pal[*pmd++];

@@ -675,7 +675,7 @@ static u32 p32x_vdp_read16(u32 a)
   return d;
 }
 
-static void p32x_vdp_write8(u32 a, u32 d)
+static void p32x_vdp_write8(u32 a, u32 d, SH2 *sh2)
 {
   u16 *r = Pico32x.vdp_regs;
   a &= 0x0f;
@@ -684,11 +684,15 @@ static void p32x_vdp_write8(u32 a, u32 d)
   switch (a) {
     case 0x01:
       // priority inversion is handled in palette
-      if ((r[0] ^ d) & P32XV_PRI)
+      if ((r[0] ^ d) & P32XV_PRI) {
+        Pico32xDrawSync(sh2);
         Pico32x.dirty_pal = 1;
+      }
       r[0] = (r[0] & P32XV_nPAL) | (d & 0xff);
       break;
     case 0x03: // shift (for pp mode)
+      if ((r[2 / 2] ^ d) & P32XV_SFT)
+        Pico32xDrawSync(sh2);
       r[2 / 2] = d & 1;
       break;
     case 0x05: // fill len
@@ -733,7 +737,7 @@ static void p32x_vdp_write16(u32 a, u32 d, SH2 *sh2)
     return;
   }
 
-  p32x_vdp_write8(a | 1, d);
+  p32x_vdp_write8(a | 1, d, sh2);
 }
 
 // ------------------------------------------------------------------
@@ -1088,13 +1092,15 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
 
   if (!(Pico32x.regs[0] & P32XS_FM)) {
     if ((a & 0xfff0) == 0x5180) { // a15180
-      p32x_vdp_write8(a, d);
+      p32x_vdp_write8(a, d, NULL);
       return;
     }
 
     // TODO: verify
     if ((a & 0xfe00) == 0x5200) { // a15200
       elprintf(EL_32X|EL_ANOMALY, "m68k 32x PAL w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+      if (((u8 *)Pico32xMem->pal)[MEM_BE2(a & 0x1ff)] != d)
+        Pico32xDrawSync(NULL);
       ((u8 *)Pico32xMem->pal)[MEM_BE2(a & 0x1ff)] = d;
       Pico32x.dirty_pal = 1;
       return;
@@ -1147,6 +1153,8 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
     }
 
     if ((a & 0xfe00) == 0x5200) { // a15200
+      if (Pico32xMem->pal[(a & 0x1ff) / 2] != d)
+        Pico32xDrawSync(NULL);
       Pico32xMem->pal[(a & 0x1ff) / 2] = d;
       Pico32x.dirty_pal = 1;
       return;
@@ -1683,12 +1691,14 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
   if (Pico32x.regs[0] & P32XS_FM) {
     if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_cnt = 0;
-      p32x_vdp_write8(a, d);
+      p32x_vdp_write8(a, d, sh2);
       goto out;
     }
 
     if ((a & 0x3fe00) == 0x4200) {
       sh2->poll_cnt = 0;
+      if (((u8 *)Pico32xMem->pal)[MEM_BE2(a & 0x1ff)] != d)
+        Pico32xDrawSync(sh2);
       ((u8 *)Pico32xMem->pal)[MEM_BE2(a & 0x1ff)] = d;
       Pico32x.dirty_pal = 1;
       goto out;
@@ -1763,6 +1773,8 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
 
     if ((a & 0x3fe00) == 0x4200) {
       sh2->poll_cnt = 0;
+      if (Pico32xMem->pal[(a & 0x1ff) / 2] != d)
+        Pico32xDrawSync(sh2);
       Pico32xMem->pal[(a & 0x1ff) / 2] = d;
       Pico32x.dirty_pal = 1;
       goto out;

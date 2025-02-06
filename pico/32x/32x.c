@@ -243,31 +243,67 @@ void PicoReset32x(void)
   }
 }
 
-static void p32x_render_frame(void)
+static void Pico32xRenderSync(int lines)
 {
   if (Pico32xDrawMode != PDM32X_OFF && !PicoIn.skipFrame) {
-    int offs, lines;
+    int offs;
 
     pprof_start(draw);
 
-    offs = 8; lines = 224;
-    if (Pico.video.reg[1] & 8) {
+    offs = 8;
+    if (Pico.video.reg[1] & 8)
       offs = 0;
-      lines = 240;
-    }
 
     if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0 && // 32x not blanking
         (!(Pico.video.debug_p & PVD_KILL_32X)))
     {
       int md_bg = Pico.video.reg[7] & 0x3f;
 
-      // we draw full layer (not line-by-line)
-      PicoDraw32xLayer(offs, lines, md_bg);
+      // we draw lines up to the sync point (not line-by-line)
+      PicoDraw32xLayer(offs, lines-Pico32x.sync_line, md_bg);
     }
     else if (Pico32xDrawMode == PDM32X_BOTH)
-      PicoDraw32xLayerMdOnly(offs, lines);
+      PicoDraw32xLayerMdOnly(offs, lines-Pico32x.sync_line);
 
     pprof_end(draw);
+  }
+}
+
+void Pico32xDrawSync(SH2 *sh2)
+{
+  if (sh2) {
+    unsigned int cycle = (sh2 ? sh2_cycles_done_m68k(sh2) : SekCyclesDone());
+    int line = ((cycle - Pico.t.m68c_frame_start) * (long long)((1LL<<32)/488.5)) >> 32;
+
+    if (Pico32x.sync_line < line && line < (Pico.video.reg[1] & 8 ? 240 : 224)) {
+      // make sure the MD image is also sync'ed to this line for merging
+      PicoDrawSync(line, 0, 0);
+
+      // pfff... need to save and restore some persistent data for MD
+      void *dest = Pico.est.DrawLineDest;
+      int incr = Pico.est.DrawLineDestIncr;
+      Pico32xRenderSync(line);
+      Pico.est.DrawLineDest = dest;
+      Pico.est.DrawLineDestIncr = incr;
+    }
+
+    // remember line we sync'ed to
+    Pico32x.sync_line = line;
+  }
+}
+
+static void p32x_render_frame(void)
+{
+  if (Pico32xDrawMode != PDM32X_OFF && !PicoIn.skipFrame) {
+    int lines;
+
+    pprof_start(draw);
+
+    lines = 224;
+    if (Pico.video.reg[1] & 8)
+      lines = 240;
+
+    Pico32xRenderSync(lines);
   }
 }
 
@@ -616,6 +652,7 @@ void PicoFrame32x(void)
     pcd_prepare_frame();
 
   PicoFrameStart();
+  Pico32x.sync_line = 0;
   if (Pico32xDrawMode != PDM32X_BOTH)
     Pico.est.rendstatus |= PDRAW_SYNC_NEEDED;
   PicoFrameHints();

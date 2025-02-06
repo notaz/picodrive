@@ -97,13 +97,15 @@
     sub     r0, r0, #320*2
     add     r0, r0, r12
     add     r4, r4, #1
-    cmp     r4, r2, lsr #16
+    and     r12, r2, #0xff0000
+    cmp     r4, r12, lsr #16
     call_scan_fin_ge \call_scan
     ldmgefd sp!, {r4-r11,pc}
 
 1: @ loop_outer_entry:
     call_scan_begin \call_scan
-    mov     r12,r4, lsl #1
+    add     r12,r4, r2, lsr #24
+    mov     r12,r12,lsl #1
     ldrh    r12,[r1, r12]
     add     r11,r11,#8
     mov     r6, #320/2
@@ -277,13 +279,15 @@
     sub     r0, r0, #320*2
     add     r0, r0, r12
     add     r4, r4, #1
-    cmp     r4, r2, lsr #16
+    and     r12, r2, #0xff0000
+    cmp     r4, r12, lsr #16
     call_scan_fin_ge \call_scan
     ldmgefd sp!, {r4-r11,pc}
 
 1: @ loop_outer_entry:
     call_scan_begin \call_scan
-    mov     r12,r4, lsl #1
+    add     r12,r4, r2, lsr #24
+    mov     r12,r12,lsl #1
     ldrh    r12,[r1, r12]
     add     r11,r11,#8
     mov     r6, #320/2
@@ -454,13 +458,15 @@
     sub     r0, r0, #320*2
     add     r0, r0, r12
     add     r4, r4, #1
-    cmp     r4, r2, lsr #16
+    and     r12, r2, #0xff0000
+    cmp     r4, r12, lsr #16
     call_scan_fin_ge \call_scan
     ldmgefd sp!, {r4-r11,pc}
 
 1: @ loop_outer_entry:
     call_scan_begin \call_scan
-    mov     r12,r4, lsl #1
+    add     r12,r4, r2, lsr #24
+    mov     r12,r12,lsl #1
     ldrh    r12,[r1, r12]
     add     r11,r11,#8
     mov     r6, #320
