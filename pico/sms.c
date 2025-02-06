@@ -570,14 +570,18 @@ static void z80_sms_out(unsigned short a, unsigned char d)
       case 0xc1:
         if ((PicoIn.AHW & PAHW_SC) && (a & 0x2) && !(d & 0x80)) {
           // For SC-3000: 8255 control port. BSR mode used for printer and tape.
+          int b = (d>>1) & 0x7;
+          Pico.ms.io_sg &= ~(1<<b);
+          Pico.ms.io_sg |= ((d&1)<<b);
+
           // debug hack to copy printer data to stdout.
           // Printer data is sent at about 4.7 KBaud, 10 bits per character:
           // start=0, 8 data bits (LSB first), stop=1. data line is inverted.
           // no Baud tracking needed as all bits are sent through here.
           static int chr, bit;
-          if (d>>1 == 4) { // tape out
+          if (b == 4) { // tape out
             tape_write(z80_cyclesDone(), d&1);
-          } else if (d>>1 == 5) { // !data
+          } else if (b == 5) { // !data
             if (!bit) {
               if (d&1) // start bit
                 bit = 8;
@@ -588,7 +592,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
                 if (chr == 0xd) printf("\n");
               }
             }
-          } else if (d>>1 == 6 && !(d&1)) // !reset
+          } else if (b == 6 && !(d&1)) // !reset
             bit = 0;
         }
         break;
