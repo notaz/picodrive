@@ -41,9 +41,10 @@ be activated via the `Keyboard` emulator hotkey.
 Both physical keyboard support and a virtual keyboard overlay are available.
 Physical keyboards are assigned a default key mapping corresponding to an
 American PC layout, but the mapping can be redefined in the `Controls`
-configuration menu. Note that only 'unmodified' physical key presses can be
-mapped to emulated keyboard input; special characters entered via 'shift'
-key combinations may not match the emulated keyboard layout.
+configuration menu. Note that only 'unmodified' physical key presses (e.g.
+`A`, `1` etc) can be mapped to emulated keyboard input; special characters
+entered via modifier/meta keys (e.g. `Ctrl`, `Shift` etc) will not work.
+Additional information may be found in `platform/base_readme.txt`.
 
 ### Sega SC-3000 Cassette Drive
 

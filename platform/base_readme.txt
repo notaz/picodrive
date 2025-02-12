@@ -100,6 +100,45 @@ positioning is done through the D-pad if the screen has been switched to either
 pages or pad.
 
 
+How to load SC-3000 tapes
+-------------------------
+
+The SC-3000 microcomputer has a connector for connecting a cassette tape drive
+to it. PicoDrive supports using tape recordings in WAV or bitstream format.
+Run one of the BASIC cartridges, then load the tape with the "Load tape" menu.
+Entering the LOAD command using the keyboard emulation automatically starts
+the emulated tape drive. You will get a confirmation after the tape has been
+loaded.
+
+The emulated tape drive has an automatic start/stop feature. Tapes requiring
+several load operations don't need any additional handling.
+
+
+How to use keyboard input
+-------------------------
+
+Both the SC-3000 and the Sega Pico support keyboard input. To activate keyboard
+input in PicoDrive, press the "Switch keyboard" emulator hotkey while running
+a cartridge with keyboard support. Depending on the keyboard configuration
+settings, either the physical or the virtual keyboard can be used.
+
+If the physical keyboard is configured, activating the keyboard will switch off
+all other hotkeys as well as pad functions. All keyboard input is routed to
+the emulated keyboard, as configured in the physical keyboard mapping.
+
+The virtual keyboard displays an overlay when activated. The currently selected
+key is highlighted, and the selection can be changed with the left, right, up,
+and down keys. Pressing the A button will send the selected key to the emulated
+keyboard. Pressing B will show what the key value would be if the emulated Shift
+key is active. The C button will move the keyboard overlay from the top of the
+screen to the bottom and vice versa.
+
+All meta keys, like Shift, Ctrl, have a built-in toggle function. Pressing the
+A button on them will toggle their state between pressed and released. Depending
+on the state the color of the key changes slightly. Only one meta key can be
+active at the same time.
+
+
 Other important stuff
 ---------------------
 
@@ -427,6 +466,11 @@ unit. Some games made use of this for providing better music and effects.
 Disabling this improves performance for games using the FM unit, and usually
 means falling back to the non-FM sound.
 
+@@7. "SMS palette in TMS modes"
+The Master System graphics chip can emulate the TMS grafic modes used in MSX and
+SG-1000 games, but it is using a color palette which is much darker and the
+colours aren't a good match. This option uses the original color palette of the
+TMS graphics chip, which gives better results for MSX/SG-1000 ports.
 
 Advanced options
 ----------------
@@ -468,7 +512,8 @@ It also decodes MP3s in Sega/Mega CD mode.
 Key configuration
 -----------------
 
-Select "Configure controls" from the options menu. Then selecting "Player <n>"
+Select "Configure controls" from the options menu. The "Player <n>" entry allows
+for selecting a player with the left/right buttons. Then selecting "Player <n>"
 will display 2 columns. The left column lists names of Genesis/MD controller
 buttons, the right column shows which key on your handheld is assigned to it.
 
@@ -478,6 +523,21 @@ buttons), and an option to set turbo rate (in Hz) for turbo buttons.
 Players 3 and 4 can only be used if a 4 player adapter is selected for input
 device 1, and the game is supporting this. Only 3 button pads are currently
 supported in 4 player mode.
+
+
+Keyboard configuration
+----------------------
+
+The SC-3000 and the Sega Pico can use a keyboard as input device. Select
+"Configure controls" to configure keyboard support in PicoDrive. The "Keyboard"
+entry allows choosing the keyboard type by using the left/right buttons. The
+virtual keyboard doesn't need any configuration. For configuring the physical
+keyboard mapping, select "Keyboard" when the physical keyboard is selected.
+
+Physical host keyboard keys are mapped 1:1 on emulated keyboard keys. Only the
+unmodified base keys (like A, 1 etc) can be mapped. Don't use Shift, Ctrl or
+Alt when changing the mapping, as it won't work. The default mapping matches
+a standard American PC104 keyboard.
 
 
 Cheat support
