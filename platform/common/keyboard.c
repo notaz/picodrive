@@ -203,6 +203,7 @@ void vkbd_draw(struct vkbd *vkbd)
 	int ypos = (vkbd->top ? 0 : g_screen_height - KBD_ROWS*me_sfont_h);
 
 // HACK: smalltext_out is only available on menuscreen :-/
+int w = g_menuscreen_w, h = g_menuscreen_h;
 g_menuscreen_ptr = (u16 *)g_screen_ptr;
 g_menuscreen_pp = g_screen_ppitch;
 g_menuscreen_w = g_screen_width;
@@ -236,6 +237,8 @@ if (g_screen_width >= 320) {
 			smalltext_out16(xpos, ypos+i*me_sfont_h, text, color);
 		}
 	}
+
+g_menuscreen_w = w, g_menuscreen_h = h;
 }
 
 int vkbd_update(struct vkbd *vkbd, int input, int *actions)

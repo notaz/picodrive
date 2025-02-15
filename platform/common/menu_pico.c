@@ -520,9 +520,9 @@ int key_config_kbd_loop(int id, int keys)
 
 			key = &kbd[keyy][keyx];
 			menu_draw_begin(1, 0);
-			text_out16(x, 2 * me_mfont_h, "== %s Keyboard ==", toggle ? "SC-3000" : "Pico");
+			text_out16(x - w, 2 * me_mfont_h, "Keyboard type: %s", toggle ? "SC-3000" : "Pico");
 			kbd_draw(kbd, shift, (g_menuscreen_w - 320)/2, 4 * me_mfont_h, key);
-			text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "Press a button to bind/unbind");
+			text_out16(x - 2*w, g_menuscreen_h - 4 * me_mfont_h, "Press a button to bind/unbind");
 			menu_draw_end();
 
 			/* wait for some up event */
