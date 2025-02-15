@@ -341,13 +341,9 @@ void plat_video_clear_status(void)
 
 void plat_video_clear_buffers(void)
 {
-	if (plat_sdl_overlay || plat_sdl_gl_active ||
-	    plat_sdl_screen->w >= 320*2 || plat_sdl_screen->h >= 240*2)
-		memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
-	else {
-		memset(g_screen_ptr, 0, plat_sdl_screen->pitch*plat_sdl_screen->h);
-		clear_buf_cnt = 3; // do it thrice in case of triple buffering
-	}
+	memset(shadow_fb, 0, g_menuscreen_w * g_menuscreen_h * 2);
+	memset(plat_sdl_screen->pixels, 0, plat_sdl_screen->pitch*plat_sdl_screen->h);
+	clear_buf_cnt = 3; // do it thrice in case of triple buffering
 }
 
 void plat_video_menu_update(void)
@@ -479,7 +475,7 @@ static void plat_sdl_resize(int w, int h)
 	{
 		g_menuscreen_h = plat_sdl_screen->h;
 		g_menuscreen_w = plat_sdl_screen->w;
-
+#if 0 // auto resizing may be nice, but creates problems on some SDL platforms
 		if (!plat_sdl_overlay && !plat_sdl_gl_active &&
 		    plat_sdl_is_windowed() && !plat_sdl_is_fullscreen()) {
 			// in SDL window mode, adapt window to integer scaling
@@ -494,6 +490,7 @@ static void plat_sdl_resize(int w, int h)
 				g_menuscreen_h = 240;
 			}
 		}
+#endif
 	}
 
 	resize_buffers();
