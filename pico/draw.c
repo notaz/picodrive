@@ -643,12 +643,12 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       if (code==blank) continue;
 
       dx = 8 + (tilex << 3);
-
       DrawTile(~0,yshift,ymask,code,0);
     }
   }
   else
   {
+    sh <<= 6;
     for (; tilex < tend; tilex++)
     {
       int dx, pal;
@@ -659,18 +659,15 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
         continue;
       }
 
-      pal=((code>>9)&0x30);
-
       if (prio) {
         int *zb = (int *)(est->HighCol+8+(tilex<<3));
         *zb++ &= 0x7f7f7f7f;
         *zb   &= 0x7f7f7f7f;
-      } else {
-        pal |= 0x80;
       }
       if(code==blank) continue;
-      dx = 8 + (tilex << 3);
 
+      sh = (sh & ~0x80) | (prio << 7);
+      dx = 8 + (tilex << 3);
       DrawTile(~0,yshift,ymask,code,0);
     }
   }
