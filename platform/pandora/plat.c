@@ -182,7 +182,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 	// draw virtual keyboard on display
-	if (kbd_mode && currentConfig.keyboard == 2 && vkbd)
+	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
 		vkbd_draw(vkbd);
 }
 

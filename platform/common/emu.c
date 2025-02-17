@@ -1347,9 +1347,9 @@ void emu_update_input(void)
 
 	if (kbd_mode) {
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);
-		if (currentConfig.keyboard == 1)
+		if (currentConfig.keyboard == 2)
 			count_kbd = in_update_kbd(actions_kbd);
-		else if (currentConfig.keyboard == 2)
+		else if (currentConfig.keyboard == 1)
 			count_kbd = vkbd_update(vkbd, pl_actions[0], actions_kbd);
 
 		// FIXME: Only passthrough joystick input to avoid collisions
@@ -1573,7 +1573,7 @@ static void emu_loop_prep(void)
 	plat_target_gamma_set(currentConfig.gamma, 0);
 
 	vkbd = NULL;
-	if (currentConfig.keyboard == 2) {
+	if (currentConfig.keyboard == 1) {
 		if (PicoIn.AHW & PAHW_SMS) vkbd = vkbd_init(0);
 		else if (PicoIn.AHW & PAHW_PICO) vkbd = vkbd_init(1);
 	}

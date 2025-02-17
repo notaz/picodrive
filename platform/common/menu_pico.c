@@ -427,14 +427,14 @@ static void kbd_draw(struct key *desc[], int shift, int xoffs, int yoffs, struct
 	int i, j;
 	struct key *key;
 
-	if (g_menuscreen_w >= 480)
+	if (g_menuscreen_w >= (MENU_X2 ? 960 : 480))
 		xoffs -= 50;
 	for (i = 0; desc[i]; i++) {
 		for (j = 0, key = &desc[i][j]; key->lower; j++, key++) {
 			int color = (key != hi ? PXMAKE(0xa0, 0xa0, 0xa0) :
 						 PXMAKE(0xff, 0xff, 0xff));
 			char *text = (shift ? key->upper : key->lower);
-			if (g_menuscreen_w >= 480)
+			if (g_menuscreen_w >= (MENU_X2 ? 960 : 480))
 			text_out16_(xoffs + key->xpos*me_mfont_w, yoffs + i*me_mfont_h, text, color);
 			else
 			smalltext_out16(xoffs + key->xpos*me_sfont_w, yoffs + i*me_sfont_h, text, color);
@@ -576,7 +576,7 @@ static int key_config_players(int id, int keys)
 
 static const char *mgn_keyboard(int id, int *offs)
 {
-	static char *kbds[] = { "OFF", "physical", "virtual" };
+	static char *kbds[] = { "OFF", "virtual", "physical" };
 	if (currentConfig.keyboard < 0 || currentConfig.keyboard > 2)
 		return kbds[0];
 	return kbds[currentConfig.keyboard];
@@ -585,18 +585,23 @@ static const char *mgn_keyboard(int id, int *offs)
 static int key_config_keyboard(int id, int keys)
 {
 	int kid = currentConfig.keyboard;
+#ifdef USE_SDL	// TODO this info should come from platform!
+	int k = 2;
+#else
+	int k = 1;
+#endif
 
 	if (keys & PBTN_LEFT)
-		if (--kid < 0) kid = 2;
+		if (--kid < 0) kid = k;
 	if (keys & PBTN_RIGHT)
-		if (++kid > 2) kid = 0;
+		if (++kid > k) kid = 0;
 
 	currentConfig.keyboard = kid;
 
-	e_menu_keyconfig[2].help = (currentConfig.keyboard == 1 ? h_kbd : NULL);
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 2 ? h_kbd : NULL);
 
 	if (keys & PBTN_MOK)
-		if (currentConfig.keyboard == 1)
+		if (currentConfig.keyboard == 2)
 			key_config_kbd_loop(MA_CTRL_KEYBOARD, 0);
 
 	return 0;
@@ -641,7 +646,7 @@ static int menu_loop_keyconfig(int id, int keys)
 
 	player[strlen(player)-1] = '1';
 	e_menu_keyconfig[0].help = h_play12;
-	e_menu_keyconfig[2].help = (currentConfig.keyboard == 1 ? h_kbd : NULL);
+	e_menu_keyconfig[2].help = (currentConfig.keyboard == 2 ? h_kbd : NULL);
 
 	me_loop_d(e_menu_keyconfig, &sel, menu_draw_prep, NULL);
 
