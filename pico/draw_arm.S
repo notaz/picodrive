@@ -1520,7 +1520,7 @@ DrawWindow:
     orr     r4, r4, r4, lsl #16
     mov     r5, r4
     stmia   r1!, {r4,r5}
-    b       .dwloop_nor1       @ we incremeted r1 ourselves
+    b       .dwloop_nor1       @ we incremented r1 ourselves
 
 .dw_shadow:
     tst     r6, #1             @ hi pri?

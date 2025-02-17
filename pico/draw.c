@@ -629,8 +629,9 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
   tend<<=1;
 
   // Draw tiles across screen:
-  if (!sh)
+  if (!sh || !prio)
   {
+    sh = (sh ? 0x80 : 0x00); // sh and low prio -> shadow
     for (; tilex < tend; tilex++)
     {
       int dx, pal;
@@ -640,15 +641,15 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
         est->rendstatus |= PDRAW_WND_DIFF_PRIO;
         continue;
       }
-      if (code==blank) continue;
 
+      if (code==blank) continue;
       dx = 8 + (tilex << 3);
       DrawTile(~0,yshift,ymask,code,0);
     }
   }
   else
   {
-    sh <<= 6;
+    sh = lflags; // sh and high prio -> no shadow (lflags to suppress warning)
     for (; tilex < tend; tilex++)
     {
       int dx, pal;
@@ -659,14 +660,12 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
         continue;
       }
 
-      if (prio) {
-        int *zb = (int *)(est->HighCol+8+(tilex<<3));
-        *zb++ &= 0x7f7f7f7f;
-        *zb   &= 0x7f7f7f7f;
-      }
-      if(code==blank) continue;
+      // sh and high prio -> clear shadow
+      int *zb = (int *)(est->HighCol+8+(tilex<<3));
+      *zb++ &= 0x7f7f7f7f;
+      *zb   &= 0x7f7f7f7f;
 
-      sh = (sh & ~0x80) | (prio << 7);
+      if(code==blank) continue;
       dx = 8 + (tilex << 3);
       DrawTile(~0,yshift,ymask,code,0);
     }
