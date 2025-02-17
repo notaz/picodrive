@@ -229,6 +229,7 @@ static const in_drv_t in_ps2_drv = {
 void in_ps2_init(struct in_default_bind *defbinds)
 {
 	int i, j;
+	int st, tm;
 
 	for (j = 0; j < 2 && padMapped < 4; j++) {
 		mtapPortOpen(j);
@@ -236,9 +237,15 @@ void in_ps2_init(struct in_default_bind *defbinds)
 		for (i = 0; i < 4 && padMapped < 4; i++) {
 			padBuf[j][i] = memalign(64, 256);
 			if (padPortOpen(j, i, padBuf[j][i])) {
-				padMap[padMapped][0] = j;
-				padMap[padMapped][1] = i;
-				padMapped++;
+				tm = 10;
+				do { usleep(100000); st = padGetState(j, i); }
+				while (st > PAD_STATE_DISCONN && st < PAD_STATE_STABLE && --tm >= 0);
+				if (st == PAD_STATE_STABLE) {
+					padMap[padMapped][0] = j;
+					padMap[padMapped][1] = i;
+					padMapped++;
+				} else
+					padPortClose(j, i);
 			} else
 				free(padBuf[j][i]);
 		}
