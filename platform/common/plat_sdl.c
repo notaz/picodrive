@@ -213,7 +213,7 @@ static void resize_buffers(void)
 void plat_video_set_size(int w, int h)
 {
 	if ((plat_sdl_overlay || plat_sdl_gl_active) &&
-	    (w != g_screen_width || h != g_screen_height)) {
+	    (w * g_menuscreen_h != h * g_menuscreen_w)) {
 		// scale to the window, but mind aspect ratio (scaled to 4:3)
 		if (g_menuscreen_w * 3/4 >= g_menuscreen_h)
 			w = (w * 3 * g_menuscreen_w/g_menuscreen_h)/4 & ~1;
@@ -232,13 +232,19 @@ void plat_video_set_size(int w, int h)
 				plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
 			}
 		}
-		if (plat_sdl_overlay || plat_sdl_gl_active ||
-		    (plat_sdl_screen->w >= 320*2 || plat_sdl_screen->h >= 240*2 ||
-		     plat_sdl_screen->w < 320 || plat_sdl_screen->h < 240)) {
-			// use shadow buffer for overlays and sw integer scaling
+		if (plat_sdl_overlay || plat_sdl_gl_active) {
+			// use shadow buffer for overlays
 			g_screen_width = area.w;
 			g_screen_height = area.h;
 			g_screen_ppitch = area.w;
+			g_screen_ptr = shadow_fb;
+		} else if (plat_sdl_is_windowed() &&
+		    (plat_sdl_screen->w >= 320*2 || plat_sdl_screen->h >= 240*2 ||
+		     plat_sdl_screen->w < 320 || plat_sdl_screen->h < 240)) {
+			// shadow buffer for integer scaling
+			g_screen_width = 320;
+			g_screen_height = 240;
+			g_screen_ppitch = 320;
 			g_screen_ptr = shadow_fb;
 		} else {
 			// unscaled SDL window buffer can be used directly
@@ -282,7 +288,7 @@ void plat_video_flip(void)
 		if (copy)
 			copy_intscale(plat_sdl_screen->pixels, plat_sdl_screen->w,
 				plat_sdl_screen->h, plat_sdl_screen->pitch/2,
-				shadow_fb, area.w, area.h, area.w);
+				shadow_fb, g_screen_width, g_screen_height, g_screen_ppitch);
 
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_UnlockSurface(plat_sdl_screen);
@@ -433,27 +439,12 @@ void plat_video_loop_prepare(void)
 			g_screen_width = 320;
 			g_screen_height= (320 * g_menuscreen_h/g_menuscreen_w) & ~1;
 		}
-		g_screen_ppitch = g_screen_width;
 		plat_video_set_size(g_screen_width, g_screen_height);
-		g_screen_ptr = shadow_fb;
 	}
 	else {
+		g_screen_width = g_menuscreen_w;
+		g_screen_height = g_menuscreen_h;
 		plat_video_set_size(g_menuscreen_w, g_menuscreen_h);
-		if (plat_sdl_is_windowed() &&
-		    (plat_sdl_screen->w >= 320*2 || plat_sdl_screen->h >= 240*2 ||
-		     plat_sdl_screen->w < 320 || plat_sdl_screen->h < 240)) {
-			// shadow buffer for integer scaling
-			g_screen_width = 320;
-			g_screen_height = 240;
-			g_screen_ppitch = 320;
-			g_screen_ptr = shadow_fb;
-		} else {
-			// no scaling needed, use screen buffer directly
-			g_screen_width = plat_sdl_screen->w;
-			g_screen_height = plat_sdl_screen->h;
-			g_screen_ppitch = plat_sdl_screen->pitch/2;
-			g_screen_ptr = plat_sdl_screen->pixels;
-		}
 
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
