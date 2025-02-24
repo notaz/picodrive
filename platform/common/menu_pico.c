@@ -541,8 +541,8 @@ int key_config_kbd_loop(int id, int keys)
 }
 
 
-const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
-const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
+const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Mouse", "Team player", "4 way play", NULL };
+const char *indev1_names[] = { "none", "3 button pad", "6 button pad", "Mouse", NULL };
 
 static char h_play12[55];
 static char h_kbd[55];

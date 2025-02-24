@@ -134,7 +134,9 @@ typedef struct PicoInterface
 	void (*mcdTrayOpen)(void);
 	void (*mcdTrayClose)(void);
 
-	unsigned int kbd;   // PS/2 peripherals, e.g. Pico Keyboard
+	int mouse[4];                  // x,y mouse coordinates
+	int mouseInt[4];               // internal copy
+	unsigned int kbd;              // SC-3000 or Pico Keyboard
 } PicoInterface;
 
 extern PicoInterface PicoIn;
@@ -360,6 +362,7 @@ enum input_device {
   PICO_INPUT_NOTHING,
   PICO_INPUT_PAD_3BTN,
   PICO_INPUT_PAD_6BTN,
+  PICO_INPUT_MOUSE,
   PICO_INPUT_PAD_TEAM,
   PICO_INPUT_PAD_4WAY,
 };

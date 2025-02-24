@@ -543,6 +543,13 @@ void plat_init(void)
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
 
+	// create an artificial resize event to initialize mouse scaling
+	SDL_Event ev;
+	ev.resize.type = SDL_VIDEORESIZE;
+	ev.resize.w = g_menuscreen_w;
+	ev.resize.h = g_menuscreen_h;
+	SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_ALLEVENTS);
+
 	bgr_to_uyvy_init();
 	linux_menu_init();
 }

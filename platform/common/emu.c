@@ -1334,7 +1334,7 @@ void emu_update_input(void)
 	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
 	int count_kbd = 0;
-	int events, i;
+	int events, i = 0;
 
 	in_update(actions);
 
@@ -1344,6 +1344,23 @@ void emu_update_input(void)
 	pl_actions[3] = actions[IN_BINDTYPE_PLAYER34] >> 16;
 
 	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
+
+	// update mouse coordinates if there is an emulated mouse
+	in_update_analog(0, 0, &PicoIn.mouse[0]);
+	in_update_analog(0, 1, &PicoIn.mouse[1]);
+	// scale mouse coordinates according to window scale
+	PicoIn.mouse[0] = PicoIn.mouse[0] * g_screen_width  / (2*1024);
+	PicoIn.mouse[1] = PicoIn.mouse[1] * g_screen_height / (2*1024);
+
+	in_update_analog(0, -1, &i);
+	int buttons = 0;
+	if (i & 1) buttons |= 1<<GBTN_B;
+	if (i & 4) buttons |= 1<<GBTN_C;
+	if (i & 2) buttons |= 1<<GBTN_START;
+	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE)
+		pl_actions[0] |= buttons;
+	if (currentConfig.input_dev1 == PICO_INPUT_MOUSE)
+		pl_actions[1] |= buttons;
 
 	if (kbd_mode) {
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);

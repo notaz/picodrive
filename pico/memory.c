@@ -340,7 +340,7 @@ static u32 read_pad_6btn(int i, u32 out_bits)
     value = (pad & 0xc0) >> 2;                   // ?0SA 0000
     goto out;
   }
-  else if(phase == 3) {
+  else if (phase == 3) {
     if (out_bits & 0x40)
       value = (pad & 0x30) | ((pad >> 8) & 0xf); // ?1CB MXYZ
     else
@@ -403,6 +403,58 @@ static u32 read_pad_4way(int i, u32 out_bits)
   return value;
 }
 
+static u32 read_pad_mouse(int i, u32 out_bits)
+{
+  int phase = Pico.m.padTHPhase[i];
+  u32 value;
+
+  int x = PicoIn.mouseInt[0] - PicoIn.mouseInt[2];
+  int y = PicoIn.mouseInt[3] - PicoIn.mouseInt[1];
+
+  switch (phase) {
+  case 0:
+    value = 0x00;
+    break;
+  case 1:
+    value = 0x0b;
+    break;
+  case 2:
+    value = 0x0f;
+    // store last read values for x,y difference calculation
+    PicoIn.mouseInt[2] = PicoIn.mouseInt[0];
+    PicoIn.mouseInt[3] = PicoIn.mouseInt[1];
+    break;
+  case 3:
+    value = 0x0f;
+    // latch current mouse position during readout
+    PicoIn.mouseInt[0] = PicoIn.mouse[0];
+    PicoIn.mouseInt[1] = PicoIn.mouse[1];
+    break;
+  case 4: // xxxx OOSS, OO = y,x overflow, SS = y,x sign bits
+    value = (x<0) | ((y<0)<<1) | ((x<-255||x>255)<<2) | ((y<-255||y>255)<<3);
+    break;
+  case 5:
+    value = (PicoIn.padInt[i] & 0xf0) >> 4;      // SMRL, mapped from SACB
+    break;
+  case 6: // high nibble of x
+    value = (x>>4) & 0xf;
+    break;
+  case 7: // low nibble of x
+    value = x & 0xf;
+    break;
+  case 8: // high nibble of y
+    value = (y>>4) & 0xf;
+    break;
+  case 9: // low nibble of y
+  default: // also sent on all later phases
+    value = y & 0xf;
+    break;
+  }
+
+  value |= (out_bits & 0x40) | ((out_bits & 0x20)>>1);
+  return value;
+}
+
 static u32 read_nothing(int i, u32 out_bits)
 {
   return 0xff;
@@ -417,6 +469,7 @@ static port_read_func *port_readers[3] = {
 };
 
 static int padTHLatency[3]; // TODO this should be in the save file structures
+static int padTLLatency[3]; // TODO this should be in the save file structures
 
 static NOINLINE u32 port_read(int i)
 {
@@ -438,6 +491,13 @@ static NOINLINE u32 port_read(int i)
   out |= mask & ~ctrl_reg;
 
   in = port_readers[i](i, out);
+
+  // Sega mouse uses the TL/TR lines for req/ack. For buggy drivers, make sure
+  // there's some delay before ack is sent by taking over the new TL line level
+  if (CYCLES_GE(SekCyclesDone(), padTLLatency[i]))
+    padTLLatency[i] = SekCyclesDone();
+  else
+    in ^= 0x10; // TL
 
   return (in & ~ctrl_reg) | (data_reg & ctrl_reg);
 }
@@ -475,6 +535,10 @@ void PicoSetInputDevice(int port, enum input_device device)
     func = read_pad_4way;
     break;
 
+  case PICO_INPUT_MOUSE:
+    func = read_pad_mouse;
+    break;
+
   default:
     func = read_nothing;
     break;
@@ -501,7 +565,7 @@ NOINLINE void io_ports_write(u32 a, u32 d)
 {
   a = (a>>1) & 0xf;
 
-  // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
+  // for some controllers, changing TH/TR changes controller state
   if (1 <= a && a <= 2)
   {
     Pico.m.padDelay[a - 1] = 0;
@@ -515,6 +579,18 @@ NOINLINE void io_ports_write(u32 a, u32 d)
         Pico.m.padTHPhase[0] = 0;
       if (a == 1 && !(PicoMem.ioports[a] & 0x40) && (d & 0x40))
         Pico.m.padTHPhase[0]++;
+    } else if (port_readers[a - 1] == read_pad_mouse) {
+      if ((d^PicoMem.ioports[a]) & 0x20) {
+        if (Pico.m.padTHPhase[a - 1]) { // in readout?
+          padTLLatency[a - 1] = SekCyclesDone() + 100;
+          Pico.m.padTHPhase[a - 1]++;
+        } else // in ID cycle
+          padTLLatency[a - 1] = SekCyclesDone() + 25; // Cannon Fodder
+      }
+      if ((d^PicoMem.ioports[a]) & 0x40) {
+        // 1->0 transition starts the readout protocol
+        Pico.m.padTHPhase[a - 1] = !(d & 0x40);
+      }
     } else if (!(PicoMem.ioports[a] & 0x40) && (d & 0x40))
       Pico.m.padTHPhase[a - 1]++;
   }
