@@ -486,6 +486,8 @@ void pemu_loop_prep(void)
 {
 	apply_renderer();
 	plat_video_clear_buffers();
+	plat_show_cursor(currentConfig.input_dev0 != PICO_INPUT_MOUSE &&
+			currentConfig.input_dev1 != PICO_INPUT_MOUSE);
 }
 
 void pemu_loop_end(void)
@@ -497,6 +499,7 @@ void pemu_loop_end(void)
 		free(ghost_buf);
 		ghost_buf = NULL;
 	}
+	plat_show_cursor(1);
 }
 
 void plat_wait_till_us(unsigned int us_to)

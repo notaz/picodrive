@@ -66,6 +66,7 @@ struct vkbd *vkbd;
 static int pico_page;
 static int pico_w, pico_h;
 static u16 *pico_overlay;
+static int pico_pad;
 
 static short __attribute__((aligned(4))) sndBuffer[2*54000/50];
 
@@ -1148,6 +1149,9 @@ void emu_pico_overlay(u16 *pd, int w, int h, int pitch)
 
 void run_events_pico(unsigned int events)
 {
+	// treat pad ports equal to support pad in one and mouse in the other
+	PicoIn.pad[0] |= PicoIn.pad[1];
+
 	if (events & PEV_PICO_PPREV) {
 		PicoPicohw.page--;
 		if (PicoPicohw.page < 0)
@@ -1200,12 +1204,23 @@ void run_events_pico(unsigned int events)
 	if (pico_inp_mode == 0)
 		return;
 
-	/* handle other input modes */
-	if (PicoIn.pad[0] & 1) pico_pen_y--;
-	if (PicoIn.pad[0] & 2) pico_pen_y++;
-	if (PicoIn.pad[0] & 4) pico_pen_x--;
-	if (PicoIn.pad[0] & 8) pico_pen_x++;
-	PicoIn.pad[0] &= ~0x0f; // release UDLR
+	/* handle other input modes using the pen */
+	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
+	    currentConfig.input_dev1 == PICO_INPUT_MOUSE) {
+		pico_pen_x = PicoIn.mouse[0];
+		pico_pen_y = PicoIn.mouse[1];
+		if ((pico_pad ^ PicoIn.pad[0]) & (1<<GBTN_START) & ~pico_pad) {
+			PicoPicohw.pen_pos[0] ^= 0x8000;
+			PicoPicohw.pen_pos[1] ^= 0x8000;
+		}
+		pico_pad = PicoIn.pad[0];
+	} else {
+		if (PicoIn.pad[0] & 1) pico_pen_y--;
+		if (PicoIn.pad[0] & 2) pico_pen_y++;
+		if (PicoIn.pad[0] & 4) pico_pen_x--;
+		if (PicoIn.pad[0] & 8) pico_pen_x++;
+		PicoIn.pad[0] &= ~0x0f; // release UDLR
+	}
 
 	/* cursor position, cursor drawing must not cross screen borders */
 	if (pico_pen_y < PICO_PEN_ADJUST_Y)
@@ -1333,7 +1348,7 @@ void emu_update_input(void)
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
-	int count_kbd = 0;
+	int count_kbd = 0, buttons = 0;
 	int events, i = 0;
 
 	in_update(actions);
@@ -1346,21 +1361,23 @@ void emu_update_input(void)
 	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 
 	// update mouse coordinates if there is an emulated mouse
-	in_update_analog(0, 0, &PicoIn.mouse[0]);
-	in_update_analog(0, 1, &PicoIn.mouse[1]);
-	// scale mouse coordinates according to window scale
-	PicoIn.mouse[0] = PicoIn.mouse[0] * g_screen_width  / (2*1024);
-	PicoIn.mouse[1] = PicoIn.mouse[1] * g_screen_height / (2*1024);
+	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
+	    currentConfig.input_dev1 == PICO_INPUT_MOUSE) {
+		in_update_analog(0, 0, &PicoIn.mouse[0]);
+		in_update_analog(0, 1, &PicoIn.mouse[1]);
+		// scale mouse coordinates from -1024..1024 to 0..screen_w/h
+		PicoIn.mouse[0] = (PicoIn.mouse[0]+1024) * g_screen_width /2048;
+		PicoIn.mouse[1] = (PicoIn.mouse[1]+1024) * g_screen_height/2048;
 
-	in_update_analog(0, -1, &i);
-	int buttons = 0;
-	if (i & 1) buttons |= 1<<GBTN_B;
-	if (i & 4) buttons |= 1<<GBTN_C;
-	if (i & 2) buttons |= 1<<GBTN_START;
-	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE)
-		pl_actions[0] |= buttons;
-	if (currentConfig.input_dev1 == PICO_INPUT_MOUSE)
-		pl_actions[1] |= buttons;
+		in_update_analog(0, -1, &i); // get mouse buttons, bit 2-0 = RML
+		if (i & 1) buttons |= 1<<GBTN_B;
+		if (i & 4) buttons |= 1<<GBTN_C;
+		if (i & 2) buttons |= 1<<GBTN_START;
+		if (currentConfig.input_dev0 == PICO_INPUT_MOUSE)
+			pl_actions[0] |= buttons;
+		if (currentConfig.input_dev1 == PICO_INPUT_MOUSE)
+			pl_actions[1] |= buttons;
+	}
 
 	if (kbd_mode) {
 		int mask = (PicoIn.AHW & PAHW_PICO ? 0xf : 0x0);

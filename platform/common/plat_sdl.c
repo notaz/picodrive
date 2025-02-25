@@ -28,6 +28,8 @@ static struct area { int w, h; } area;
 
 static struct in_pdata in_sdl_platform_data;
 
+static int hide_cursor;
+
 static int sound_rates[] = { 8000, 11025, 16000, 22050, 32000, 44100, 53000, -1 };
 struct plat_target plat_target = { .sound_rates = sound_rates };
 
@@ -452,6 +454,16 @@ void plat_video_loop_prepare(void)
 	plat_video_set_buffer(g_screen_ptr);
 }
 
+void plat_show_cursor(int on)
+{
+	SDL_ShowCursor(on && !hide_cursor);
+}
+
+void plat_grab_input(int on)
+{
+	SDL_WM_GrabInput(on ? SDL_GRAB_ON : SDL_GRAB_OFF);
+}
+
 static void plat_sdl_resize(int w, int h)
 {
 	// take over new settings
@@ -506,7 +518,10 @@ void plat_init(void)
 #elif !defined(__MIYOO__) && !defined(__RETROFW__) && !defined(__DINGUX__)
 	if (! plat_sdl_is_windowed())
 #endif
+	{
+		hide_cursor = 1;
 		SDL_ShowCursor(0);
+	}
 
 	plat_sdl_quit_cb = plat_sdl_quit;
 	plat_sdl_resize_cb = plat_sdl_resize;

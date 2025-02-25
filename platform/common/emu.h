@@ -193,6 +193,9 @@ void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);
 
+void plat_show_cursor(int on);
+void plat_grab_input(int on);
+
 /* used before things blocking for a while (these funcs redraw on return) */
 void plat_status_msg_busy_first(const char *msg);
 void plat_status_msg_busy_next(const char *msg);
