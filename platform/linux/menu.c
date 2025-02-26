@@ -12,22 +12,26 @@ static const char *mgn_windowsize(int id, int *offs)
 {
 	int scale = g_menuscreen_w / 320;
 
-	if (g_menuscreen_w == scale*320 && g_menuscreen_h == scale*240)
-		sprintf(static_buff, "%dx%d", scale*320, scale*240);
-	else	sprintf(static_buff, "custom");
+	if ((g_menuscreen_w == scale*320 && g_menuscreen_h == scale*240) ||
+	    plat_sdl_is_fullscreen())
+		sprintf(static_buff, "%dx%d", g_menuscreen_w, g_menuscreen_h);
+	else
+		sprintf(static_buff, "custom");
 	return static_buff;
 }
 
 static int mh_windowsize(int id, int keys)
 {
-	if (keys & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
-		int scale = g_menuscreen_w / 320;
-		if (keys & PBTN_RIGHT) scale++;
-		if (keys & PBTN_LEFT ) scale--;
-		if (scale <= 0) scale = 1;
-		if (scale > 20) scale = 20;
-		g_menuscreen_w = scale*320;
-		g_menuscreen_h = scale*240;
+	if (keys & (PBTN_LEFT|PBTN_RIGHT)) {
+		if (!plat_target.vout_fullscreen) {
+			int scale = g_menuscreen_w / 320;
+			if (keys & PBTN_RIGHT) scale++;
+			if (keys & PBTN_LEFT ) scale--;
+			if (scale <= 0) scale = 1;
+			if (scale > 20) scale = 20;
+			g_menuscreen_w = scale*320;
+			g_menuscreen_h = scale*240;
+		}
 		return 0;
 	}
 	return 1;
@@ -35,6 +39,7 @@ static int mh_windowsize(int id, int keys)
 
 #define MENU_OPTIONS_GFX \
 	mee_cust_s_h  ("Window size",            MA_OPT_VOUT_SIZE, 0,mh_windowsize, mgn_windowsize, NULL), \
+	mee_onoff     ("Fullscreen mode",        MA_OPT_VOUT_FULL, plat_target.vout_fullscreen, 1), \
 	mee_enum_h    ("Horizontal scaling",     MA_OPT_SCALING, currentConfig.scaling, men_scaling_opts, h_scale), \
 	mee_enum_h    ("Vertical scaling",       MA_OPT_VSCALING, currentConfig.vscaling, men_scaling_opts, h_scale), \
 	mee_enum_h    ("Scaler type",            MA_OPT3_FILTERING, currentConfig.filter, men_filter_opts, h_stype), \

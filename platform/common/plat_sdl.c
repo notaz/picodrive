@@ -300,7 +300,7 @@ void plat_video_flip(void)
 		if ((plat_sdl_screen->w != g_menuscreen_w ||
 		    plat_sdl_screen->h != g_menuscreen_h)  && plat_sdl_is_windowed() &&
 		    SDL_WM_GrabInput(SDL_GRAB_ON) == SDL_GRAB_ON) {
-			plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 1);
+			plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, -1);
 			SDL_WM_GrabInput(SDL_GRAB_OFF);
 			g_menuscreen_pp = plat_sdl_screen->pitch/2;
 
@@ -367,7 +367,7 @@ void plat_video_menu_update(void)
 		int w, h;
 		do {
 			w = g_menuscreen_w, h = g_menuscreen_h;
-			plat_sdl_change_video_mode(w, h, 1);
+			plat_sdl_change_video_mode(w, h, -1);
 		} while (w != g_menuscreen_w || h != g_menuscreen_h);
 		SDL_WM_GrabInput(SDL_GRAB_OFF);
 	}
