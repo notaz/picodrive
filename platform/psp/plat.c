@@ -129,6 +129,20 @@ void plat_video_menu_leave(void)
 	plat_video_set_buffer(g_screen_ptr);
 }
 
+void plat_show_cursor(int on)
+{
+}
+
+int plat_grab_cursor(int on)
+{
+	return 0;
+}
+
+int plat_has_wm(void)
+{
+	return 0;
+}
+
 /* check arg at index x */
 int plat_parse_arg(int argc, char *argv[], int *x)
 {

@@ -1336,7 +1336,7 @@ static void run_events_ui(unsigned int which)
 			emu_status_msg("No mouse configured");
 		}
 
-		plat_grab_input(grab_mode);
+		plat_grab_cursor(grab_mode);
 	}
 	if (which & PEV_SWITCH_KBD)
 	{
@@ -1650,7 +1650,7 @@ static void emu_loop_prep(void)
 	if (!(PicoIn.AHW & PAHW_8BIT) && (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
 					currentConfig.input_dev1 == PICO_INPUT_MOUSE)) {
 		PicoIn.opt |= POPT_EN_MOUSE;
-		plat_grab_input(grab_mode);
+		plat_grab_cursor(grab_mode);
 	}
 
 	pemu_loop_prep();
@@ -1849,5 +1849,5 @@ void emu_loop(void)
 
 	pemu_loop_end();
 	emu_sound_stop();
-	plat_grab_input(0);
+	plat_grab_cursor(0);
 }

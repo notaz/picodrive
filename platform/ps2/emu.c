@@ -1072,6 +1072,20 @@ void plat_video_loop_prepare(void)
 	vidResetMode();
 }
 
+void plat_show_cursor(int on)
+{
+}
+
+int plat_grab_cursor(int on)
+{
+	return 0;
+}
+
+int plat_has_wm(void)
+{
+	return 0;
+}
+
 /* prepare for entering the emulator loop */
 void pemu_loop_prep(void)
 {

@@ -375,13 +375,15 @@ me_bind_action emuctrl_actions[] =
 	{ "Pico Next page ", PEV_PICO_PNEXT },
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
-	{ "Capture Mouse  ", PEV_GRAB_INPUT },
 	{ "Switch Keyboard", PEV_SWITCH_KBD },
+	{ "Capture Mouse  ", PEV_GRAB_INPUT },
 	{ NULL,                0 }
 };
 
 static int key_config_loop_wrap(int id, int keys)
 {
+	int n;
+
 	switch (id) {
 		case MA_CTRL_PLAYER1:
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 0);
@@ -396,7 +398,8 @@ static int key_config_loop_wrap(int id, int keys)
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 3);
 			break;
 		case MA_CTRL_EMU:
-			key_config_loop(emuctrl_actions, array_size(emuctrl_actions) - 1, -1);
+			n = (plat_has_wm() ? 1 : 2);
+			key_config_loop(emuctrl_actions, array_size(emuctrl_actions) - n, -1);
 			break;
 		default:
 			break;

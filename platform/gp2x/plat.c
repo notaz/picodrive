@@ -184,6 +184,20 @@ void plat_video_menu_leave(void)
 {
 }
 
+void plat_show_cursor(int on)
+{
+}
+
+int plat_grab_cursor(int on)
+{
+	return 0;
+}
+
+int plat_has_wm(void)
+{
+	return 0;
+}
+
 void *plat_mem_get_for_drc(size_t size)
 {
 	return NULL;

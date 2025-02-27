@@ -78,7 +78,6 @@ static struct in_default_bind in_evdev_defbinds[] =
 	{ KEY_6,	IN_BINDTYPE_EMU, PEVB_PICO_PNEXT },
 	{ KEY_7,	IN_BINDTYPE_EMU, PEVB_PICO_STORY },
 	{ KEY_8,	IN_BINDTYPE_EMU, PEVB_PICO_PAD },
-	{ KEY_9,	IN_BINDTYPE_EMU, PEVB_PICO_PENST },
 	{ 0, 0, 0 }
 };
 
@@ -453,6 +452,20 @@ void plat_video_loop_prepare(void)
 
 	PicoDrawSetOutFormat(PDF_RGB555, 0);
 	// emu_video_mode_change will call pnd_setup_layer()
+}
+
+void plat_show_cursor(int on)
+{
+}
+
+int plat_grab_cursor(int on)
+{
+	return 0;
+}
+
+int plat_has_wm(void)
+{
+	return 0;
 }
 
 void pemu_loop_prep(void)

@@ -459,9 +459,15 @@ void plat_show_cursor(int on)
 	SDL_ShowCursor(on && !hide_cursor);
 }
 
-void plat_grab_input(int on)
+int plat_grab_cursor(int on)
 {
 	SDL_WM_GrabInput(on ? SDL_GRAB_ON : SDL_GRAB_OFF);
+	return on;
+}
+
+int plat_has_wm(void)
+{
+	return plat_sdl_is_windowed();
 }
 
 static void plat_sdl_resize(int w, int h)
