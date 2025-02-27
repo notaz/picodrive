@@ -29,7 +29,7 @@
 #define PEVB_PICO_PPREV 20
 #define PEVB_PICO_STORY 19
 #define PEVB_PICO_PAD   18
-#define PEVB_PICO_PENST 17
+#define PEVB_GRAB_INPUT 17
 #define PEVB_SWITCH_KBD 16
 #define PEVB_RESET      15
 
@@ -46,7 +46,7 @@
 #define PEV_PICO_PPREV  (1 << PEVB_PICO_PPREV)
 #define PEV_PICO_STORY  (1 << PEVB_PICO_STORY)
 #define PEV_PICO_PAD    (1 << PEVB_PICO_PAD)
-#define PEV_PICO_PENST  (1 << PEVB_PICO_PENST)
+#define PEV_GRAB_INPUT  (1 << PEVB_GRAB_INPUT)
 #define PEV_SWITCH_KBD  (1 << PEVB_SWITCH_KBD)
 #define PEV_RESET       (1 << PEVB_RESET)
 

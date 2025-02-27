@@ -371,11 +371,11 @@ me_bind_action emuctrl_actions[] =
 	{ "Fast forward   ", PEV_FF },
 	{ "Reset Game     ", PEV_RESET },
 	{ "Enter Menu     ", PEV_MENU },
-	{ "Pico Next page ", PEV_PICO_PNEXT },
 	{ "Pico Prev page ", PEV_PICO_PPREV },
+	{ "Pico Next page ", PEV_PICO_PNEXT },
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
-	{ "Pico Pen state ", PEV_PICO_PENST },
+	{ "Capture Mouse  ", PEV_GRAB_INPUT },
 	{ "Switch Keyboard", PEV_SWITCH_KBD },
 	{ NULL,                0 }
 };

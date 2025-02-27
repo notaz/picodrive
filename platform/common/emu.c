@@ -60,8 +60,10 @@ int pico_inp_mode;
 int flip_after_sync;
 int engineState = PGS_Menu;
 
+int grab_mode;
 int kbd_mode;
 struct vkbd *vkbd;
+int mouse_x, mouse_y;
 
 static int pico_page;
 static int pico_w, pico_h;
@@ -1187,11 +1189,6 @@ void run_events_pico(unsigned int events)
 			emu_status_msg("Input: Pen on Pad");
 		}
 	}
-	if (events & PEV_PICO_PENST) {
-		PicoPicohw.pen_pos[0] ^= 0x8000;
-		PicoPicohw.pen_pos[1] ^= 0x8000;
-		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
-	}
 
 	if ((currentConfig.EmuOpt & EOPT_PICO_PEN) &&
 			(PicoIn.pad[0]&0x20) && pico_inp_mode && pico_overlay) {
@@ -1205,15 +1202,9 @@ void run_events_pico(unsigned int events)
 		return;
 
 	/* handle other input modes using the pen */
-	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
-	    currentConfig.input_dev1 == PICO_INPUT_MOUSE) {
+	if (PicoIn.opt & POPT_EN_MOUSE) {
 		pico_pen_x = PicoIn.mouse[0];
 		pico_pen_y = PicoIn.mouse[1];
-		if ((pico_pad ^ PicoIn.pad[0]) & (1<<GBTN_START) & ~pico_pad) {
-			PicoPicohw.pen_pos[0] ^= 0x8000;
-			PicoPicohw.pen_pos[1] ^= 0x8000;
-		}
-		pico_pad = PicoIn.pad[0];
 	} else {
 		if (PicoIn.pad[0] & 1) pico_pen_y--;
 		if (PicoIn.pad[0] & 2) pico_pen_y++;
@@ -1221,6 +1212,13 @@ void run_events_pico(unsigned int events)
 		if (PicoIn.pad[0] & 8) pico_pen_x++;
 		PicoIn.pad[0] &= ~0x0f; // release UDLR
 	}
+
+	if ((pico_pad ^ PicoIn.pad[0]) & PicoIn.pad[0] & (1<<GBTN_START)) {
+		PicoPicohw.pen_pos[0] ^= 0x8000;
+		PicoPicohw.pen_pos[1] ^= 0x8000;
+		emu_status_msg("Pen %s", PicoPicohw.pen_pos[0] & 0x8000 ? "Up" : "Down");
+	}
+	pico_pad = PicoIn.pad[0];
 
 	/* cursor position, cursor drawing must not cross screen borders */
 	if (pico_pen_y < PICO_PEN_ADJUST_Y)
@@ -1324,6 +1322,22 @@ static void run_events_ui(unsigned int which)
 	{
 		plat_video_toggle_renderer(1, 0);
 	}
+	if (which & PEV_GRAB_INPUT)
+	{
+		if (PicoIn.opt & POPT_EN_MOUSE) {
+			grab_mode = !grab_mode;
+			in_update_analog(0, 2, &mouse_x);
+			in_update_analog(0, 3, &mouse_y);
+			in_update_analog(0, 0, &mouse_x);
+			in_update_analog(0, 1, &mouse_y);
+			emu_status_msg("Mouse capture %s", grab_mode ? "on" : "off");
+		} else {
+			grab_mode = 0;
+			emu_status_msg("No mouse configured");
+		}
+
+		plat_grab_input(grab_mode);
+	}
 	if (which & PEV_SWITCH_KBD)
 	{
 		if (! (PicoIn.opt & POPT_EN_KBD)) {
@@ -1361,18 +1375,35 @@ void emu_update_input(void)
 	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 
 	// update mouse coordinates if there is an emulated mouse
-	if (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
-	    currentConfig.input_dev1 == PICO_INPUT_MOUSE) {
-		in_update_analog(0, 0, &PicoIn.mouse[0]);
-		in_update_analog(0, 1, &PicoIn.mouse[1]);
-		// scale mouse coordinates from -1024..1024 to 0..screen_w/h
-		PicoIn.mouse[0] = (PicoIn.mouse[0]+1024) * g_screen_width /2048;
-		PicoIn.mouse[1] = (PicoIn.mouse[1]+1024) * g_screen_height/2048;
+	if (PicoIn.opt & POPT_EN_MOUSE) {
+		if (!grab_mode) {
+			in_update_analog(0, 0, &PicoIn.mouse[0]);
+			in_update_analog(0, 1, &PicoIn.mouse[1]);
+			// scale mouse coordinates from -1024..1024 to 0..screen_w/h
+			PicoIn.mouse[0] = (PicoIn.mouse[0]+1024) * g_screen_width /2048;
+			PicoIn.mouse[1] = (PicoIn.mouse[1]+1024) * g_screen_height/2048;
+		} else {
+			int xrel, yrel;
+			in_update_analog(0, 2, &xrel);
+			in_update_analog(0, 3, &yrel);
+			mouse_x += xrel, mouse_y += yrel;
+			// scale mouse coordinates from -1024..1024 to 0..screen_w/h
+			PicoIn.mouse[0] = (mouse_x+1024) * g_screen_width /2048;
+			PicoIn.mouse[1] = (mouse_y+1024) * g_screen_height/2048;
+		}
 
 		in_update_analog(0, -1, &i); // get mouse buttons, bit 2-0 = RML
-		if (i & 1) buttons |= 1<<GBTN_B;
-		if (i & 4) buttons |= 1<<GBTN_C;
-		if (i & 2) buttons |= 1<<GBTN_START;
+		if (PicoIn.AHW & PAHW_PICO) {
+			// TODO is maintaining 2 different mappings necessary?
+			if (i & 1) buttons |= 1<<GBTN_C;        // pen button
+			if (i & 2) buttons |= 1<<GBTN_B;	// red button
+			if (i & 4) buttons |= 1<<GBTN_START;    // pen up/down
+		} else {
+			if (i & 1) buttons |= 1<<GBTN_B;	// as Sega Mouse
+			if (i & 2) buttons |= 1<<GBTN_START;
+			if (i & 4) buttons |= 1<<GBTN_C;
+		}
+
 		if (currentConfig.input_dev0 == PICO_INPUT_MOUSE)
 			pl_actions[0] |= buttons;
 		if (currentConfig.input_dev1 == PICO_INPUT_MOUSE)
@@ -1615,6 +1646,13 @@ static void emu_loop_prep(void)
 	if (((PicoIn.AHW & PAHW_PICO) || (PicoIn.AHW & PAHW_SC)) && currentConfig.keyboard)
 		PicoIn.opt |= POPT_EN_KBD;
 
+	PicoIn.opt &= ~POPT_EN_MOUSE;
+	if (!(PicoIn.AHW & PAHW_8BIT) && (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
+					currentConfig.input_dev1 == PICO_INPUT_MOUSE)) {
+		PicoIn.opt |= POPT_EN_MOUSE;
+		plat_grab_input(grab_mode);
+	}
+
 	pemu_loop_prep();
 }
 
@@ -1811,4 +1849,5 @@ void emu_loop(void)
 
 	pemu_loop_end();
 	emu_sound_stop();
+	plat_grab_input(0);
 }

@@ -486,8 +486,7 @@ void pemu_loop_prep(void)
 {
 	apply_renderer();
 	plat_video_clear_buffers();
-	plat_show_cursor(currentConfig.input_dev0 != PICO_INPUT_MOUSE &&
-			currentConfig.input_dev1 != PICO_INPUT_MOUSE);
+	plat_show_cursor(!(PicoIn.opt & POPT_EN_MOUSE));
 }
 
 void pemu_loop_end(void)
