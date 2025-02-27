@@ -741,6 +741,19 @@ void PicoFrameStartSMS(void)
     Pico.m.dirtyPal = 1;
   }
 
+  switch (mode) {
+  // SMS2 only 224/240 line modes, e.g. Micro Machines
+  case 0x06|0x08:
+      est->rendstatus |= PDRAW_30_ROWS;
+      loffs = screen_offset = 0;
+      lines = 240;
+      break;
+  case 0x06|0x10:
+      loffs = screen_offset = 8;
+      lines = 224;
+      break;
+  }
+
   Pico.m.hardware &= ~PMS_HW_TMS;
   if (PicoIn.tmsPalette || (PicoIn.AHW & (PAHW_SG|PAHW_SC)))
     Pico.m.hardware |= PMS_HW_TMS;
@@ -751,7 +764,6 @@ void PicoFrameStartSMS(void)
     Pico.m.hardware |= PMS_HW_LCD;
 
     // GG LCD always has 160x144 regardless of settings
-    screen_offset = 24; // nonetheless the vdp timing has 224 lines
     loffs = 48;
     lines = 144;
     columns = 160;
@@ -760,19 +772,6 @@ void PicoFrameStartSMS(void)
       // SMS mode 4 with 1st column blanked
       est->rendstatus |= PDRAW_SMS_BLANK_1;
       columns = 248;
-    }
-
-    switch (mode) {
-    // SMS2 only 224/240 line modes, e.g. Micro Machines
-    case 0x06|0x08:
-        est->rendstatus |= PDRAW_30_ROWS;
-        loffs = screen_offset = 0;
-        lines = 240;
-        break;
-    case 0x06|0x10:
-        loffs = screen_offset = 8;
-        lines = 224;
-        break;
     }
   }
 
@@ -821,9 +820,10 @@ void PicoLineSMS(int line)
 {
   int skip = skip_next_line;
   unsigned bgcolor;
+  int first = 48 - screen_offset;
 
   // GG LCD, render only visible part of screen
-  if ((Pico.m.hardware & PMS_HW_LCD) && (line < 24 || line >= 24+144))
+  if ((Pico.m.hardware & PMS_HW_LCD) && (line < first || line >= first+144))
     goto norender;
 
   if (PicoScanBegin != NULL && skip == 0)
