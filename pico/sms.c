@@ -333,9 +333,8 @@ static u8 tape_update(int cycle)
   // compute result from sample
   if (pt->isbit) {
     phase = cycle - pt->phase; // recompute as phase might have changed above.
-    if (pt->bitsample == '0') ret = phase >= pt->cycles_sample*1/2;
-    if (pt->bitsample == '1') ret = phase >= pt->cycles_sample*3/4 ||
-                (phase >= pt->cycles_sample*1/4 && phase < pt->cycles_sample*2/4);
+    if (pt->bitsample == '0') ret = ((phase * pt->cycles_mult)>>31) & 1;
+    if (pt->bitsample == '1') ret = ((phase * pt->cycles_mult)>>30) & 1;
   } else
     ret = pt->wavsample >= 0x0800; // 1/16th of the max volume
 
@@ -428,7 +427,7 @@ static unsigned char z80_sms_in(unsigned short a)
       case 0x01:
         if ((PicoIn.AHW & PAHW_GG) && a < 0x8) { // GG I/O area
           switch (a) {
-          case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80);               break;
+          case 0: d = (~PicoIn.pad[0] & 0x80) | (!(Pico.m.hardware & PMS_HW_JAP) << 6); break;
           case 1: d = Pico.ms.io_gg[1] | (Pico.ms.io_gg[2] & 0x7f); break;
           case 5: d = Pico.ms.io_gg[5] & 0xf8;                      break;
           default: d = Pico.ms.io_gg[a];                            break;
