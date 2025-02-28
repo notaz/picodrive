@@ -50,7 +50,8 @@ static menu_entry e_menu_keyconfig[], e_menu_gfx_options[];
 
 void linux_menu_init(void)
 {
-	me_enable(e_menu_gfx_options, MA_OPT_VOUT_SIZE, plat_sdl_is_windowed());
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_SIZE, plat_has_wm());
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_FULL, plat_has_wm());
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }
 
