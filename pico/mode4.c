@@ -26,7 +26,6 @@ static unsigned char sprites_map[2+256/8+2]; // collision detection map
 unsigned int sprites_status;
 
 int sprites_zoom; // latched sprite zoom flag
-int sprites_sat, sprites_base; // latched sprite table data
 int xscroll; // horizontal scroll
 
 /* sprite collision detection */
@@ -169,14 +168,14 @@ static void ParseSpritesM4(int scanline)
   if (Pico.m.hardware & PMS_HW_LCD)
     xoff -= 48; // GG LCD, adjust to center 160 px
 
-  sat = (u8 *)PicoMem.vram + ((sprites_sat & 0x7e) << 7);
+  sat = (u8 *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (sprites_zoom & 2) {
     addr_mask = 0xfe; h = 16;
   } else {
     addr_mask = 0xff; h = 8;
   }
   if (zoomed) h *= 2;
-  sprite_base = (sprites_base & 4) << (13-2-1);
+  sprite_base = (pv->reg[6] & 4) << (13-2-1);
 
   m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
@@ -443,14 +442,14 @@ static void ParseSpritesTMS(int scanline)
 
   xoff = line_offset;
 
-  sat = (u8 *)PicoMem.vramb + ((sprites_sat & 0x7f) << 7);
+  sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7f) << 7);
   if (sprites_zoom & 2) {
     addr_mask = 0xfc; h = 16;
   } else {
     addr_mask = 0xff; h = 8;
   }
   if (zoomed) h *= 2;
-  sprite_base = (sprites_base & 0x7) << 11;
+  sprite_base = (pv->reg[6] & 0x7) << 11;
 
   m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
@@ -851,8 +850,6 @@ void PicoLineSMS(int line)
 
   // latch current register values (may be overwritten by VDP reg writes later)
   sprites_zoom = (Pico.video.reg[1] & 0x3) | (Pico.video.reg[0] & 0x8);
-  sprites_sat = Pico.video.reg[5];
-  sprites_base = Pico.video.reg[6];
   xscroll = Pico.video.reg[8];
 
   if (FinalizeLineSMS != NULL)

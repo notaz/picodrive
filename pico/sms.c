@@ -24,7 +24,7 @@ extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
 extern unsigned sprites_status; // TODO put in some hdr file!
-extern int sprites_zoom, sprites_sat, sprites_base, xscroll;
+extern int sprites_zoom, xscroll;
 
 static unsigned char vdp_data_read(void)
 {
@@ -88,12 +88,16 @@ static void vdp_data_write(unsigned char d)
 //   23 px right border+blanking,
 //   26 px hsync,
 //   37 px left blanking+border
-// VINT is at the beginning of hsync, and HINRT is one px later. Relative TO V/HINT:
-//   -10 px sprite mode latching (r1)
-//   -8 px sprite mode latching (r0)
-//   -6 px sprite attribute table latching (r5)
-//   -4 px sprite pattern table latching (r6)
-//   -2 px xscroll latching (r8)
+// VINT is at the beginning of hsync, and HINT is one px later. Relative TO V/HINT:
+//   -18..-2 px 1st half of sprite attribute table (r5) scan
+//   -10 px sprite mode latching (r1,r0)
+//   -2 px hscroll latching (r8)
+// hscroll is probably latched internally due to it depending on the horizontal
+// scroll lock, which has this at 0 for the top 16 lines.
+// I don't think the sprite mode is really latched. The SAT scan determines the
+// relative y position within the sprite pattern, which will break since SAT
+// scanning is done in one go here, while in reality it is distributed over
+// several slots. Cache it here to avoid backward effects of later changes to r1
 // TODO: off by 2 CPU cycles according to VDPTEST?
 
 static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
@@ -106,7 +110,7 @@ static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
     l = pv->pending_ints & (d >> 3) & 2;
     elprintf(EL_INTS, "hint %d", l);
     z80_int_assert(l);
-    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(8*1.5)+2)
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(10*1.5)+2)
       sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
     break;
   case 1: // mode control 2
@@ -115,14 +119,6 @@ static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
     z80_int_assert(l);
     if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(10*1.5)+2)
       sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
-    break;
-  case 5: // sprite attribute table
-    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(6*1.5)+2)
-      sprites_sat = d;
-    break;
-  case 6: // sprite pattern table
-    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(4*1.5)+2)
-      sprites_base = d;
     break;
   case 8: // horizontal scroll
     if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(2*1.5)+2)
