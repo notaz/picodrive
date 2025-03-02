@@ -24,6 +24,7 @@ extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
 extern unsigned sprites_status; // TODO put in some hdr file!
+extern int sprites_zoom, sprites_sat, sprites_base, xscroll;
 
 static unsigned char vdp_data_read(void)
 {
@@ -82,21 +83,50 @@ static void vdp_data_write(unsigned char d)
   pv->pending = 0;
 }
 
+// VDP horizontal timing, total 342 px:
+//   256 px active display,
+//   23 px right border+blanking,
+//   26 px hsync,
+//   37 px left blanking+border
+// VINT is at the beginning of hsync, and HINRT is one px later. Relative TO V/HINT:
+//   -10 px sprite mode latching (r1)
+//   -8 px sprite mode latching (r0)
+//   -6 px sprite attribute table latching (r5)
+//   -4 px sprite pattern table latching (r6)
+//   -2 px xscroll latching (r8)
+// TODO: off by 2 CPU cycles according to VDPTEST?
+
 static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
 {
   int l;
 
   pv->reg[a] = d;
   switch (a) {
-  case 0:
+  case 0: // mode control 1
     l = pv->pending_ints & (d >> 3) & 2;
     elprintf(EL_INTS, "hint %d", l);
     z80_int_assert(l);
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(8*1.5)+2)
+      sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
     break;
-  case 1:
+  case 1: // mode control 2
     l = pv->pending_ints & (d >> 5) & 1;
     elprintf(EL_INTS, "vint %d", l);
     z80_int_assert(l);
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(10*1.5)+2)
+      sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
+    break;
+  case 5: // sprite attribute table
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(6*1.5)+2)
+      sprites_sat = d;
+    break;
+  case 6: // sprite pattern table
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(4*1.5)+2)
+      sprites_base = d;
+    break;
+  case 8: // horizontal scroll
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(2*1.5)+2)
+      xscroll = d;
     break;
   }
 }
@@ -427,7 +457,8 @@ static unsigned char z80_sms_in(unsigned short a)
       case 0x01:
         if ((PicoIn.AHW & PAHW_GG) && a < 0x8) { // GG I/O area
           switch (a) {
-          case 0: d = (~PicoIn.pad[0] & 0x80) | (!(Pico.m.hardware & PMS_HW_JAP) << 6); break;
+          case 0: d = (~PicoIn.pad[0] & 0x80) |
+			(!(Pico.m.hardware & PMS_HW_JAP) << 6);     break;
           case 1: d = Pico.ms.io_gg[1] | (Pico.ms.io_gg[2] & 0x7f); break;
           case 5: d = Pico.ms.io_gg[5] & 0xf8;                      break;
           default: d = Pico.ms.io_gg[a];                            break;
@@ -1241,10 +1272,6 @@ void PicoFrameMS(void)
     else if (y > lines-32)
       PicoParseSATSMS(y-1-lines);
 
-    // render next line
-    if (y < lines_vis && !skip)
-      PicoLineSMS(y);
-
     // take over status bits from previously rendered line TODO: cycle exact?
     pv->status |= sprites_status;
     sprites_status = 0;
@@ -1276,6 +1303,11 @@ void PicoFrameMS(void)
         z80_int_assert(1);
       }
     }
+    z80_exec(Pico.t.z80c_line_start + 12); // GG Madou 1, display off after line start
+
+    // render next line
+    if (y < lines_vis && !skip)
+      PicoLineSMS(y);
 
     z80_exec(Pico.t.z80c_line_start + cycles_line);
   }

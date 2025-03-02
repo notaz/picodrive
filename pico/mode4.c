@@ -25,6 +25,10 @@ static unsigned char sprites_map[2+256/8+2]; // collision detection map
 
 unsigned int sprites_status;
 
+int sprites_zoom; // latched sprite zoom flag
+int sprites_sat, sprites_base; // latched sprite table data
+int xscroll; // horizontal scroll
+
 /* sprite collision detection */
 static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
 {
@@ -156,7 +160,7 @@ static void ParseSpritesM4(int scanline)
   u8 *sat;
   int xoff = line_offset;
   int sprite_base, addr_mask;
-  int zoomed = pv->reg[1] & 0x1; // zoomed sprites, e.g. Earthworm Jim
+  int zoomed = sprites_zoom & 0x1; // zoomed sprites, e.g. Earthworm Jim
   unsigned int pack;
   int i, s, h, m;
 
@@ -165,14 +169,14 @@ static void ParseSpritesM4(int scanline)
   if (Pico.m.hardware & PMS_HW_LCD)
     xoff -= 48; // GG LCD, adjust to center 160 px
 
-  sat = (u8 *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
-  if (pv->reg[1] & 2) {
+  sat = (u8 *)PicoMem.vram + ((sprites_sat & 0x7e) << 7);
+  if (sprites_zoom & 2) {
     addr_mask = 0xfe; h = 16;
   } else {
     addr_mask = 0xff; h = 8;
   }
   if (zoomed) h *= 2;
-  sprite_base = (pv->reg[6] & 4) << (13-2-1);
+  sprite_base = (sprites_base & 4) << (13-2-1);
 
   m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
@@ -197,7 +201,7 @@ static void ParseSpritesM4(int scanline)
       sprites_x[s] = xoff + sat[MEM_LE2(0x80 + i*2)];
       sprites_addr[s] = sprite_base + ((sat[MEM_LE2(0x80 + i*2 + 1)] & addr_mask) << (5-1)) +
         ((scanline - y) >> zoomed << (2-1));
-      if (Pico.video.reg[1] & 0x40) {
+      if (pv->reg[1] & 0x40) {
         // collision detection. Do it here since off-screen lines aren't drawn
         pack = CPU_LE2(*(u32 *)(PicoMem.vram + sprites_addr[s]));
         // make sprite pixel map by merging the 4 bitplanes
@@ -219,7 +223,7 @@ static void DrawSpritesM4(void)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned int pack;
-  int zoomed = pv->reg[1] & 0x1; // zoomed sprites, e.g. Earthworm Jim
+  int zoomed = sprites_zoom & 0x1; // zoomed sprites, e.g. Earthworm Jim
   int s = sprites;
 
   // now draw all sprites backwards
@@ -288,7 +292,7 @@ static void DrawDisplayM4(int scanline)
   nametab2 = nametab + ((scanline>>3) << (6-1));
   nametab  = nametab + ((line>>3)     << (6-1));
 
-  dx = pv->reg[8]; // hscroll
+  dx = xscroll; // hscroll
   if (scanline < 16 && (pv->reg[0] & 0x40))
     dx = 0; // hscroll disabled for top 2 rows (e.g. Fantasy Zone II)
 
@@ -434,19 +438,19 @@ static void ParseSpritesTMS(int scanline)
   u8 *sat;
   int xoff;
   int sprite_base, addr_mask;
-  int zoomed = pv->reg[1] & 0x1; // zoomed sprites
+  int zoomed = sprites_zoom & 0x1; // zoomed sprites
   int i, s, h, m;
 
   xoff = line_offset;
 
-  sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7f) << 7);
-  if (pv->reg[1] & 2) {
+  sat = (u8 *)PicoMem.vramb + ((sprites_sat & 0x7f) << 7);
+  if (sprites_zoom & 2) {
     addr_mask = 0xfc; h = 16;
   } else {
     addr_mask = 0xff; h = 8;
   }
   if (zoomed) h *= 2;
-  sprite_base = (pv->reg[6] & 0x7) << 11;
+  sprite_base = (sprites_base & 0x7) << 11;
 
   m = pv->status & SR_C;
   memset(sprites_map, 0, sizeof(sprites_map));
@@ -475,14 +479,14 @@ static void ParseSpritesTMS(int scanline)
     sprites_x[s] = x;
     sprites_addr[s] = sprite_base + ((sat[MEM_LE2(4*i + 2)] & addr_mask) << 3) +
       ((scanline - y) >> zoomed);
-    if (Pico.video.reg[1] & 0x40) {
+    if (pv->reg[1] & 0x40) {
       // collision detection. Do it here since off-screen lines aren't drawn
       if (sprites_c[s] && x > 0) {
         pack = PicoMem.vramb[MEM_LE2(sprites_addr[s])];
         if (!m) m = CollisionDetect(sprites_map, x, pack, zoomed);
       }
       x += (zoomed ? 16:8);
-      if (sprites_c[s] && (pv->reg[1] & 0x2) && x > 0 && x < 8+256) {
+      if (sprites_c[s] && (sprites_zoom & 0x2) && x > 0 && x < 8+256) {
         pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
         if (!m) m = CollisionDetect(sprites_map, x, pack, zoomed);
       }
@@ -499,7 +503,7 @@ static void DrawSpritesTMS(void)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned int pack;
-  int zoomed = pv->reg[1] & 0x1; // zoomed sprites
+  int zoomed = sprites_zoom & 0x1; // zoomed sprites
   int s = sprites;
 
   // now draw all sprites backwards
@@ -513,7 +517,7 @@ static void DrawSpritesTMS(void)
       if (zoomed) TileDoubleSprTMS(x, pack, c);
       else        TileNormSprTMS(x, pack, c);
     }
-    if (c && (pv->reg[1] & 0x2) && (x+=w) > 0 && x < 8+256) {
+    if (c && (sprites_zoom & 0x2) && (x+=w) > 0 && x < 8+256) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
       if (zoomed) TileDoubleSprTMS(x, pack, c);
       else        TileNormSprTMS(x, pack, c);
@@ -844,6 +848,12 @@ void PicoLineSMS(int line)
     else if (Pico.video.reg[0] & 0x02) DrawDisplayM3(line);
     else                               DrawDisplayM0(line);
   }
+
+  // latch current register values (may be overwritten by VDP reg writes later)
+  sprites_zoom = (Pico.video.reg[1] & 0x3) | (Pico.video.reg[0] & 0x8);
+  sprites_sat = Pico.video.reg[5];
+  sprites_base = Pico.video.reg[6];
+  xscroll = Pico.video.reg[8];
 
   if (FinalizeLineSMS != NULL)
     FinalizeLineSMS(line);
