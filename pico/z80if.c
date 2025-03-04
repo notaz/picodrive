@@ -157,7 +157,8 @@ struct z80_state {
   u8 irq_pending;   // irq line level, 1 if active
   u8 irq_vector[3]; // up to 3 byte vector for irq mode0 handling
   u16 cyc;
-  u8 reserved[6];
+  u16 busdelay;
+  u8 reserved[4];
 };
 
 void z80_pack(void *data)
@@ -165,7 +166,8 @@ void z80_pack(void *data)
   struct z80_state *s = data;
   memset(data, 0, Z80_STATE_SIZE);
   memcpy(s->magic, "Z80a", 4);
-  s->cyc = Pico.t.z80c_cnt + ((Pico.t.z80_busdelay + (1<<8)/2) >> 8);
+  s->cyc = Pico.t.z80c_cnt;
+  s->busdelay = Pico.t.z80_busdelay;
 #if defined(_USE_DRZ80)
   #define DRR8(n)   (drZ80.Z80##n >> 24)
   #define DRR16(n)  (drZ80.Z80##n >> 16)
@@ -202,7 +204,7 @@ void z80_pack(void *data)
     s->a.b = CZ80.BC2.B.H; s->a.c = CZ80.BC2.B.L;
     s->a.d = CZ80.DE2.B.H; s->a.e = CZ80.DE2.B.L;
     s->a.h = CZ80.HL2.B.H; s->a.l = CZ80.HL2.B.L;
-    s->i  = zI;   s->r  = zR;
+    s->i  = zI;   s->r  = (zR & 0x7f) | zR2;
     s->ix = zIX;  s->iy = zIY;
     s->sp = Cz80_Get_Reg(&CZ80, CZ80_SP);
     s->pc = Cz80_Get_Reg(&CZ80, CZ80_PC);
@@ -224,7 +226,7 @@ int z80_unpack(const void *data)
     return 0;
   }
   Pico.t.z80c_cnt = s->cyc;
-  Pico.t.z80_busdelay = 0;
+  Pico.t.z80_busdelay = s->busdelay;
 
 #if defined(_USE_DRZ80)
   #define DRW8(n, v)       drZ80.Z80##n = (u32)(v) << 24
@@ -271,7 +273,7 @@ int z80_unpack(const void *data)
     CZ80.BC2.B.H = s->a.b; CZ80.BC2.B.L = s->a.c;
     CZ80.DE2.B.H = s->a.d; CZ80.DE2.B.L = s->a.e;
     CZ80.HL2.B.H = s->a.h; CZ80.HL2.B.L = s->a.l;
-    zI  = s->i;   zR  = s->r;
+    zI  = s->i;   zR  = s->r; zR2 = s->r & 0x80;
     zIX = s->ix;  zIY = s->iy;
     Cz80_Set_Reg(&CZ80, CZ80_SP, s->sp);
     Cz80_Set_Reg(&CZ80, CZ80_PC, s->pc);

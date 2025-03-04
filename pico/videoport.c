@@ -189,7 +189,7 @@ int (*PicoDmaHook)(u32 source, int len, unsigned short **base, u32 *mask) = NULL
  */
 
 // NB code assumes fifo_* arrays have size 2^n
-static struct VdpFIFO { // XXX this must go into save file!
+static struct VdpFIFO {
   // last transferred FIFO data, ...x = index  XXX currently only CPU
   u16 fifo_data[4], fifo_dx;
 
@@ -1225,28 +1225,45 @@ void PicoVideoCacheSAT(int load)
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
-void PicoVideoSave(void)
+#include <stddef.h>
+
+int PicoVideoSave(void *buf)
 {
   struct VdpFIFO *vf = &VdpFIFO;
   struct PicoVideo *pv = &Pico.video;
-  int l, x;
+  u8 *bp = buf;
+  int i;
 
-  // account for all outstanding xfers XXX kludge, entry attr's not saved
-  pv->fifo_cnt = pv->fifo_bgcnt = 0;
-  for (l = vf->fifo_ql, x = vf->fifo_qx + l-1; l > 0; l--, x--) {
-    int cnt = (vf->fifo_queue[x&7] >> 3);
-    if (vf->fifo_queue[x&7] & FQ_BGDMA)
-      pv->fifo_bgcnt += cnt;
-    else
-      pv->fifo_cnt += cnt;
-  }
+  // FIFO stuff
+  memcpy(bp, &VdpFIFO, offsetof(struct VdpFIFO, fifo_slot));
+  bp += offsetof(struct VdpFIFO, fifo_slot);
+
+  // SAT Cache
+  for (i = 0; i < 80; i++, bp += sizeof(u32))
+    memcpy(bp, VdpSATCache+2*i, sizeof(u32));
+
+  return bp - (u8 *)buf;
 }
 
-void PicoVideoLoad(void)
+void PicoVideoLoad(void *buf, int len)
 {
   struct VdpFIFO *vf = &VdpFIFO;
   struct PicoVideo *pv = &Pico.video;
   int b = pv->type == 1;
+
+  SATaddr = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
+  SATmask = ~0x1ff;
+  if (pv->reg[12]&1)
+    SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
+
+  if (len) {
+    int i;
+    if (len >= offsetof(struct VdpFIFO, fifo_slot))
+      memcpy(&VdpFIFO, buf, offsetof(struct VdpFIFO, fifo_slot));
+    for (i = 0; i < 80; i++)
+      memcpy(VdpSATCache+2*i, buf + offsetof(struct VdpFIFO, fifo_slot) + 4*i, sizeof(u32));
+    return;
+  }
 
   // convert former dma_xfers (why was this in PicoMisc anyway?)
   if (Pico.m.dma_xfers) {

@@ -972,8 +972,8 @@ int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flag
 void PicoVideoInit(void);
 void PicoVideoReset(void);
 void PicoVideoSync(int skip);
-void PicoVideoSave(void);
-void PicoVideoLoad(void);
+int PicoVideoSave(void *buf);
+void PicoVideoLoad(void *buf, int len);
 void PicoVideoCacheSAT(int load);
 
 // misc.c
