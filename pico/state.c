@@ -628,6 +628,8 @@ out:
 static int state_load_gfx(void *file)
 {
   int ver, len, found = 0, to_find = 4;
+  u8 buff_vdp[0x200];
+  int len_vdp = 0;
   char buff[8];
 
   if (PicoIn.AHW & PAHW_32X)
@@ -653,6 +655,7 @@ static int state_load_gfx(void *file)
       case CHUNK_CRAM:  CHECKED_READ_BUFF(PicoMem.cram);  found++; break;
       case CHUNK_VSRAM: CHECKED_READ_BUFF(PicoMem.vsram); found++; break;
       case CHUNK_VIDEO: CHECKED_READ_BUFF(Pico.video); found++; break;
+      case CHUNK_VDP:   CHECKED_READ2((len_vdp = len), buff_vdp); break;
 
 #ifndef NO_32X
       case CHUNK_DRAM:
@@ -678,6 +681,7 @@ static int state_load_gfx(void *file)
         break;
     }
   }
+  PicoVideoLoad(buff_vdp, len_vdp);
 
 out:
 readend:
@@ -741,10 +745,10 @@ int PicoStateLoadGfx(const char *fname)
     areaRead(PicoMem.vsram, 1, sizeof(PicoMem.vsram), afile);
     areaSeek(afile, 0x221a0, SEEK_SET);
     areaRead(&Pico.video, 1, sizeof(Pico.video), afile);
+    PicoVideoCacheSAT(1);
   }
   areaClose(afile);
 
-  PicoVideoCacheSAT(1);
   Pico.est.rendstatus = -1;
   return 0;
 }
@@ -759,6 +763,8 @@ struct PicoTmp
 
   //struct PicoMisc m;
   struct PicoVideo video;
+  u8 vdp[0x200];
+  int vdp_len;
 
   struct {
     struct Pico32x p32x;
@@ -780,6 +786,7 @@ void *PicoTmpStateSave(void)
   memcpy(t->vsram, PicoMem.vsram, sizeof(PicoMem.vsram));
   memcpy(t->satcache, VdpSATCache, sizeof(VdpSATCache));
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
+  t->vdp_len = PicoVideoSave(t->vdp);
 
 #ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X) {
@@ -804,7 +811,7 @@ void PicoTmpStateRestore(void *data)
   memcpy(VdpSATCache, t->satcache, sizeof(VdpSATCache));
   memcpy(&Pico.video, &t->video, sizeof(Pico.video));
   Pico.m.dirtyPal = 1;
-  PicoVideoCacheSAT(0);
+  PicoVideoLoad(t->vdp, t->vdp_len);
 
 #ifndef NO_32X
   if (PicoIn.AHW & PAHW_32X) {
