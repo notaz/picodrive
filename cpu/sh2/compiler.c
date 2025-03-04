@@ -5678,7 +5678,7 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, int free)
 
   if (!removed) {
     if (len <= 4)
-      dbg(2, "rm_blocks called @%08x, no work?", _a);
+      dbg(2, "rm_blocks called @%08x, no work?", a);
     return;
   }
 
@@ -5902,6 +5902,9 @@ static void bcache_stats(void)
 
 void sh2_drc_flush_all(void)
 {
+  if (block_tables[0] == NULL)
+    return;
+
   backtrace();
   state_dump();
   block_stats();

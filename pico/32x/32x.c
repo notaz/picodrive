@@ -120,13 +120,16 @@ void Pico32xStartup(void)
     sh2_init(&ssh2, 1, &msh2);
     ssh2.irq_callback = sh2_irq_cb;
   }
+
   PicoMemSetup32x();
   p32x_pwm_ctl_changed();
   p32x_timers_recalc();
 
+  Pico32x.regs[0] |= P32XS_ADEN;
+
   Pico32x.sh2_regs[0] = P32XS2_ADEN;
   if (Pico.m.ncart_in)
-    Pico32x.sh2_regs[0] |= P32XS_nCART;
+    Pico32x.sh2_regs[0] |= P32XS2_nCART;
 
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
@@ -141,7 +144,9 @@ void Pico32xStartup(void)
 
 void Pico32xShutdown(void)
 {
+  elprintf(EL_STATUS|EL_32X, "32X shutdown");
   Pico32x.sh2_regs[0] &= ~P32XS2_ADEN;
+  Pico32x.regs[0] &= ~P32XS_ADEN;
 
   rendstatus_old = -1;
 
@@ -692,6 +697,11 @@ void Pico32xStateLoaded(int is_early)
   p32x_timers_recalc();
   p32x_pwm_state_loaded();
   p32x_run_events(SekCyclesDone());
+
+  // TODO wakeup CPUs for now. poll detection stuff must go to the save state!
+  p32x_m68k_poll_event(0, -1);
+  p32x_sh2_poll_event(msh2.poll_addr, &msh2, SH2_IDLE_STATES, msh2.m68krcycles_done);
+  p32x_sh2_poll_event(ssh2.poll_addr, &ssh2, SH2_IDLE_STATES, ssh2.m68krcycles_done);
 }
 
 void Pico32xPrepare(void)
