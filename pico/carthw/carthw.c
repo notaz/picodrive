@@ -75,7 +75,7 @@ static void carthw_ssf2_statef(void)
   int i, reg;
   for (i = 1; i < 8; i++) {
     reg = carthw_ssf2_banks[i];
-    carthw_ssf2_banks[i] = i;
+    carthw_ssf2_banks[i] = ~reg;
     carthw_ssf2_write8(0xa130f1 | (i << 1), reg);
   }
 }

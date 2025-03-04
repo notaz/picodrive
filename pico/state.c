@@ -137,6 +137,7 @@ typedef enum {
   CHUNK_PICO_PCM,
   CHUNK_PICO,
   CHUNK_CD_MSD,
+  CHUNK_VDP,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -280,7 +281,8 @@ static int state_save(void *file)
   CHECKED_WRITE_BUFF(CHUNK_CRAM,  PicoMem.cram);
 
   CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
-  PicoVideoSave();
+  len = PicoVideoSave(buf2);
+  CHECKED_WRITE(CHUNK_VDP, len, buf2);
   CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
 
   if (PicoIn.AHW & PAHW_MCD)
@@ -407,13 +409,14 @@ static int state_load(void *file)
   unsigned char buff_m68k[0x60], buff_s68k[0x60];
   unsigned char buff_z80[Z80_STATE_SIZE];
   unsigned char buff_sh2[SH2_STATE_SIZE];
+  unsigned char buff_vdp[0x200];
   unsigned char *buf = NULL;
   unsigned char chunk;
   void *ym_regs;
   int len_check;
   int retval = -1;
   char header[8];
-  int ver, len;
+  int ver, len, len_vdp = 0;
 
   memset(buff_m68k, 0, sizeof(buff_m68k));
   memset(buff_s68k, 0, sizeof(buff_s68k));
@@ -459,10 +462,8 @@ static int state_load(void *file)
       case CHUNK_CRAM:    CHECKED_READ_BUFF(PicoMem.cram); break;
       case CHUNK_VSRAM:   CHECKED_READ_BUFF(PicoMem.vsram); break;
       case CHUNK_MISC:    CHECKED_READ_BUFF(Pico.m); break;
-      case CHUNK_VIDEO:
-        CHECKED_READ_BUFF(Pico.video);
-        PicoVideoLoad();
-        break;
+      case CHUNK_VIDEO:   CHECKED_READ_BUFF(Pico.video); break;
+      case CHUNK_VDP:     CHECKED_READ2((len_vdp = len), buff_vdp); break;
 
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
@@ -587,6 +588,8 @@ breakswitch:
   }
 
 readend:
+  PicoVideoLoad(buff_vdp, len_vdp);
+
   if (PicoIn.AHW & PAHW_SMS)
     PicoStateLoadedMS();
 

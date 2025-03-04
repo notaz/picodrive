@@ -238,6 +238,8 @@ void PicoLoopPrepare(void)
     Pico.t.vcnt_wrap = 0xEB;
     Pico.t.vcnt_adj = 6;
   }
+
+  Pico.t.m68c_line_start = Pico.t.m68c_aim; // for VDP slot calculation
   PicoVideoFIFOMode(Pico.video.reg[1]&0x40, Pico.video.reg[12]&1);
 
   Pico.m.dirtyPal = 1;
