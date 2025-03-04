@@ -585,11 +585,14 @@ typedef struct
 
 // 32X
 #define P32XS_FM    (1<<15)
-#define P32XS_nCART (1<< 8)
 #define P32XS_REN   (1<< 7)
 #define P32XS_nRES  (1<< 1)
 #define P32XS_ADEN  (1<< 0)
+
+#define P32XS2_FM   (1<<15)
+#define P32XS2_nCART (1<< 8)
 #define P32XS2_ADEN (1<< 9)
+
 #define P32XS_FULL  (1<< 7) // DREQ FIFO full
 #define P32XS_68S   (1<< 2)
 #define P32XS_DMA   (1<< 1)

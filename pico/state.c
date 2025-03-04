@@ -416,7 +416,8 @@ static int state_load(void *file)
   int len_check;
   int retval = -1;
   char header[8];
-  int ver, len, len_vdp = 0;
+  int ver, has_32x = 0;
+  int len, len_vdp = 0;
 
   memset(buff_m68k, 0, sizeof(buff_m68k));
   memset(buff_s68k, 0, sizeof(buff_s68k));
@@ -443,7 +444,10 @@ static int state_load(void *file)
     if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
     if (CHUNK_S68K <= chunk && chunk <= CHUNK_MISC_CD && !(PicoIn.AHW & PAHW_MCD))
       R_ERROR_RETURN("cd chunk in non CD state?");
-    if (CHUNK_32X_FIRST <= chunk && chunk <= CHUNK_32X_LAST && !(PicoIn.AHW & PAHW_32X))
+
+    // 32X only appears in PicoDrive after it has been enabled, so track this
+    has_32x |= CHUNK_32X_FIRST <= chunk && chunk <= CHUNK_32X_LAST;
+    if (has_32x && !(PicoIn.AHW & PAHW_32X))
       Pico32xStartup();
 
     switch (chunk)
@@ -589,6 +593,10 @@ breakswitch:
 
 readend:
   PicoVideoLoad(buff_vdp, len_vdp);
+
+  if (PicoIn.AHW & PAHW_32X)
+    if (!has_32x)
+      Pico32xShutdown(); // in case of loading a state with 32X disabled
 
   if (PicoIn.AHW & PAHW_SMS)
     PicoStateLoadedMS();
