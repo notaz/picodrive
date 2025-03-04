@@ -1383,11 +1383,9 @@ void ym2612_pack_state(void)
   if (Pico.t.ym2612_busy > 0)
     busy = cycles_z80_to_68k(Pico.t.ym2612_busy);
   if (Pico.t.timer_a_next_oflow != TIMER_NO_OFLOW)
-    tat = (int)((double)(Pico.t.timer_a_step - Pico.t.timer_a_next_oflow)
-          / (double)Pico.t.timer_a_step * tac * 65536);
+    tat = ((Pico.t.timer_a_step - Pico.t.timer_a_next_oflow) * ((1LL<<32)/TIMER_A_TICK_ZCYCLES+1))>>16;
   if (Pico.t.timer_b_next_oflow != TIMER_NO_OFLOW)
-    tbt = (int)((double)(Pico.t.timer_b_step - Pico.t.timer_b_next_oflow)
-          / (double)Pico.t.timer_b_step * tbc * 65536);
+    tbt = ((Pico.t.timer_b_step - Pico.t.timer_b_next_oflow) * ((1LL<<32)/TIMER_B_TICK_ZCYCLES+1))>>16;
   elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
   elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
 
@@ -1440,14 +1438,14 @@ void ym2612_unpack_state(void)
   Pico.t.ym2612_busy = cycles_68k_to_z80(busy);
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
-  Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * tac;
-  Pico.t.timer_a_step = TIMER_B_TICK_ZCYCLES * tbc;
+  Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (tac>>16);
+  Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (tbc>>16);
   if (ym2612.OPN.ST.mode & 1)
-    Pico.t.timer_a_next_oflow = (int)((double)(tac - tat) / (double)tac * Pico.t.timer_a_step);
+    Pico.t.timer_a_next_oflow = (1LL * (tac-tat) * TIMER_A_TICK_ZCYCLES)>>16;
   else
     Pico.t.timer_a_next_oflow = TIMER_NO_OFLOW;
   if (ym2612.OPN.ST.mode & 2)
-    Pico.t.timer_b_next_oflow = (int)((double)(tbc - tbt) / (double)tbc * Pico.t.timer_b_step);
+    Pico.t.timer_b_next_oflow = (1LL * (tbc-tbt) * TIMER_B_TICK_ZCYCLES)>>16;
   else
     Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW;
   elprintf(EL_YMTIMER, "load: %i/%i, timer_a_next_oflow %i", tat>>16, tac>>16, Pico.t.timer_a_next_oflow >> 8);
@@ -1476,7 +1474,7 @@ static void access_68k_bus(int delay) // bus delay as Q8
   Pico.t.z80_busdelay &= 0xff; // leftover cycle fraction
   // don't use SekCyclesBurn() here since the Z80 doesn't run in cycle lock to
   // the 68K. Count the stolen cycles to be accounted later in the 68k CPU runs
-  Pico.t.z80_buscycles += 8; // TODO <=8.4 for Rick 2, but >=8.9 for misc_test
+  Pico.t.z80_buscycles += 0x80; // TODO <=8.4 for Rick 2, but >=8.9 for misc_test
 }
 
 static unsigned char z80_md_vdp_read(unsigned short a)
