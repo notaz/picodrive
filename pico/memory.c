@@ -1401,6 +1401,7 @@ void ym2612_unpack_state(void)
 {
   int i, ret, tac, tat, tbc, tbt, busy = 0;
   YM2612PicoStateLoad();
+  Pico.t.m68c_frame_start = SekCyclesDone();
 
   // feed all the registers and update internal state
   for (i = 0x20; i < 0xA0; i++) {
@@ -1438,8 +1439,6 @@ void ym2612_unpack_state(void)
   Pico.t.ym2612_busy = cycles_68k_to_z80(busy);
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
-  Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (tac>>16);
-  Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (tbc>>16);
   if (ym2612.OPN.ST.mode & 1)
     Pico.t.timer_a_next_oflow = (1LL * (tac-tat) * TIMER_A_TICK_ZCYCLES)>>16;
   else
