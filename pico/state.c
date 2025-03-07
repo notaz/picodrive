@@ -138,6 +138,8 @@ typedef enum {
   CHUNK_PICO,
   CHUNK_CD_MSD,
   CHUNK_VDP,
+  CHUNK_FM_TIMERS,
+  CHUNK_FMv3,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -256,9 +258,11 @@ static int state_save(void *file)
       CHECKED_WRITE(CHUNK_PICO_PCM, len, buf2);
       CHECKED_WRITE(CHUNK_PICO, sizeof(PicoPicohw), &PicoPicohw);
     } else {
-      ym2612_pack_state();
-      ym_regs = YM2612GetRegs();
-      CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
+      // write fm state first since timer load needs OPN.ST.mode
+      len = YM2612PicoStateSave3(buf2, CHUNK_LIMIT_W);
+      CHECKED_WRITE(CHUNK_FMv3, len, buf2);
+      len = ym2612_pack_timers(buf2, CHUNK_LIMIT_W);
+      CHECKED_WRITE(CHUNK_FM_TIMERS, len, buf2);
     }
 
     if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
@@ -479,7 +483,15 @@ static int state_load(void *file)
       case CHUNK_FM:
         ym_regs = YM2612GetRegs();
         CHECKED_READ2(0x200+4, ym_regs);
-        ym2612_unpack_state();
+        ym2612_unpack_state_old();
+        break;
+      case CHUNK_FM_TIMERS:
+        CHECKED_READ(len, buf);
+        ym2612_unpack_timers(buf, len);
+        break;
+      case CHUNK_FMv3:
+        CHECKED_READ(len, buf);
+        YM2612PicoStateLoad3(buf, len);
         break;
 
       case CHUNK_PICO_PCM:

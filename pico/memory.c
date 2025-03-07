@@ -8,8 +8,10 @@
  * See COPYING file in the top-level directory.
  */
 
+#include <assert.h>
 #include "pico_int.h"
 #include "memory.h"
+#include "state.h"
 
 #include "sound/ym2612.h"
 #include "sound/sn76496.h"
@@ -1327,7 +1329,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
           if (ym2612.dacen)
             PsndDoDAC(cycles);
-          ym2612.dacout = ((int)d - 0x80) << 6;
+          ym2612.dacout = ((int)d - 0x80) << DAC_SHIFT;
           return 0;
         }
         case 0x2b: { /* DAC Sel  (YM2612) */
@@ -1374,10 +1376,11 @@ static u32 ym2612_read_local_68k(void)
   return ym2612.OPN.ST.status;
 }
 
-void ym2612_pack_state(void)
+int ym2612_pack_timers(void *buf, size_t size)
 {
   // timers are saved as tick counts, in 16.16 int format
   int tac, tat = 0, tbc, tbt = 0, busy = 0;
+  size_t b = 0;
   tac = 1024 - ym2612.OPN.ST.TA;
   tbc = 256  - ym2612.OPN.ST.TB;
   if (Pico.t.ym2612_busy > 0)
@@ -1388,18 +1391,26 @@ void ym2612_pack_state(void)
     tbt = ((Pico.t.timer_b_step - Pico.t.timer_b_next_oflow) * ((1LL<<32)/TIMER_B_TICK_ZCYCLES+1))>>16;
   elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
   elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
-
 #ifdef __GP2X__
   if (PicoIn.opt & POPT_EXT_FM)
     YM2612PicoStateSave2_940(tat, tbt);
   else
 #endif
-    YM2612PicoStateSave2(tat, tbt, busy);
+  {
+    //YM2612PicoStateSave2(tat, tbt, busy);
+    assert(size >= 16);
+    save_u16(buf, &b, ym2612.OPN.ST.TA);
+    save_u16(buf, &b, ym2612.OPN.ST.TB);
+    save_u32(buf, &b, tat);
+    save_u32(buf, &b, tbt);
+    save_u32(buf, &b, busy);
+  }
+  return b;
 }
 
-void ym2612_unpack_state(void)
+void ym2612_unpack_state_old(void)
 {
-  int i, ret, tac, tat, tbc, tbt, busy = 0;
+  int i, ret, tat, tbt, busy = 0;
   YM2612PicoStateLoad();
   Pico.t.m68c_frame_start = SekCyclesDone();
 
@@ -1435,7 +1446,30 @@ void ym2612_unpack_state(void)
     elprintf(EL_STATUS, "old ym2612 state");
     return; // no saved timers
   }
+  {
+    u8 tmp[16];
+    size_t b = 0;
+    save_u16(tmp, &b, ym2612.OPN.ST.TA);
+    save_u16(tmp, &b, ym2612.OPN.ST.TB);
+    save_u32(tmp, &b, tat);
+    save_u32(tmp, &b, tbt);
+    save_u32(tmp, &b, busy);
+    ym2612_unpack_timers(tmp, b);
+  }
+}
 
+void ym2612_unpack_timers(const void *buf, size_t size)
+{
+  int tac, tat, tbc, tbt, busy;
+  size_t b = 0;
+  assert(size >= 16);
+  if (size < 16)
+    return;
+  ym2612.OPN.ST.TA = load_u16(buf, &b);
+  ym2612.OPN.ST.TB = load_u16(buf, &b);
+  tat = load_u32(buf, &b);
+  tbt = load_u32(buf, &b);
+  busy = load_u32(buf, &b);
   Pico.t.ym2612_busy = cycles_68k_to_z80(busy);
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
