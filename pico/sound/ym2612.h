@@ -5,6 +5,10 @@
 #ifndef _H_FM_FM_
 #define _H_FM_FM_
 
+#include <stdlib.h>
+
+#define DAC_SHIFT 6
+
 /* compiler dependence */
 #include "../pico_types.h"
 #ifndef UINT8
@@ -98,13 +102,13 @@ typedef struct
 	UINT8	mode;		/* mode  CSM / 3SLOT    */
 	UINT8	flags;		/* operational flags	*/
 	int		TA;			/* timer a              */
-	int		TAC;		/* timer a maxval       */
-	int		TAT;		/* timer a ticker | need_save */
+	//int		TAC;		/* timer a maxval       */
+	//int		TAT;		/* timer a ticker | need_save */
 	UINT8	TB;			/* timer b              */
 	UINT8   fn_h;		/* freq latch           */
 	UINT8	pad2[2];
-	int		TBC;		/* timer b maxval       */
-	int		TBT;		/* timer b ticker | need_save */
+	//int		TBC;		/* timer b maxval       */
+	//int		TBT;		/* timer b ticker | need_save */
 	/* local time tables */
 	INT32	dt_tab[8][32];/* DeTune table       */
 } FM_ST;
@@ -139,6 +143,7 @@ typedef struct
 	/* LFO */
 	UINT32	lfo_cnt;		/* need_save */
 	UINT32	lfo_inc;
+	UINT32  lfo_ampm;
 
 	UINT32	lfo_freq[8];	/* LFO FREQ table */
 } FM_OPN;
@@ -146,7 +151,7 @@ typedef struct
 /* here's the virtual YM2612 */
 typedef struct
 {
-	UINT8		REGS[0x200];			/* registers (for save states)       */
+	UINT8		REGS[0x200];			/* registers (for old save states) */
 	INT32		addr_A1;			/* address line A1 | need_save       */
 
 	FM_CH		CH[6];				/* channel state */
@@ -177,8 +182,9 @@ int  YM2612PicoTick_(int n);
 void YM2612PicoStateLoad_(void);
 
 void *YM2612GetRegs(void);
-void YM2612PicoStateSave2(int tat, int tbt, int busy);
 int  YM2612PicoStateLoad2(int *tat, int *tbt, int *busy);
+size_t YM2612PicoStateSave3(void *buf_, size_t size);
+void   YM2612PicoStateLoad3(const void *buf_, size_t size);
 
 /* NB must be macros for compiling GP2X 940 code */
 #ifndef __GP2X__

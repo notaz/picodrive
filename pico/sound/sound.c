@@ -170,6 +170,7 @@ void PsndRerate(int preserve_state)
   int ym2612_clock = Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7;
   int ym2612_rate = YM2612_NATIVE_RATE();
   int ym2612_init = !preserve_state;
+  int state_size = 4096;
 
   // don't init YM2612 if preserve_state and no parameter changes
   ym2612_init |= ymclock != ym2612_clock || ymopts != (PicoIn.opt & (POPT_DIS_FM_SSGEG|POPT_EN_FM_DAC));
@@ -179,10 +180,9 @@ void PsndRerate(int preserve_state)
   ymopts = PicoIn.opt & (POPT_DIS_FM_SSGEG|POPT_EN_FM_DAC);
 
   if (preserve_state && ym2612_init) {
-    state = malloc(0x204);
-    if (state == NULL) return;
-    ym2612_pack_state();
-    memcpy(state, YM2612GetRegs(), 0x204);
+    state = malloc(state_size);
+    if (state)
+      state_size = YM2612PicoStateSave3(state, state_size);
   }
 
   if (PicoIn.AHW & PAHW_SMS) {
@@ -207,10 +207,8 @@ void PsndRerate(int preserve_state)
     PsndFMUpdate = YM2612UpdateONE;
   }
 
-  if (preserve_state && ym2612_init) {
-    // feed it back it's own registers, just like after loading state
-    memcpy(YM2612GetRegs(), state, 0x204);
-    ym2612_unpack_state();
+  if (state) {
+    YM2612PicoStateLoad3(state, state_size);
     free(state);
   }
 

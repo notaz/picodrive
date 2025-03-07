@@ -111,6 +111,7 @@
 
 //#include <stdio.h>
 
+#include <assert.h>
 #include <string.h>
 #include <math.h>
 
@@ -153,7 +154,6 @@ void memset32(void *dest, int c, int count);
 #define FREQ_SH			16  /* 16.16 fixed point (frequency calculations) */
 #define EG_SH			16  /* 16.16 fixed point (envelope generator timing) */
 #define LFO_SH			24  /*  8.24 fixed point (LFO calculations)       */
-#define TIMER_SH		16  /* 16.16 fixed point (timers calculations)    */
 
 #define ENV_BITS		10
 #define ENV_LEN			(1<<ENV_BITS)
@@ -512,8 +512,6 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 /* there are 2048 FNUMs that can be generated using FNUM/BLK registers
 	but LFO works with one more bit of a precision so we really need 4096 elements */
 static UINT32 fn_table[4096];	/* fnumber->increment counter */
-
-static int g_lfo_ampm;
 
 /* register number to channel number , slot offset */
 #define OPN_CHAN(N) (N&3)
@@ -1228,7 +1226,7 @@ static chan_rend_context crct;
 static void chan_render_prep(void)
 {
 	crct.eg_timer_add = ym2612.OPN.eg_timer_add;
-	crct.lfo_init_sft16 = g_lfo_ampm << 16;
+	crct.lfo_init_sft16 = ym2612.OPN.lfo_ampm << 16;
 	crct.lfo_inc = ym2612.OPN.lfo_inc;
 }
 
@@ -1437,9 +1435,9 @@ static void reset_channels(FM_CH *CH)
 
 	ym2612.OPN.ST.mode   = 0;	/* normal mode */
 	ym2612.OPN.ST.TA     = 0;
-	ym2612.OPN.ST.TAC    = 0;
+	//ym2612.OPN.ST.TAC    = 0;
 	ym2612.OPN.ST.TB     = 0;
-	ym2612.OPN.ST.TBC    = 0;
+	//ym2612.OPN.ST.TBC    = 0;
 
 	for( c = 0 ; c < 6 ; c++ )
 	{
@@ -1815,7 +1813,7 @@ int YM2612UpdateOne_(s32 *buffer, int length, int stereo, int is_buf_empty)
 	if (ym2612.slot_mask & 0x00f000) active_chs |= chan_render(buffer, length, 3, flags|((pan&0x0c0)>>2)) << 3;
 	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0f0000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x0f0000) active_chs |= chan_render(buffer, length, 4, flags|((pan&0x300)>>4)) << 4;
-	g_lfo_ampm = crct.pack >> 16; // need_save; now because ch5 might skip updating it
+	ym2612.OPN.lfo_ampm = crct.pack >> 16; // need_save; now because ch5 might skip updating it
 	BIT_IF(flags, 1, (ym2612.ssg_mask & 0xf00000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, flags|((pan&0xc00)>>6)|(!!ym2612.dacen<<2)) << 5;
 #undef	BIT_IF
@@ -1856,7 +1854,7 @@ void YM2612ResetChip_(void)
 	ym2612.OPN.eg_cnt   = 0;
 	ym2612.OPN.lfo_inc = 0;
 	ym2612.OPN.lfo_cnt = 0;
-	g_lfo_ampm = 126 << 8;
+	ym2612.OPN.lfo_ampm = 126 << 8;
 	ym2612.OPN.ST.status = 0;
 
 	reset_channels( &ym2612.CH[0] );
@@ -1917,7 +1915,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				{
 					ym2612.OPN.lfo_inc = 0;
 					ym2612.OPN.lfo_cnt = 0;
-					g_lfo_ampm = 126 << 8;
+					ym2612.OPN.lfo_ampm = 126 << 8;
 				}
 				break;
 #if 0 // handled elsewhere
@@ -1970,7 +1968,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 					break;
 				}
 			case 0x2a:	/* DAC data (YM2612) */
-				ym2612.dacout = ((int)v - 0x80) << 6;	/* level unknown (notaz: 8 seems to be too much) */
+				ym2612.dacout = ((int)v - 0x80) << DAC_SHIFT;
 				ret=0;
 				break;
 			case 0x2b:	/* DAC Sel  (YM2612) */
@@ -2030,6 +2028,7 @@ void YM2612PicoStateLoad_(void)
 }
 
 /* rather stupid design because I wanted to fit in unused register "space" */
+// TODO remove all this along with ym2612.REGS
 typedef struct
 {
 	UINT32  state_phase;
@@ -2063,7 +2062,6 @@ typedef struct
 } ym_save_addon2;
 #define _block_fnum op1_out_l
 #define _block_fnum_sl3 unused_sl3
-
 
 void YM2612PicoStateSave2(int tat, int tbt, int busy)
 {
@@ -2140,7 +2138,7 @@ void YM2612PicoStateSave2(int tat, int tbt, int busy)
 	sa.eg_cnt  = ym2612.OPN.eg_cnt;
 	sa.eg_timer = ym2612.OPN.eg_timer;
 	sa.lfo_cnt  = ym2612.OPN.lfo_cnt;
-	sa.lfo_ampm = g_lfo_ampm;
+	sa.lfo_ampm = ym2612.OPN.lfo_ampm;
 	sa.busy_timer = busy;
 	//sa.keyon_field = ym2612.slot_mask;
 	memcpy(ptr, &sa, sizeof(sa)); // 0x30 max
@@ -2168,7 +2166,7 @@ int YM2612PicoStateLoad2(int *tat, int *tbt, int *busy)
 	ym2612.OPN.eg_cnt = sa.eg_cnt;
 	ym2612.OPN.eg_timer = sa.eg_timer;
 	ym2612.OPN.lfo_cnt = sa.lfo_cnt;
-	g_lfo_ampm = sa.lfo_ampm;
+	ym2612.OPN.lfo_ampm = sa.lfo_ampm;
 	ym2612.slot_mask = sa.keyon_field;
 	if (tat != NULL) *tat = sa.TAT;
 	if (tbt != NULL) *tbt = sa.TBT;
@@ -2245,6 +2243,240 @@ int YM2612PicoStateLoad2(int *tat, int *tbt, int *busy)
 	}
 
 	return 0;
+}
+
+#include "../state.h"
+
+#define SLOT_SIZE_MIN 46
+#define CH_SIZE_MIN 16
+#define OTHER_SIZE_MIN 35
+
+static size_t save_slot(u8 *buf, const FM_SLOT *slot)
+{
+	size_t tmp, b = 0;
+
+	b++; // length, assumes slot state won't grow beyond 255
+	tmp = (slot->DT - ym2612.OPN.ST.dt_tab[0]) / sizeof(ym2612.OPN.ST.dt_tab[0]);
+	save_u8_(buf, &b, tmp);
+	save_u8_(buf, &b, slot->ar);
+	save_u8_(buf, &b, slot->d1r);
+	save_u8_(buf, &b, slot->d2r);
+	save_u8_(buf, &b, slot->rr);
+	save_u8_(buf, &b, slot->mul);
+	save_u32(buf, &b, slot->phase);
+	save_u32(buf, &b, slot->Incr);
+	save_u8_(buf, &b, slot->KSR);
+	save_u8_(buf, &b, slot->ksr);
+	save_u8_(buf, &b, slot->key);
+	save_u8_(buf, &b, slot->state);
+	save_u8_(buf, &b, slot->tl >> (ENV_BITS-7));
+	save_u16(buf, &b, slot->volume);
+	save_u32(buf, &b, slot->sl);
+	save_u32(buf, &b, slot->eg_pack_rr);
+	save_u32(buf, &b, slot->eg_pack_d2r);
+	save_u32(buf, &b, slot->eg_pack_d1r);
+	save_u32(buf, &b, slot->eg_pack_ar);
+	save_u8_(buf, &b, slot->ssg);
+	save_u8_(buf, &b, slot->ssgn);
+	save_u8_(buf, &b, slot->ar_ksr);
+	save_u16(buf, &b, slot->vol_out);
+
+	//printf("slot size: %zd\n", b);
+	assert(b >= SLOT_SIZE_MIN);
+	assert(b < 256u);
+	buf[0] = b - 1;
+	return b;
+}
+
+static void load_slot(const u8 *buf, FM_SLOT *slot)
+{
+	size_t b = 0;
+	u8 dt_reg;
+
+	dt_reg       = load_u8_(buf, &b);
+	slot->ar     = load_u8_(buf, &b);
+	slot->d1r    = load_u8_(buf, &b);
+	slot->d2r    = load_u8_(buf, &b);
+	slot->rr     = load_u8_(buf, &b);
+	slot->mul    = load_u8_(buf, &b);
+	slot->phase  = load_u32(buf, &b);
+	slot->Incr   = load_u32(buf, &b);
+	slot->KSR    = load_u8_(buf, &b);
+	slot->ksr    = load_u8_(buf, &b);
+	slot->key    = load_u8_(buf, &b);
+	slot->state  = load_u8_(buf, &b);
+	slot->tl     = load_u8_(buf, &b) << (ENV_BITS-7);
+	slot->volume = load_s16(buf, &b);
+	slot->sl     = load_u32(buf, &b);
+	slot->eg_pack_rr  = load_u32(buf, &b);
+	slot->eg_pack_d2r = load_u32(buf, &b);
+	slot->eg_pack_d1r = load_u32(buf, &b);
+	slot->eg_pack_ar  = load_u32(buf, &b);
+	slot->ssg     = load_u8_(buf, &b);
+	slot->ssgn    = load_u8_(buf, &b);
+	slot->ar_ksr  = load_u8_(buf, &b);
+	slot->vol_out = load_u16(buf, &b);
+
+	assert(dt_reg < 8);
+	slot->DT = ym2612.OPN.ST.dt_tab[dt_reg & 7];
+}
+
+static size_t save_channel(u8 *buf, const FM_CH *ch)
+{
+	int i, size_pos;
+	size_t b = 0;
+
+	for (i = 0; i < 4; i++)
+		b += save_slot(&buf[b], &ch->SLOT[i]);
+	size_pos = b++;
+	save_u8_(buf, &b, ch->ALGO);
+	save_u8_(buf, &b, ch->FB);
+	save_u32(buf, &b, ch->op1_out);
+	save_s16(buf, &b, ch->mem_value); // fits in 16bit
+	save_u8_(buf, &b, ch->pms); // max 7*32
+	save_u8_(buf, &b, ch->ams);
+	save_u8_(buf, &b, ch->kcode);
+	save_u8_(buf, &b, ch->upd_cnt);
+	// ch->fc is derived from .block_fnum
+	save_u16(buf, &b, ch->block_fnum);
+	save_u8_(buf, &b, ch->AMmasks);
+
+	assert(b - size_pos - 1 < 256u);
+	buf[size_pos] = b - size_pos - 1;
+	return b;
+}
+
+static size_t load_channel(const u8 *buf, size_t size, FM_CH *ch)
+{
+	size_t i, b = 0, slot_size = 0, ch_size;
+	u32 fn, blk;
+
+	for (i = 0; i < 4; i++) {
+		u8 size_next = load_u8_(buf, &slot_size);
+		if (size_next < SLOT_SIZE_MIN)
+			return 0;
+		if (slot_size + size_next > size)
+			return 0;
+		load_slot(&buf[slot_size], &ch->SLOT[i]);
+		slot_size += size_next;
+	}
+	if (slot_size + CH_SIZE_MIN > size)
+		return 0;
+	b = slot_size;
+	ch_size        = load_u8_(buf, &b);
+	ch->ALGO       = load_u8_(buf, &b);
+	ch->FB         = load_u8_(buf, &b);
+	ch->op1_out    = load_u32(buf, &b);
+	ch->mem_value  = load_s16(buf, &b);
+	ch->pms        = load_u8_(buf, &b);
+	ch->ams        = load_u8_(buf, &b);
+	ch->kcode      = load_u8_(buf, &b);
+	ch->upd_cnt    = load_u8_(buf, &b);
+	ch->block_fnum = load_u16(buf, &b) & 0x3fff;
+	ch->AMmasks    = load_u8_(buf, &b);
+
+	fn = ch->block_fnum & 0x7ff;
+	blk = ch->block_fnum >> 11;
+	ch->fc = fn_table[fn*2] >> (7 - blk);
+
+	assert(ch_size >= b - slot_size - 1);
+	return slot_size + 1 + ch_size;
+}
+
+size_t YM2612PicoStateSave3(void *buf_, size_t size)
+{
+	size_t i, b = 0;
+	u8 *buf = buf_;
+	u8 lfo_inc_reg = 0;
+
+	for (i = 0; i < 8; i++) {
+		if (ym2612.OPN.lfo_inc == ym2612.OPN.lfo_freq[i]) {
+			lfo_inc_reg = i + 1;
+			break;
+		}
+	}
+	assert(ym2612.OPN.lfo_inc == 0 || i < 8);
+
+	for (i = 0; i < 6; i++)
+		b += save_channel(&buf[b], &ym2612.CH[i]);
+	save_u8_(buf, &b, ym2612.OPN.ST.address);
+	save_u8_(buf, &b, ym2612.OPN.ST.status);
+	save_u8_(buf, &b, ym2612.OPN.ST.mode);
+	save_u8_(buf, &b, ym2612.OPN.ST.flags);
+	// (timers are saved in CHUNK_FM_TIMERS)
+	save_u8_(buf, &b, ym2612.OPN.ST.fn_h);
+	save_u8_(buf, &b, ym2612.OPN.SL3.fn_h);
+	for (i = 0; i < 3; i++) {
+		// ym2612.OPN.SL3.fc is derived from .block_fnum
+		save_u8_(buf, &b, ym2612.OPN.SL3.kcode[i]);
+		save_u16(buf, &b, ym2612.OPN.SL3.block_fnum[i]);
+	}
+	save_u16(buf, &b, ym2612.OPN.pan);
+	save_u16(buf, &b, ym2612.OPN.eg_cnt);
+	save_u16(buf, &b, ym2612.OPN.eg_timer);
+	save_u32(buf, &b, ym2612.OPN.lfo_cnt);
+	save_u16(buf, &b, ym2612.OPN.lfo_ampm);
+	save_u8_(buf, &b, lfo_inc_reg);
+	save_u8_(buf, &b, ym2612.addr_A1);
+	save_u8_(buf, &b, ym2612.dacen);
+	save_s8_(buf, &b, ym2612.dacout >> DAC_SHIFT);
+	save_u32(buf, &b, ym2612.ssg_mask);
+
+	//printf("ym2612 state size: %zu\n", b);
+	assert(b <= size);
+	return b;
+}
+
+void YM2612PicoStateLoad3(const void *buf_, size_t size)
+{
+	const u8 *buf = buf_;
+	size_t i, b = 0;
+	u8 lfo_inc_reg = 0;
+
+	for (i = 0; i < 6; i++) {
+		size_t r = load_channel(&buf[b], size - b, &ym2612.CH[i]);
+		if (!r)
+			goto broken;
+		b += r;
+	}
+	if (b + OTHER_SIZE_MIN > size)
+		goto broken;
+	ym2612.OPN.ST.address = load_u8_(buf, &b);
+	ym2612.OPN.ST.status  = load_u8_(buf, &b);
+	ym2612.OPN.ST.mode    = load_u8_(buf, &b);
+	ym2612.OPN.ST.flags   = load_u8_(buf, &b);
+	ym2612.OPN.ST.fn_h    = load_u8_(buf, &b);
+	ym2612.OPN.SL3.fn_h   = load_u8_(buf, &b);
+	for (i = 0; i < 3; i++) {
+		u32 fn, blk;
+		ym2612.OPN.SL3.kcode[i] = load_u8_(buf, &b);
+		ym2612.OPN.SL3.block_fnum[i] = load_u16(buf, &b) & 0x3fff;
+
+		fn = ym2612.OPN.SL3.block_fnum[i] & 0x7ff;
+		blk = ym2612.OPN.SL3.block_fnum[i] >> 11;
+		ym2612.OPN.SL3.fc[i] = fn_table[fn*2] >> (7 - blk);
+	}
+	ym2612.OPN.pan      = load_u16(buf, &b);
+	ym2612.OPN.eg_cnt   = load_u16(buf, &b);
+	ym2612.OPN.eg_timer = load_u16(buf, &b);
+	ym2612.OPN.lfo_cnt  = load_u32(buf, &b);
+	ym2612.OPN.lfo_ampm = load_u16(buf, &b);
+	lfo_inc_reg         = load_u8_(buf, &b);
+	ym2612.addr_A1      = load_u8_(buf, &b);
+	ym2612.dacen        = load_u8_(buf, &b);
+	ym2612.dacout       = load_s8_(buf, &b);
+	ym2612.ssg_mask     = load_u32(buf, &b);
+
+	assert(lfo_inc_reg < 9u);
+	ym2612.OPN.lfo_inc = 0;
+	if (lfo_inc_reg)
+		ym2612.OPN.lfo_inc = ym2612.OPN.lfo_freq[--lfo_inc_reg & 7];
+	ym2612.dacout = (u32)ym2612.dacout << DAC_SHIFT;
+	ym2612.slot_mask = 0xffffff;
+	//printf("ym2612 state size: %zu\n", b);
+	return;
+broken:
+	elprintf(EL_STATUS, "broken ym2612 state");
 }
 
 void *YM2612GetRegs(void)
