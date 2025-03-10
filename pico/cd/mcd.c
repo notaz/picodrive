@@ -368,7 +368,14 @@ void pcd_run_cpus_normal(int m68k_cycles)
         Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
     } else
 #endif
+    {
       SekSyncM68k(1);
+      // make sure sub doesn't get too far out of sync with main
+      if (!(Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP)) &&
+          pcd_cycles_m68k_to_s68k(Pico.t.m68c_aim - mcd_m68k_cycle_base) >
+                           5000 + SekCycleAimS68k - mcd_s68k_cycle_base)
+        pcd_sync_s68k(Pico.t.m68c_cnt, 0);
+    }
     if (Pico_mcd->m.state_flags & PCD_ST_S68K_SYNC) {
       Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SYNC;
       pcd_sync_s68k(Pico.t.m68c_cnt, 0);
@@ -379,13 +386,14 @@ void pcd_run_cpus_normal(int m68k_cycles)
 void pcd_run_cpus_lockstep(int m68k_cycles)
 {
   unsigned int target = Pico.t.m68c_aim + m68k_cycles;
-  do {
-    Pico.t.m68c_aim += 8;
-    SekSyncM68k(0);
-    pcd_sync_s68k(Pico.t.m68c_aim, 0);
-  } while (CYCLES_GT(target, Pico.t.m68c_aim));
 
-  Pico.t.m68c_aim = target;
+  while (CYCLES_GT(target, Pico.t.m68c_aim)) {
+    int cycles = target - Pico.t.m68c_aim;
+    if (cycles > 8) cycles = 8;
+    SekAimM68k(cycles, 0x108);
+    SekSyncM68k(1);
+    pcd_sync_s68k(Pico.t.m68c_cnt, 0);
+  }
 }
 
 #define PICO_CD
@@ -433,7 +441,7 @@ void pcd_state_loaded(void)
 
     if (Pico_mcd->s68k_regs[0x31])
       pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_TIMER3,
-        Pico_mcd->s68k_regs[0x31] * 384);
+        (Pico_mcd->s68k_regs[0x31]+1) * 384);
   }
 
   diff = cycles - Pico_mcd->pcm.update_cycles;
