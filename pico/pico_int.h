@@ -906,6 +906,7 @@ void cdda_start_play(int lba_base, int lba_offset, int lb_len);
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 int  ym2612_pack_timers(void *buf_, size_t size);
 void ym2612_unpack_timers(const void *buf_, size_t size);
+void ym2612_pack_state_old(void);
 void ym2612_unpack_state_old(void);
 
 #define TIMER_NO_OFLOW 0x70000000

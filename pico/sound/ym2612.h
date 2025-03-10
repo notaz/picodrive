@@ -183,6 +183,7 @@ void YM2612PicoStateLoad_(void);
 
 void *YM2612GetRegs(void);
 int  YM2612PicoStateLoad2(int *tat, int *tbt, int *busy);
+void YM2612PicoStateSave2(int tat, int tbt, int busy);
 size_t YM2612PicoStateSave3(void *buf_, size_t size);
 void   YM2612PicoStateLoad3(const void *buf_, size_t size);
 
