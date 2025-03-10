@@ -2247,7 +2247,7 @@ int YM2612PicoStateLoad2(int *tat, int *tbt, int *busy)
 
 #include "../state.h"
 
-#define SLOT_SIZE_MIN 46
+#define SLOT_SIZE_MIN 22
 #define CH_SIZE_MIN 16
 #define OTHER_SIZE_MIN 35
 
@@ -2264,22 +2264,14 @@ static size_t save_slot(u8 *buf, const FM_SLOT *slot)
 	save_u8_(buf, &b, slot->rr);
 	save_u8_(buf, &b, slot->mul);
 	save_u32(buf, &b, slot->phase);
-	save_u32(buf, &b, slot->Incr);
 	save_u8_(buf, &b, slot->KSR);
-	save_u8_(buf, &b, slot->ksr);
 	save_u8_(buf, &b, slot->key);
 	save_u8_(buf, &b, slot->state);
 	save_u8_(buf, &b, slot->tl >> (ENV_BITS-7));
 	save_u16(buf, &b, slot->volume);
 	save_u32(buf, &b, slot->sl);
-	save_u32(buf, &b, slot->eg_pack_rr);
-	save_u32(buf, &b, slot->eg_pack_d2r);
-	save_u32(buf, &b, slot->eg_pack_d1r);
-	save_u32(buf, &b, slot->eg_pack_ar);
 	save_u8_(buf, &b, slot->ssg);
 	save_u8_(buf, &b, slot->ssgn);
-	save_u8_(buf, &b, slot->ar_ksr);
-	save_u16(buf, &b, slot->vol_out);
 
 	//printf("slot size: %zd\n", b);
 	assert(b >= SLOT_SIZE_MIN);
@@ -2300,25 +2292,22 @@ static void load_slot(const u8 *buf, FM_SLOT *slot)
 	slot->rr     = load_u8_(buf, &b);
 	slot->mul    = load_u8_(buf, &b);
 	slot->phase  = load_u32(buf, &b);
-	slot->Incr   = load_u32(buf, &b);
 	slot->KSR    = load_u8_(buf, &b);
-	slot->ksr    = load_u8_(buf, &b);
 	slot->key    = load_u8_(buf, &b);
 	slot->state  = load_u8_(buf, &b);
 	slot->tl     = load_u8_(buf, &b) << (ENV_BITS-7);
 	slot->volume = load_s16(buf, &b);
 	slot->sl     = load_u32(buf, &b);
-	slot->eg_pack_rr  = load_u32(buf, &b);
-	slot->eg_pack_d2r = load_u32(buf, &b);
-	slot->eg_pack_d1r = load_u32(buf, &b);
-	slot->eg_pack_ar  = load_u32(buf, &b);
 	slot->ssg     = load_u8_(buf, &b);
 	slot->ssgn    = load_u8_(buf, &b);
-	slot->ar_ksr  = load_u8_(buf, &b);
-	slot->vol_out = load_u16(buf, &b);
 
 	assert(dt_reg < 8);
 	slot->DT = ym2612.OPN.ST.dt_tab[dt_reg & 7];
+	recalc_volout( slot );
+
+	// trigger a refresh
+	slot->Incr   = -1;
+	slot->ksr = -1;
 }
 
 static size_t save_channel(u8 *buf, const FM_CH *ch)
