@@ -470,8 +470,8 @@ static port_read_func *port_readers[3] = {
   read_nothing
 };
 
-static int padTHLatency[3]; // TODO this should be in the save file structures
-static int padTLLatency[3]; // TODO this should be in the save file structures
+static int padTHLatency[3];
+static int padTLLatency[3];
 
 static NOINLINE u32 port_read(int i)
 {
@@ -483,7 +483,7 @@ static NOINLINE u32 port_read(int i)
 
   // pull-ups: should be 0x7f, but Decap Attack has a bug where it temp.
   // disables output before doing TH-low read, so emulate RC filter for TH.
-  // Decap Attack reportedly doesn't work on Nomad but works on must
+  // Decap Attack reportedly doesn't work on Nomad but works on most
   // other MD revisions (different pull-up strength?).
   u32 mask = 0x3f;
   if (CYCLES_GE(SekCyclesDone(), padTHLatency[i])) {
@@ -607,6 +607,37 @@ NOINLINE void io_ports_write(u32 a, u32 d)
 
   // certain IO ports can be used as RAM
   PicoMem.ioports[a] = d;
+}
+
+int io_ports_pack(void *buf, size_t size)
+{
+  size_t b, i;
+  memcpy(buf, PicoMem.ioports, (b = sizeof(PicoMem.ioports)));
+  for (i = 0; i < ARRAY_SIZE(Pico.m.padTHPhase); i++)
+    save_u8_(buf, &b, Pico.m.padTHPhase[i]);
+  for (i = 0; i < ARRAY_SIZE(Pico.m.padDelay); i++)
+    save_u8_(buf, &b, Pico.m.padDelay[i]);
+  for (i = 0; i < ARRAY_SIZE(padTHLatency); i++) {
+    save_u32(buf, &b, padTHLatency[i]);
+    save_u32(buf, &b, padTLLatency[i]);
+  }
+  assert(b <= size);
+  return b;
+}
+
+void io_ports_unpack(const void *buf, size_t size)
+{
+  size_t b, i;
+  memcpy(PicoMem.ioports, buf, (b = sizeof(PicoMem.ioports)));
+  for (i = 0; i < ARRAY_SIZE(Pico.m.padTHPhase); i++)
+    Pico.m.padTHPhase[i] = load_u8_(buf, &b);
+  for (i = 0; i < ARRAY_SIZE(Pico.m.padDelay); i++)
+    Pico.m.padDelay[i] = load_u8_(buf, &b);
+  for (i = 0; i < ARRAY_SIZE(padTHLatency); i++) {
+    padTHLatency[i] = load_u32(buf, &b);
+    padTLLatency[i] = load_u32(buf, &b);
+  }
+  assert(b <= size);
 }
 
 static int z80_cycles_from_68k(void)

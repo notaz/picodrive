@@ -108,7 +108,7 @@ typedef enum {
   CHUNK_RC,      // old
   CHUNK_MISC_CD,
   //
-  CHUNK_IOPORTS, // versions < 1.70 did not save that..
+  CHUNK_IOPORTS, // old
   CHUNK_SMS,     // 25
   // 32x
   CHUNK_MSH2,
@@ -139,7 +139,8 @@ typedef enum {
   CHUNK_CD_MSD,
   CHUNK_VDP,
   CHUNK_FM_TIMERS,
-  CHUNK_FMv3,
+  CHUNK_FMv3 = 60,
+  CHUNK_IOPORTSv2,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -253,6 +254,8 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_RAM,   PicoMem.ram);
     CHECKED_WRITE_BUFF(CHUNK_VSRAM, PicoMem.vsram);
     CHECKED_WRITE_BUFF(CHUNK_IOPORTS, PicoMem.ioports);
+    len = io_ports_pack(buf2, CHUNK_LIMIT_W);
+    CHECKED_WRITE(CHUNK_IOPORTSv2, len, buf2);
     if (PicoIn.AHW & PAHW_PICO) {
       len = PicoPicoPCMSave(buf2, CHUNK_LIMIT_W);
       CHECKED_WRITE(CHUNK_PICO_PCM, len, buf2);
@@ -491,14 +494,9 @@ static int state_load(void *file)
         CHECKED_READ2(0x200+4, ym_regs);
         ym2612_unpack_state_old();
         break;
-      case CHUNK_FM_TIMERS:
-        CHECKED_READ(len, buf);
-        ym2612_unpack_timers(buf, len);
-        break;
-      case CHUNK_FMv3:
-        CHECKED_READ(len, buf);
-        YM2612PicoStateLoad3(buf, len);
-        break;
+      case CHUNK_FM_TIMERS: CHECKED_READ(len, buf); ym2612_unpack_timers(buf, len); break;
+      case CHUNK_FMv3:      CHECKED_READ(len, buf); YM2612PicoStateLoad3(buf, len); break;
+      case CHUNK_IOPORTSv2: CHECKED_READ(len, buf); io_ports_unpack(buf, len); break;
 
       case CHUNK_PICO_PCM:
         CHECKED_READ(len, buf);
