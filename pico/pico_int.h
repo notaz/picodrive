@@ -756,6 +756,8 @@ u32 PicoRead16_io(u32 a);
 void PicoWrite8_io(u32 a, u32 d);
 void PicoWrite16_io(u32 a, u32 d);
 u32 PicoReadPad(int i, u32 mask);
+int io_ports_pack(void *buf, size_t size);
+void io_ports_unpack(const void *buf, size_t size);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
