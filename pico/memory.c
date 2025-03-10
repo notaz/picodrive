@@ -1376,6 +1376,30 @@ static u32 ym2612_read_local_68k(void)
   return ym2612.OPN.ST.status;
 }
 
+void ym2612_pack_state_old(void)
+{
+  // timers are saved as tick counts, in 16.16 int format
+  int tac, tat = 0, tbc, tbt = 0, busy = 0;
+
+  tac = 1024 - ym2612.OPN.ST.TA;
+  tbc = 256  - ym2612.OPN.ST.TB;
+  if (Pico.t.ym2612_busy > 0)
+    busy = cycles_z80_to_68k(Pico.t.ym2612_busy);
+  if (Pico.t.timer_a_next_oflow != TIMER_NO_OFLOW)
+    tat = ((Pico.t.timer_a_step - Pico.t.timer_a_next_oflow) * ((1LL<<32)/TIMER_A_TICK_ZCYCLES+1))>>16;
+  if (Pico.t.timer_b_next_oflow != TIMER_NO_OFLOW)
+    tbt = ((Pico.t.timer_b_step - Pico.t.timer_b_next_oflow) * ((1LL<<32)/TIMER_B_TICK_ZCYCLES+1))>>16;
+  elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
+  elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
+
+#ifdef __GP2X__
+  if (PicoIn.opt & POPT_EXT_FM)
+    YM2612PicoStateSave2_940(tat, tbt);
+  else
+#endif
+    YM2612PicoStateSave2(tat, tbt, busy);
+}
+
 int ym2612_pack_timers(void *buf, size_t size)
 {
   // timers are saved as tick counts, in 16.16 int format
@@ -1391,20 +1415,13 @@ int ym2612_pack_timers(void *buf, size_t size)
     tbt = ((Pico.t.timer_b_step - Pico.t.timer_b_next_oflow) * ((1LL<<32)/TIMER_B_TICK_ZCYCLES+1))>>16;
   elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
   elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
-#ifdef __GP2X__
-  if (PicoIn.opt & POPT_EXT_FM)
-    YM2612PicoStateSave2_940(tat, tbt);
-  else
-#endif
-  {
-    //YM2612PicoStateSave2(tat, tbt, busy);
-    assert(size >= 16);
-    save_u16(buf, &b, ym2612.OPN.ST.TA);
-    save_u16(buf, &b, ym2612.OPN.ST.TB);
-    save_u32(buf, &b, tat);
-    save_u32(buf, &b, tbt);
-    save_u32(buf, &b, busy);
-  }
+
+  assert(size >= 16);
+  save_u16(buf, &b, ym2612.OPN.ST.TA);
+  save_u16(buf, &b, ym2612.OPN.ST.TB);
+  save_u32(buf, &b, tat);
+  save_u32(buf, &b, tbt);
+  save_u32(buf, &b, busy);
   return b;
 }
 

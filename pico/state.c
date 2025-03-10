@@ -258,11 +258,17 @@ static int state_save(void *file)
       CHECKED_WRITE(CHUNK_PICO_PCM, len, buf2);
       CHECKED_WRITE(CHUNK_PICO, sizeof(PicoPicohw), &PicoPicohw);
     } else {
+#ifdef __GP2X__
+      ym2612_pack_state_old();
+      ym_regs = YM2612GetRegs();
+      CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
+#else
       // write fm state first since timer load needs OPN.ST.mode
       len = YM2612PicoStateSave3(buf2, CHUNK_LIMIT_W);
       CHECKED_WRITE(CHUNK_FMv3, len, buf2);
       len = ym2612_pack_timers(buf2, CHUNK_LIMIT_W);
       CHECKED_WRITE(CHUNK_FM_TIMERS, len, buf2);
+#endif
     }
 
     if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
