@@ -1564,6 +1564,11 @@ DrawWindow:
 
     and     r2,   r8,   \reg,lsr #4
     orr     \reg, \reg, r2
+
+    orr     r3,   \reg, \reg,lsr #1
+    and     r3,   r3,   r8,lsl #2
+    bic     r3,   r3,   r2,lsl #2
+    orr     \reg, \reg, r3,lsr #1
 .endm
 
 @ trashes: r2-r8,r12,lr; r8 = 0x08610861; r0,r1 are advanced
@@ -1631,28 +1636,27 @@ PicoDoHighPal555:
 
     @ hilighted pixels (0x40-0x7f):
     @  t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e;
-    @  t |= (t >> 4) & 0x08610861;
+    @  t += 0x08610861;
     @ r8=0x08610861
     mov     r12,    #0x008e
     orr     r12,r12,#0x7300
     orr     r12,r12,r12,lsl #16
+    add     r10,r12,r8
     mov     lr, #0x40/4
 .fl_loopcpRGB555_hi:
     ldmia   r3!, {r1,r6}
     and     r1, r12, r1, lsr #1
     and     r6, r12, r6, lsr #1
-    add     r1, r12, r1
-    add     r6, r12, r6
-    and     r5, r8, r1, lsr #4
-    and     r7, r8, r6, lsr #4
-    orr     r1, r1, r5
-    orr     r6, r6, r7
+    add     r1, r10, r1
+    add     r6, r10, r6
     stmia   r4!, {r1,r6}
     subs    lr, lr, #1
     bne     .fl_loopcpRGB555_hi
 
     sub     r3, r3, #0x40*2
     @ shadowed (0x80-0xbf), shadow|hilight (aka normal, 0xc0-0xff) pixels:
+    @ t = (dpal[i] >> 1) & 0x738e738e;
+    @ t += ((t>>2|t>>1|t>>0) & (0x08610861<<1));
     add     r5, r3, #0xc0*2
     mov     lr, #0x40/4
 .fl_loopcpRGB555_sh:
@@ -1660,7 +1664,15 @@ PicoDoHighPal555:
     subs    lr, lr, #1
     stmia   r5!, {r1,r6} @ 0xc0, normal
     and     r1, r12, r1, lsr #1
+    orr     r0, r1, r1, lsr #1
+    orr     r0, r0, r1, lsr #2
+    and     r0, r0, r8, lsl #1
+    add     r1, r1, r0
     and     r6, r12, r6, lsr #1
+    orr     r0, r6, r6, lsr #1
+    orr     r0, r0, r6, lsr #2
+    and     r0, r0, r8, lsl #1
+    add     r6, r6, r0
     stmia   r4!, {r1,r6}
     bne     .fl_loopcpRGB555_sh
 

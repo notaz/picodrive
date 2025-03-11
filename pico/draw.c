@@ -74,11 +74,11 @@ u32 VdpSATCache[2*128];  // VDP sprite cache (1st 32 sprite attr bits)
 #define PXMASKH     0x39ce39ce  // 0x3def3def, all but MSB for all colours
 #elif defined(USE_BGR565)
 #define PXCONV(t)   ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4)
-#define PXMASKL     0x08610861  // 0x18e318e3
+#define PXMASKL     0x08410841  // 0x18e318e3
 #define PXMASKH     0x738e738e  // 0x7bef7bef
 #else // RGB565
 #define PXCONV(t)   ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7)
-#define PXMASKL     0x08610861  // 0x18e318e3
+#define PXMASKL     0x08410841  // 0x18e318e3
 #define PXMASKH     0x738e738e  // 0x7bef7bef
 #endif
 
@@ -1438,22 +1438,27 @@ static void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
     // otherwise intensity difference between this and s/h will be wrong
     t = PXCONV(t);
     t |= (t >> 4) & PXMASKL;
+    // take into account that MegaDrive RGB output isn't linear, there is a larger
+    // step for 0->1 and 6->7. While the latter isn't obviously noticeable, the
+    // former is clearly visible (see color test in Knuckles Chaotix)
+    t |= ((t ^ PXMASKL) & (/*t>>4|*/t>>3|t>>2) & PXMASKL) << 1;
     dpal[i] = t;
   }
 
   // norm: xxx0, sh: 0xxx, hi: 0xxx + 7
   if (sh)
   {
-    // shadowed pixels
+    // normal and shadowed pixels
     for (i = 0; i < 0x40 / 2; i++) {
       dpal[0xc0/2 + i] = dpal[i];
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
+      // take into account that MegaDrive RGB output isn't linear, see above
+      t = (dpal[i] >> 1) & PXMASKH;
+      dpal[0x80/2 + i] = t + ((t>>2|t>>1|t>>0) & (PXMASKL<<1));
     }
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
-      t |= (t >> 4) & PXMASKL;
-      dpal[0x40/2 + i] = t;
+      t = (dpal[i] >> 1) & PXMASKH;
+      dpal[0x40/2 + i] = t + PXMASKH + PXMASKL;
     }
   }
 }
@@ -1475,6 +1480,8 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
     // otherwise intensity difference between this and s/h will be wrong
     t = PXCONV(t);
     t |= (t >> 4) & PXMASKL;
+    // take into account that MegaDrive RGB output isn't linear, see above
+    t |= ((t ^ PXMASKL) & (/*t>>4|*/t>>3|t>>2) & PXMASKL) << 1;
     dpal[i] = dpal[0xc0/2 + i] = t;
   }
 
@@ -1482,13 +1489,15 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   if (sh)
   {
     // shadowed pixels
-    for (i = 0; i < 0x40 / 2; i++)
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
+    for (i = 0; i < 0x40 / 2; i++) {
+      // take into account that MegaDrive RGB output isn't linear, see above
+      t = (dpal[i] >> 1) & PXMASKH;
+      dpal[0x80/2 + i] = t + ((t>>2|t>>1|t>>0) & (PXMASKL<<1));
+    }
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
-      t |= (t >> 4) & PXMASKL;
-      dpal[0x40/2 + i] = t;
+      t = (dpal[i] >> 1) & PXMASKH;
+      dpal[0x40/2 + i] = t + PXMASKH + PXMASKL;
     }
   }
 }
