@@ -1376,21 +1376,19 @@ static u32 ym2612_read_local_68k(void)
   return ym2612.OPN.ST.status;
 }
 
+// legacy code, only used for GP2X
 void ym2612_pack_state_old(void)
 {
   // timers are saved as tick counts, in 16.16 int format
-  int tac, tat = 0, tbc, tbt = 0, busy = 0;
+  int tat = 0, tbt = 0, busy = 0;
+  u8 buf[16];
+  size_t b = 0;
 
-  tac = 1024 - ym2612.OPN.ST.TA;
-  tbc = 256  - ym2612.OPN.ST.TB;
-  if (Pico.t.ym2612_busy > 0)
-    busy = cycles_z80_to_68k(Pico.t.ym2612_busy);
-  if (Pico.t.timer_a_next_oflow != TIMER_NO_OFLOW)
-    tat = ((Pico.t.timer_a_step - Pico.t.timer_a_next_oflow) * ((1LL<<32)/TIMER_A_TICK_ZCYCLES+1))>>16;
-  if (Pico.t.timer_b_next_oflow != TIMER_NO_OFLOW)
-    tbt = ((Pico.t.timer_b_step - Pico.t.timer_b_next_oflow) * ((1LL<<32)/TIMER_B_TICK_ZCYCLES+1))>>16;
-  elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
-  elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
+  ym2612_pack_timers(buf, sizeof(buf));
+  load_u16(buf, &b), load_u16(buf, &b);
+  tat = load_u32(buf, &b);
+  tbt = load_u32(buf, &b);
+  busy = load_u32(buf, &b);
 
 #ifdef __GP2X__
   if (PicoIn.opt & POPT_EXT_FM)
@@ -1405,6 +1403,7 @@ int ym2612_pack_timers(void *buf, size_t size)
   // timers are saved as tick counts, in 16.16 int format
   int tac, tat = 0, tbc, tbt = 0, busy = 0;
   size_t b = 0;
+
   tac = 1024 - ym2612.OPN.ST.TA;
   tbc = 256  - ym2612.OPN.ST.TB;
   if (Pico.t.ym2612_busy > 0)
@@ -1425,6 +1424,7 @@ int ym2612_pack_timers(void *buf, size_t size)
   return b;
 }
 
+// legacy code, only used for GP2X
 void ym2612_unpack_state_old(void)
 {
   int i, ret, tat, tbt, busy = 0;
