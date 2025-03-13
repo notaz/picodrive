@@ -46,6 +46,14 @@ static inline void save_u32(u8 *buf, size_t *b, u32 u)
 	buf[(*b)++] = u >> 24;
 }
 
+static inline void save_s32(u8 *buf, size_t *b, s32 s)
+{
+	buf[(*b)++] = s;
+	buf[(*b)++] = s >> 8;
+	buf[(*b)++] = s >> 16;
+	buf[(*b)++] = s >> 24;
+}
+
 static inline u8 load_u8_(const u8 *buf, size_t *b)
 {
 	return buf[(*b)++];
@@ -73,6 +81,13 @@ static inline s16 load_s16(const u8 *buf, size_t *b)
 static inline u32 load_u32(const u8 *buf, size_t *b)
 {
 	u32 r = (buf[*b + 3] << 24) | (buf[*b + 2] << 16) | (buf[*b + 1] << 8) | buf[*b];
+	(*b) += 4;
+	return r;
+}
+
+static inline s32 load_s32(const u8 *buf, size_t *b)
+{
+	s32 r = (buf[*b + 3] << 24) | (buf[*b + 2] << 16) | (buf[*b + 1] << 8) | buf[*b];
 	(*b) += 4;
 	return r;
 }

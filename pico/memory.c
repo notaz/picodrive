@@ -618,9 +618,13 @@ int io_ports_pack(void *buf, size_t size)
   for (i = 0; i < ARRAY_SIZE(Pico.m.padDelay); i++)
     save_u8_(buf, &b, Pico.m.padDelay[i]);
   for (i = 0; i < ARRAY_SIZE(padTHLatency); i++) {
-    save_u32(buf, &b, padTHLatency[i]);
-    save_u32(buf, &b, padTLLatency[i]);
+    save_s32(buf, &b, padTHLatency[i]);
+    save_s32(buf, &b, padTLLatency[i]);
   }
+  for (i = 0; i < 4; i++)
+    save_u16(buf, &b, PicoIn.padInt[i]);
+  for (i = 0; i < 4; i++)
+    save_s32(buf, &b, PicoIn.mouseInt[i]);
   assert(b <= size);
   return b;
 }
@@ -634,9 +638,13 @@ void io_ports_unpack(const void *buf, size_t size)
   for (i = 0; i < ARRAY_SIZE(Pico.m.padDelay); i++)
     Pico.m.padDelay[i] = load_u8_(buf, &b);
   for (i = 0; i < ARRAY_SIZE(padTHLatency); i++) {
-    padTHLatency[i] = load_u32(buf, &b);
-    padTLLatency[i] = load_u32(buf, &b);
+    padTHLatency[i] = load_s32(buf, &b);
+    padTLLatency[i] = load_s32(buf, &b);
   }
+  for (i = 0; i < 4; i++)
+    PicoIn.padInt[i] = load_u16(buf, &b);
+  for (i = 0; i < 4; i++)
+    PicoIn.mouseInt[i] = load_s32(buf, &b);
   assert(b <= size);
 }
 

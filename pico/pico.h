@@ -109,9 +109,18 @@ typedef struct PicoInterface
 {
 	unsigned int opt; // POPT_* bitfield
 
-	unsigned short pad[4];     // Joypads, format is MXYZ SACB RLDU
-	unsigned short padInt[4];  // internal copy
-	unsigned short AHW;        // active addon hardware: PAHW_* bitfield
+	unsigned short pad[4];         // Joypads, format is MXYZ SACB RLDU
+	unsigned short padInt[4];      // internal copy
+	unsigned short AHW;            // active addon hardware: PAHW_* bitfield
+
+	unsigned short kbd;            // SC-3000 or Pico Keyboard
+	int mouse[4];                  // x,y mouse coordinates
+	int mouseInt[4];               // internal copy
+
+	unsigned short quirks;         // game-specific quirks: PQUIRK_*
+	unsigned short overclockM68k;  // overclock the emulated 68k, in %
+
+	unsigned short filter;         // softscale filter type
 
 	unsigned short skipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 	unsigned short regionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
@@ -119,11 +128,6 @@ typedef struct PicoInterface
 	unsigned int hwSelect;         // hardware preselected via option menu
 	unsigned int mapper;           // mapper selection for SMS, 0 = auto
 	unsigned int tmsPalette;       // palette used by SMS in TMS graphic modes
-
-	unsigned short quirks;         // game-specific quirks: PQUIRK_*
-	unsigned short overclockM68k;  // overclock the emulated 68k, in %
-
-	unsigned short filter;         // softscale filter type
 
 	int sndRate;                   // rate in Hz
 	int sndFilterAlpha;            // Low pass sound filter alpha (Q16)
@@ -134,10 +138,6 @@ typedef struct PicoInterface
 
 	void (*mcdTrayOpen)(void);
 	void (*mcdTrayClose)(void);
-
-	int mouse[4];                  // x,y mouse coordinates
-	int mouseInt[4];               // internal copy
-	unsigned int kbd;              // SC-3000 or Pico Keyboard
 } PicoInterface;
 
 extern PicoInterface PicoIn;
