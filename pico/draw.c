@@ -1749,17 +1749,17 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (PicoIn.AHW & PAHW_32X) // H32 upscaling, before mixing in 32X layer
     est->rendstatus = (*est->PicoOpt & POPT_ALT_RENDERER) ?
                 PDRAW_BORDER_32 : PDRAW_32X_SCALE|PDRAW_SOFTSCALE;
-  else if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+  else if (!(*est->PicoOpt & POPT_DIS_32C_BORDER))
     est->rendstatus |= PDRAW_BORDER_32;
 
-  if ((PicoIn.opt & POPT_EN_SOFTSCALE) && !(*est->PicoOpt & POPT_ALT_RENDERER))
+  if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && !(*est->PicoOpt & POPT_ALT_RENDERER))
     est->rendstatus |= PDRAW_SOFTSCALE;
 
   if ((est->Pico->video.reg[12] & 6) == 6)
     est->rendstatus |= PDRAW_INTERLACE; // interlace mode
   if (!(est->Pico->video.reg[12] & 1)) {
     est->rendstatus |= PDRAW_32_COLS;
-    if (!(est->rendstatus & PDRAW_SOFTSCALE)) {
+    if (!(est->rendstatus & PDRAW_SOFTSCALE) && !(PicoIn.AHW & PAHW_32X)) {
       columns = 256;
       coffs = 32;
     }

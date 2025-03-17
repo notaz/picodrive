@@ -68,7 +68,7 @@
 
 @ direct color
 @ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
-.macro make_do_loop_dc name call_scan do_md
+.macro make_do_loop_dc name call_scan do_md do_h32
 .global \name
 \name:
     stmfd   sp!, {r4-r11,lr}
@@ -83,6 +83,8 @@
     mov     r5, #328
     mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
+    tst     r2, #(2<<8)
+    addne   r11,r11,#4       @ H32 offset
     tst     r10,#P32XV_PRI
     movne   r10,#0
     moveq   r10,#0x8000      @ r10 = !inv_bit
@@ -153,6 +155,20 @@
     orr     r12,r12, lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
+.if \do_h32
+    cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
+    tstne   r7, #0x20<<16
+    ldrneh  r7, [r0, #8]
+    moveq   r7, r7, lsr #16
+
+    cmp     r3, lr,  lsl #26
+    tstne   r8, #0x20<<16
+    ldrneh  r8, [r0, #10]
+    moveq   r8, r8, lsr #16
+
+    orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
+    str     r7, [r0], #4     @ (no write combining on ARM9)
+.else
     cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
     tstne   r7, #0x20<<16
     moveq   r7, r7, lsr #16
@@ -164,6 +180,7 @@
     streqh  r8, [r0, #2]
 
     add     r0, r0, #4       @ store 32x pixels if 32X prio or MD bg
+.endif
 .endif
     b       2b @ loop_inner
 
@@ -235,11 +252,23 @@
     orr     r12,r12,lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
+.if \do_h32
+    add     r0, r0, #4
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
+    ldrneh  lr, [r0, #4]
+    streqh  r7, [r0, #-4]
+    strneh  lr, [r0, #-4]
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
+    ldrneh  lr, [r0, #6]
+    streqh  r7, [r0, #-2]
+    strneh  lr, [r0, #-2]
+.else
     add     r0, r0, #4
     cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
     streqh  r7, [r0, #-4]
     cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
     streqh  r7, [r0, #-2]
+.endif
 .endif
     subs    r8, r8, #2
     bgt     9b @ bg_loop
@@ -251,7 +280,7 @@
 @ note: this may read a few bytes over the end of PicoDraw2FB and dram,
 @       so those should have a bit more alloc'ed than really needed.
 @ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
-.macro make_do_loop_pp name call_scan do_md
+.macro make_do_loop_pp name call_scan do_md do_h32
 .global \name
 \name:
     stmfd   sp!, {r4-r11,lr}
@@ -268,6 +297,8 @@
     mov     r5, #328
     mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
+    tst     r2, #(2<<8)
+    addne   r11,r11,#4       @ H32 offset
     call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
@@ -333,6 +364,20 @@
     orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r7, [r0], #4     @ (no write combining on ARM9)
 .else
+.if \do_h32
+    cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
+    orreq   r7, r7, #0x20
+    cmp     r3, lr,  lsl #26
+    orreq   r8, r8, #0x20
+
+    tst     r7, #0x20
+    ldreqh  r7, [r0, #8]
+    tst     r8, #0x20
+    ldreqh  r8, [r0, #10]
+
+    orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
+    str     r7, [r0], #4     @ (no write combining on ARM9)
+.else
     cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
     orreq   r7, r7, #0x20
     cmp     r3, lr,  lsl #26
@@ -343,6 +388,7 @@
     strneh  r7, [r0, #-4]
     tst     r8, #0x20
     strneh  r8, [r0, #-2]
+.endif
 .endif
     b       2b @ loop_inner
 
@@ -416,11 +462,23 @@
     orr     r12,r12,lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
+.if \do_h32
+    add     r0, r0, #4
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
+    ldrneh  lr, [r0, #4]
+    streqh  r7, [r0, #-4]
+    strneh  lr, [r0, #-4]
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
+    ldrneh  lr, [r0, #6]
+    streqh  r7, [r0, #-2]
+    strneh  lr, [r0, #-2]
+.else
     add     r0, r0, #4
     cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
     streqh  r7, [r0, #-4]
     cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
     streqh  r7, [r0, #-2]
+.endif
 .endif
     subs    r8, r8, #2
     bgt     9b @ bg_loop
@@ -430,7 +488,7 @@
 
 @ run length
 @ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
-.macro make_do_loop_rl name call_scan do_md
+.macro make_do_loop_rl name call_scan do_md do_h32
 .global \name
 \name:
     stmfd   sp!, {r4-r11,lr}
@@ -447,6 +505,8 @@
     mov     r5, #328
     mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
+    tst     r2, #(2<<8)
+    addne   r11,r11,#4       @ H32 offset
     call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
@@ -491,8 +551,13 @@
     streqh  lr, [r0], #2
     strneh  r12,[r0], #2     @ *dst++ = t
 .else
+.if \do_h32
+    ldrneh  lr, [r0, #8]
+    strh    lr, [r0], #2
+.else
     streqh  lr, [r0]
     add     r0, r0, #2
+.endif
 .endif
     subs    r8, r8, #0x100
     bge     3b @ loop_innermost
@@ -500,22 +565,28 @@
 .endm
 
 
-make_do_loop_dc do_loop_dc,         0, 0
-make_do_loop_dc do_loop_dc_md,      0, 1
-make_do_loop_dc do_loop_dc_scan,    1, 0
-make_do_loop_dc do_loop_dc_scan_md, 1, 1
+make_do_loop_dc do_loop_dc,         0, 0, 0
+make_do_loop_dc do_loop_dc_h32,     0, 0, 1
+make_do_loop_dc do_loop_dc_md,      0, 1, 0
+make_do_loop_dc do_loop_dc_scan,    1, 0, 0
+make_do_loop_dc do_loop_dc_scan_h32,1, 0, 1
+make_do_loop_dc do_loop_dc_scan_md, 1, 1, 0
 .pool
 
-make_do_loop_pp do_loop_pp,         0, 0
-make_do_loop_pp do_loop_pp_md,      0, 1
-make_do_loop_pp do_loop_pp_scan,    1, 0
-make_do_loop_pp do_loop_pp_scan_md, 1, 1
+make_do_loop_pp do_loop_pp,         0, 0, 0
+make_do_loop_pp do_loop_pp_h32,     0, 0, 1
+make_do_loop_pp do_loop_pp_md,      0, 1, 0
+make_do_loop_pp do_loop_pp_scan,    1, 0, 0
+make_do_loop_pp do_loop_pp_scan_h32,1, 0, 1
+make_do_loop_pp do_loop_pp_scan_md, 1, 1, 0
 .pool
 
-make_do_loop_rl do_loop_rl,         0, 0
-make_do_loop_rl do_loop_rl_md,      0, 1
-make_do_loop_rl do_loop_rl_scan,    1, 0
-make_do_loop_rl do_loop_rl_scan_md, 1, 1
+make_do_loop_rl do_loop_rl,         0, 0, 0
+make_do_loop_rl do_loop_rl_h32,     0, 0, 1
+make_do_loop_rl do_loop_rl_md,      0, 1, 0
+make_do_loop_rl do_loop_rl_scan,    1, 0, 0
+make_do_loop_rl do_loop_rl_scan_h32,1, 0, 1
+make_do_loop_rl do_loop_rl_scan_md, 1, 1, 0
 .pool
 
 @ vim:filetype=armasm
