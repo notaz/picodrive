@@ -220,7 +220,6 @@ static void ParseSpritesM4(int scanline)
 
 static void DrawSpritesM4(void)
 {
-  struct PicoVideo *pv = &Pico.video;
   unsigned int pack;
   int zoomed = sprites_zoom & 0x1; // zoomed sprites, e.g. Earthworm Jim
   int s = sprites;
@@ -500,7 +499,6 @@ static void ParseSpritesTMS(int scanline)
 /* Draw sprites into a scanline, max 4 */
 static void DrawSpritesTMS(void)
 {
-  struct PicoVideo *pv = &Pico.video;
   unsigned int pack;
   int zoomed = sprites_zoom & 0x1; // zoomed sprites
   int s = sprites;

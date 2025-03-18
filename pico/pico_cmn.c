@@ -50,7 +50,7 @@ static int SekSyncM68k(int once)
     // the Z80 CPU is stealing some bus cycles from the 68K main CPU when 
     // accessing the main bus. Account for these by shortening the time
     // the 68K CPU runs.
-    int z80_buscyc = (Pico.t.z80_buscycles >> 4+(~Pico.m.scanline & 1));
+    int z80_buscyc = Pico.t.z80_buscycles >> (4+(~Pico.m.scanline & 1));
     // NB the Z80 isn't fast enough to steal more than half the bandwidth.
     // the fastest would be POP cc which takes 10+~3.3*2 z-cyc (~35 cyc) for a
     // 16 bit value, but 68k is only blocked for ~16 cyc for the 2 bus cycles.
