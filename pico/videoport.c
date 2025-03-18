@@ -1229,8 +1229,6 @@ void PicoVideoCacheSAT(int load)
 
 int PicoVideoSave(void *buf)
 {
-  struct VdpFIFO *vf = &VdpFIFO;
-  struct PicoVideo *pv = &Pico.video;
   u8 *bp = buf;
   int i;
 

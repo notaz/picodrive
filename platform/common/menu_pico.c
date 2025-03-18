@@ -1819,4 +1819,7 @@ void menu_init(void)
 		e_menu_options[i].name = "CPU clock";
 		e_menu_options[i].enabled = 1;
 	}
+	// suppress warnings about unused libpicofe funcs
+	(void)me_loop;
+	(void)menu_loop_romsel;
 }
