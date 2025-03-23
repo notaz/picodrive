@@ -1010,7 +1010,9 @@ static void carthw_lk3_mem_setup(void)
 
 static void carthw_lk3_statef(void)
 {
-  PicoWrite8_plk3b(0x700000, carthw_lk3_regs.bank >> 15);
+  int bank = carthw_lk3_regs.bank >> 15;
+  carthw_lk3_regs.bank = -1;
+  PicoWrite8_plk3b(0x700000, bank);
 }
 
 static void carthw_lk3_unload(void)
