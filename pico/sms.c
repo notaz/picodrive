@@ -1181,42 +1181,46 @@ void PicoStateLoadedMS(void)
 {
   u8 mapper = Pico.ms.mapper;
   u8 zram_dff0[16]; // TODO xwrite also writes to zram :-/
+  u8 carthw[16];
 
   memcpy(zram_dff0, PicoMem.zram+0x1ff0, 16);
+  memcpy(carthw, Pico.ms.carthw, 16);
+  memset(Pico.ms.carthw, -1, 16);
   if (mapper == PMS_MAP_8KBRAM || mapper == PMS_MAP_32KBRAM) {
-    u16 a = Pico.ms.carthw[0] << 12;
+    u16 a = carthw[0] << 12;
     xwrite(a, *(unsigned char *)(PicoMem.vram+0x4000));
   } else if (mapper == PMS_MAP_MSX || mapper == PMS_MAP_NEMESIS) {
-    xwrite(0x0000, Pico.ms.carthw[0]);
-    xwrite(0x0001, Pico.ms.carthw[1]);
-    xwrite(0x0002, Pico.ms.carthw[2]);
-    xwrite(0x0003, Pico.ms.carthw[3]);
+    xwrite(0x0000, carthw[0]);
+    xwrite(0x0001, carthw[1]);
+    xwrite(0x0002, carthw[2]);
+    xwrite(0x0003, carthw[3]);
   } else if (mapper == PMS_MAP_KOREA) {
-    xwrite(0xa000, Pico.ms.carthw[0x0f]);
+    xwrite(0xa000, carthw[0x0f]);
   } else if (mapper == PMS_MAP_N32K) {
-    xwrite(0xffff, Pico.ms.carthw[0x0f]);
+    xwrite(0xffff, carthw[0x0f]);
   } else if (mapper == PMS_MAP_N16K) {
-    xwrite(0x3ffe, Pico.ms.carthw[0]);
-    xwrite(0x7fff, Pico.ms.carthw[1]);
-    xwrite(0xbfff, Pico.ms.carthw[2]);
+    xwrite(0x3ffe, carthw[0]);
+    xwrite(0x7fff, carthw[1]);
+    xwrite(0xbfff, carthw[2]);
   } else if (mapper == PMS_MAP_JANGGUN) {
-    xwrite(0x4000, Pico.ms.carthw[2]);
-    xwrite(0x6000, Pico.ms.carthw[3]);
-    xwrite(0x8000, Pico.ms.carthw[4]);
-    xwrite(0xa000, Pico.ms.carthw[5]);
+    xwrite(0x4000, carthw[2]);
+    xwrite(0x6000, carthw[3]);
+    xwrite(0x8000, carthw[4]);
+    xwrite(0xa000, carthw[5]);
   } else if (mapper == PMS_MAP_XOR) {
-    xwrite(0x2000, Pico.ms.carthw[0]);
+    xwrite(0x2000, carthw[0]);
   } else if (mapper == PMS_MAP_CODEM) {
-    xwrite(0x0000, Pico.ms.carthw[0]);
-    xwrite(0x4000, Pico.ms.carthw[1]);
-    xwrite(0x8000, Pico.ms.carthw[2]);
+    xwrite(0x0000, carthw[0]);
+    xwrite(0x4000, carthw[1]);
+    xwrite(0x8000, carthw[2]);
   } else if (mapper == PMS_MAP_SEGA) {
-    xwrite(0xfffc, Pico.ms.carthw[0x0c]);
-    xwrite(0xfffd, Pico.ms.carthw[0x0d]);
-    xwrite(0xfffe, Pico.ms.carthw[0x0e]);
-    xwrite(0xffff, Pico.ms.carthw[0x0f]);
+    xwrite(0xfffc, carthw[0x0c]);
+    xwrite(0xfffd, carthw[0x0d]);
+    xwrite(0xfffe, carthw[0x0e]);
+    xwrite(0xffff, carthw[0x0f]);
   }
   memcpy(PicoMem.zram+0x1ff0, zram_dff0, 16);
+  memcpy(Pico.ms.carthw, carthw, 16);
 }
 
 void PicoFrameMS(void)
