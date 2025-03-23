@@ -153,6 +153,8 @@ static void ogg_free(int i)
 #endif
 #endif
 
+static off_t read_pos = -1;
+
 void cdd_reset(void)
 {
   /* stop audio streaming */
@@ -178,6 +180,9 @@ void cdd_reset(void)
 
   /* clear CD-DA output */
   cdd.audio[0] = cdd.audio[1] = 0;
+
+  /* reset file read position */
+  read_pos = -1;
 }
 
 /* FIXME: use cdd_read_audio() instead */
@@ -202,8 +207,6 @@ void cdd_play_audio(int index, int lba)
 
   cdda_start_play(base, lba_offset, lb_len);
 }
-
-static off_t read_pos = -1;
 
 void cdd_seek(int index, int lba)
 {
