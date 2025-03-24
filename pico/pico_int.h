@@ -936,9 +936,6 @@ void ym2612_unpack_state_old(void);
   Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256; \
   ym2612.OPN.ST.status &= ~3;
 
-void *YM2413GetRegs(void);
-void YM2413UnpackState(void);
-
 // videoport.c
 extern u32 SATaddr, SATmask;
 static __inline void UpdateSAT(u32 a, u32 d)

@@ -11,12 +11,10 @@
 
 #include <cpu/sh2/sh2.h>
 #include "sound/ym2612.h"
-#include "sound/emu2413/emu2413.h"
+#include "sound/ym2413.h"
+#include "sound/sn76496.h"
 #include "cd/megasd.h"
 #include "state.h"
-
-// sn76496 & ym2413
-extern int *sn76496_regs;
 
 static arearw    *areaRead;
 static arearw    *areaWrite;
@@ -231,7 +229,6 @@ static int state_save(void *file)
 {
   char sbuff[32] = "Saving.. ";
   unsigned char buff[0x60], buff_z80[Z80_STATE_SIZE];
-  void *ym_regs = YM2612GetRegs();
   void *buf2 = NULL;
   int ver = 0x0191; // not really used..
   int retval = -1;
@@ -262,8 +259,8 @@ static int state_save(void *file)
       CHECKED_WRITE(CHUNK_PICO, sizeof(PicoPicohw), &PicoPicohw);
     } else {
 #ifdef __GP2X__
+      void *ym_regs = YM2612GetRegs();
       ym2612_pack_state_old();
-      ym_regs = YM2612GetRegs();
       CHECKED_WRITE(CHUNK_FM, 0x200+4, ym_regs);
 #else
       // write fm state first since timer load needs OPN.ST.mode
@@ -279,8 +276,11 @@ static int state_save(void *file)
   }
   else {
     CHECKED_WRITE_BUFF(CHUNK_SMS, Pico.ms);
-    ym_regs = YM2413GetRegs();
-    CHECKED_WRITE(CHUNK_YM2413, 0x40+4, ym_regs);
+    // only store the FM unit state if it was really used
+    if (Pico.m.hardware & PMS_HW_FMUSED) {
+      len = ym2413_pack_state(buf2, CHUNK_LIMIT_W);
+      CHECKED_WRITE(CHUNK_YM2413, len, buf2);
+    }
   }
   CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
 
@@ -485,9 +485,9 @@ static int state_load(void *file)
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
       case CHUNK_YM2413:
-        ym_regs = YM2413GetRegs();
-        CHECKED_READ2(0x40+4, ym_regs);
-        YM2413UnpackState();
+        CHECKED_READ(len, buf);
+        ym2413_unpack_state(buf, len);
+        Pico.m.hardware |= PMS_HW_FMUSED;
         break;
       case CHUNK_FM:
         ym_regs = YM2612GetRegs();

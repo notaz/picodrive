@@ -11,8 +11,8 @@
 #include <string.h>
 #include "../pico_int.h"
 #include "ym2612.h"
+#include "ym2413.h"
 #include "sn76496.h"
-#include "emu2413/emu2413.h"
 #include "../cd/megasd.h"
 #include "resampler.h"
 #include "mix.h"
@@ -28,45 +28,9 @@ static s32 PsndBuffer[2*(54000+100)/50+2];
 // cdda output buffer
 s16 cdda_out_buffer[2*1152];
 
-// sn76496
-extern int *sn76496_regs;
-
 // FM resampling polyphase FIR
 static resampler_t *fmresampler;
 static int (*PsndFMUpdate)(s32 *buffer, int length, int stereo, int is_buf_empty);
-
-// ym2413
-static OPLL *opll = NULL;
-static struct {
-  uint32_t adr;
-  uint8_t reg[sizeof(opll->reg)];
-} opll_buf;
-
-
-void YM2413_regWrite(unsigned data){
-  OPLL_writeIO(opll,0,data);
-}
-void YM2413_dataWrite(unsigned data){
-  OPLL_writeIO(opll,1,data);
-}
-
-PICO_INTERNAL void *YM2413GetRegs(void)
-{
-  memcpy(opll_buf.reg, opll->reg, sizeof(opll->reg));
-  opll_buf.adr = opll->adr;
-  return &opll_buf;
-}
-
-PICO_INTERNAL void YM2413UnpackState(void)
-{
-  int i;
-
-  for (i = sizeof(opll->reg)-1; i >= 0; i--) {
-    OPLL_writeIO(opll, 0, i);
-    OPLL_writeIO(opll, 1, opll_buf.reg[i]);
-  }
-  opll->adr = opll_buf.adr;
-}
 
 PICO_INTERNAL void PsndInit(void)
 {
