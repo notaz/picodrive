@@ -181,6 +181,8 @@ void cdd_reset(void)
   /* clear CD-DA output */
   cdd.audio[0] = cdd.audio[1] = 0;
 
+  /* no audio track playing */
+  Pico_mcd->s68k_regs[0x36+0] = 0x01;
   /* reset file read position */
   read_pos = -1;
 }

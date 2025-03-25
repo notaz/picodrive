@@ -80,6 +80,9 @@ PICO_INTERNAL void PicoPowerMCD(void)
   if (Pico.romsize == 0) // no HINT vector from gate array for MSU
     memset(Pico_mcd->bios + 0x70, 0xff, 4);
   pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
+
+  cdc_reset();
+  cdd_reset();
 }
 
 void pcd_soft_reset(void)
@@ -118,7 +121,6 @@ PICO_INTERNAL int PicoResetMCD(void)
     Pico.sv.start = Pico.sv.end = 0; // unused
   }
 
-  msd_reset();
   return 0;
 }
 
@@ -456,6 +458,9 @@ void pcd_state_loaded(void)
   // reschedule
   event_time_next = 0;
   pcd_run_events(SekCycleCntS68k);
+
+  // msd
+  msd_load();
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

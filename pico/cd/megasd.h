@@ -34,6 +34,7 @@ extern struct megasd Pico_msd;
 
 extern void msd_update(void);		// 75Hz update, like CDD irq
 extern void msd_reset(void);		// reset state
+extern void msd_load(void);		// state loaded
 
 extern void msd_write8(u32 a, u32 d);	// interface
 extern void msd_write16(u32 a, u32 d);
