@@ -36,22 +36,22 @@ static struct iir {
 
 
 // exponential moving average combined DC filter and lowpass filter
-// y0[n] = (x[n]-y0[n-1])*alpha+y0[n-1], y1[n] = (y0[n] - y1[n-1])*(1-1/8192)
+// y0[n] = y0[n-1]+(x[n]-y0[n-1])*alpha, y1[n] = y[n-1]+(y0[n]-y1[n-1])*(1/512)
 static inline int filter_band(struct iir *fi2, int x)
 {
 	// low pass. alpha is Q8 to avoid loss by 32 bit overflow.
 //	fi2->y[0] += ((x<<(QB-8)) - (fi2->y[0]>>8)) * fi2->alpha;
 	fi2->y[0] += (x - (fi2->y[0]>>QB)) * fi2->alpha;
-	// DC filter. for alpha=1-1/8192 cutoff ~1HZ, for 1-1/1024 ~7Hz
-	fi2->y[1] += (fi2->y[0] - fi2->y[1]) >> QB;
+	// DC filter. for alpha=1/8192 cutoff ~1HZ, for 1/512 ~14Hz
+	fi2->y[1] += (fi2->y[0] - fi2->y[1]) >> 9;
 	return (fi2->y[0] - fi2->y[1]) >> QB;
 }
 
 // exponential moving average filter for DC filtering
-// y[n] = (x[n]-y[n-1])*(1-1/8192) (corner approx. 1Hz, gain 1)
+// y[n]= y[n-1] + (x[n]-y[n-1])*(1/512) (corner approx. 14Hz, gain 1)
 static inline int filter_exp(struct iir *fi2, int x)
 {
-	fi2->y[1] += ((x << QB) - fi2->y[1]) >> QB;
+	fi2->y[1] += ((x << QB) - fi2->y[1]) >> 9;
 	return x - (fi2->y[1] >> QB);
 }
 
