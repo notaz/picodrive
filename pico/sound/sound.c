@@ -189,8 +189,8 @@ void PsndRerate(int preserve_state)
   // samples per line (Q16)
   Pico.snd.smpl_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
   // samples per z80 clock (Q20)
-  Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488.5;
-  // samples per 44.1 KHz sample
+  Pico.snd.clkz_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488.5;
+  // samples per 44.1 KHz sample (Q16)
   Pico.snd.cdda_mult = 65536LL * 44100 / PicoIn.sndRate;
   Pico.snd.cdda_div  = 65536LL * PicoIn.sndRate / 44100;
 
@@ -229,7 +229,7 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   if (!PicoIn.sndOut) return;
 
   // number of samples to fill in buffer (Q20)
-  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.dac_pos;
+  len = (cyc_to * Pico.snd.clkz_mult) - Pico.snd.dac_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.dac_pos+0x80000) >> 20;
@@ -271,7 +271,7 @@ PICO_INTERNAL void PsndDoPSG(int cyc_to)
   if (!PicoIn.sndOut) return;
 
   // number of samples to fill in buffer (Q20)
-  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.psg_pos;
+  len = (cyc_to * Pico.snd.clkz_mult) - Pico.snd.psg_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.psg_pos+0x80000) >> 20;
@@ -301,7 +301,7 @@ PICO_INTERNAL void PsndDoSMSFM(int cyc_to)
   if (!PicoIn.sndOut) return;
 
   // number of samples to fill in buffer (Q20)
-  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.ym2413_pos;
+  len = (cyc_to * Pico.snd.clkz_mult) - Pico.snd.ym2413_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.ym2413_pos+0x80000) >> 20;
@@ -342,7 +342,7 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
   if (!PicoIn.sndOut) return;
 
   // Q20, number of samples since last call
-  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
+  len = (cyc_to * Pico.snd.clkz_mult) - Pico.snd.fm_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.fm_pos+0x80000) >> 20;
@@ -369,7 +369,7 @@ PICO_INTERNAL void PsndDoPCM(int cyc_to)
   if (!PicoIn.sndOut) return;
 
   // Q20, number of samples since last call
-  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.pcm_pos;
+  len = (cyc_to * Pico.snd.clkz_mult) - Pico.snd.pcm_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.pcm_pos+0x80000) >> 20;
@@ -391,13 +391,23 @@ static void cdda_raw_update(s32 *buffer, int length, int stereo)
 {
   int ret, cdda_bytes;
 
+  // apply start offset in frame (offset to 1st lba to play)
+  int offs = Pico_mcd->cdda_frame_offs * Pico.snd.cdda_div >> 16;
+  length -= offs;
+  buffer += offs * (stereo ? 2 : 1);
+  Pico_mcd->cdda_frame_offs = 0;
+
   cdda_bytes = (length * Pico.snd.cdda_mult >> 16) * 4;
+
+  // compute offset of last played sample in this frame (need for save/load)
+  Pico_mcd->m.cdda_lba_offset += cdda_bytes/4;
+  while (Pico_mcd->m.cdda_lba_offset >= 2352/4)
+    Pico_mcd->m.cdda_lba_offset -= 2352/4;
 
   ret = pm_read_audio(cdda_out_buffer, cdda_bytes, Pico_mcd->cdda_stream);
   if (ret < cdda_bytes) {
     memset((char *)cdda_out_buffer + ret, 0, cdda_bytes - ret);
     Pico_mcd->cdda_stream = NULL;
-    return;
   }
 
   // now mix
@@ -423,7 +433,9 @@ void cdda_start_play(int lba_base, int lba_offset, int lb_len)
     return;
   }
 
-  pm_seek(Pico_mcd->cdda_stream, (lba_base + lba_offset) * 2352, SEEK_SET);
+  // on restart after loading, consider offset of last played sample
+  pm_seek(Pico_mcd->cdda_stream, (lba_base + lba_offset) * 2352 +
+                                  Pico_mcd->m.cdda_lba_offset * 4, SEEK_SET);
   if (Pico_mcd->cdda_type == CT_WAV)
   {
     // skip headers, assume it's 44kHz stereo uncompressed

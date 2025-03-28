@@ -151,10 +151,10 @@ static void SekRunS68k(unsigned int to)
 
 void PicoMCDPrepare(void)
 {
-  // ~1.63 for NTSC, ~1.645 for PAL
+  // 12500000/(osc/7), ~1.63 for NTSC, ~1.645 for PAL
 #define DIV_ROUND(x,y) ((x)+(y)/2) / (y) // round to nearest, x/y+0.5 -> (x+y/2)/y
   unsigned int osc = (Pico.m.pal ? OSC_PAL : OSC_NTSC);
-  mcd_m68k_cycle_mult = DIV_ROUND(12500000ull << 16, osc / 7);
+  mcd_m68k_cycle_mult = DIV_ROUND(7 * 12500000ull << 16, osc);
   mcd_s68k_cycle_mult = DIV_ROUND(1ull * osc << 16, 7 * 12500000);
 }
 
@@ -166,8 +166,26 @@ unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 /* events */
 static void pcd_cdc_event(unsigned int now)
 {
+  int audio = Pico_mcd->s68k_regs[0x36] & 0x1;
+
   // 75Hz CDC update
   cdd_update();
+
+  // main 68k cycles since frame start
+  int cycles = 1LL*(now-mcd_s68k_cycle_base) * mcd_s68k_cycle_mult >> 16;
+  // samples@rate since frame start
+  int samples = 1LL * cycles_68k_to_z80(cycles) * Pico.snd.clkz_mult >> 20;
+  // samples@44100Hz since frame start
+  samples = samples * Pico.snd.cdda_mult >> 16;
+  if (samples < 2352/4) // save offset to 1st used sample for state saving
+    Pico_mcd->m.cdda_lba_offset = 2352/4 - samples;
+
+  /* if audio just turned on, store start offset for sound */
+  audio &= !(Pico_mcd->s68k_regs[0x36] & 0x1);
+  if (audio) {
+    Pico_mcd->m.cdda_lba_offset = 0; // starting with full lba
+    Pico_mcd->cdda_frame_offs = samples;
+  }
 
   /* check if a new CDD command has been processed */
   if (!(Pico_mcd->s68k_regs[0x4b] & 0xf0))

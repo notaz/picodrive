@@ -270,7 +270,7 @@ extern SH2 sh2s[2];
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
-#define OSC_NTSC 53693100
+#define OSC_NTSC 53693175
 #define OSC_PAL  53203424
 
 // PicoVideo.debug_p
@@ -475,7 +475,7 @@ struct PicoSound
   short len_use;                        // adjusted
   int len_e_add;                        // for non-int samples/frame
   int len_e_cnt;
-  unsigned int clkl_mult;               // z80 clocks per line in Q20
+  unsigned int clkz_mult;               // z80 clocks per sample in Q20
   unsigned int smpl_mult;               // samples per line in Q16
   unsigned int cdda_mult, cdda_div;     // 44.1 KHz resampling factor in Q16
   short dac_val, dac_val2;              // last DAC sample
@@ -547,7 +547,8 @@ struct mcd_misc
   unsigned char  need_sync;
   unsigned char  pad3;
   unsigned int   m68k_poll_clk;
-  int pad4[8];
+  unsigned int   cdda_lba_offset; // 20
+  int pad4[7];
 };
 
 typedef struct
@@ -577,6 +578,7 @@ typedef struct
   struct mcd_pcm pcm;				// 112240:
   void *cdda_stream;
   int cdda_type;
+  unsigned int cdda_frame_offs;
   int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
   int pcm_mixpos;
   char pcm_mixbuf_dirty;

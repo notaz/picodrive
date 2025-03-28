@@ -46,6 +46,7 @@ static void cdd_play(s32 lba)
 {
   Pico_msd.currentlba = lba;
 
+  Pico_mcd->m.cdda_lba_offset = 0;
   cdd_play_audio(Pico_msd.index, Pico_msd.currentlba);
   Pico_msd.state |= MSD_ST_PLAY;
   Pico_msd.state &= ~MSD_ST_PAUSE;
