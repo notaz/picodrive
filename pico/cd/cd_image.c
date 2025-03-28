@@ -198,6 +198,11 @@ int load_cd_image(const char *cd_img_name, int *type)
       elprintf(EL_STATUS, "Track %2i: %s %9i %s %s", n, tmp_ext, length,
           tracks[index].type ? "AUDIO" : "DATA ",
           cue_data->tracks[n].fname ? cue_data->tracks[n].fname : "");
+
+      if (tracks[index].end > 99*60*75-151) {
+        tracks[index].end = 99*60*75-151;
+        break;
+      }
     }
     goto finish;
   }
@@ -263,6 +268,10 @@ int load_cd_image(const char *cd_img_name, int *type)
     }
     if (ret <= 0 && i > 1)
       missed++;
+    else if (tracks[index].end > 99*60*75-151) {
+      tracks[index].end = 99*60*75-151;
+      break;
+    }
   }
 
 finish:

@@ -195,9 +195,11 @@ void cdd_play_audio(int index, int lba)
   for (i = index; i >= 0; i--)
     if (cdd.toc.tracks[i].fd != NULL)
       break;
+  // prevent playing from file with binary track if MD+ (Doom Fusion)
   // TODO: this doesn't cover all tracks being in a single bin file properly:
   // in that case, fd should be duplicated to work properly with this MD+ shit.
-  if (! is_audio(i)) return;
+  if (! is_audio(index) || (read_pos >= 0 && cdd.index == i && ! is_audio(i)))
+    return;
 
   Pico_mcd->cdda_stream = cdd.toc.tracks[i].fd;
   Pico_mcd->cdda_type = cdd.toc.tracks[i].type;
@@ -210,33 +212,28 @@ void cdd_play_audio(int index, int lba)
   cdda_start_play(base, lba_offset, lb_len);
 }
 
-void cdd_seek(int index, int lba)
+static void cdd_seek(int index, int lba)
 {
-  int aindex = (index < 0 ? -index : index);
-
 #ifdef USE_LIBTREMOR
 #ifdef DISABLE_MANY_OGG_OPEN_FILES
-  /* check if track index has changed */
-  if (index != cdd.index)
+  /* close previous track VORBIS file structure to save memory */
+  if (is_audio(cdd.index) && cdd.toc.tracks[cdd.index].vf.datasource)
   {
-    /* close previous track VORBIS file structure to save memory */
-    if (cdd.index >= 0 && cdd.toc.tracks[cdd.index].vf.datasource)
-    {
-      ogg_free(cdd.index);
-    }
+    ogg_free(cdd.index);
+  }
 
-    /* open current track VORBIS file */
-    if (cdd.toc.tracks[aindex].vf.seekable)
-    {
-      ov_open(cdd.toc.tracks[aindex].fd,&cdd.toc.tracks[aindex].vf,0,0);
-    }
+  /* open current track VORBIS file */
+  if (is_audio(index) && cdd.toc.tracks[index].vf.seekable)
+  {
+    ov_open(cdd.toc.tracks[index].fd,&cdd.toc.tracks[index].vf,0,0);
   }
 #endif
 #endif
 
   /* update current track index and LBA */
-  cdd.index = aindex;
+  cdd.index = (index < 0 ? 0 : index);
   cdd.lba = lba;
+  if (index < 0) return;
 
   /* stay within track limits when seeking files */
   if (lba < cdd.toc.tracks[cdd.index].start)
@@ -300,7 +297,7 @@ int cdd_context_load(uint8 *state)
   load_param(&cdd.status, sizeof(cdd.status));
 
   /* seek to current track position */
-  cdd_seek(-cdd.index, cdd.lba);
+  cdd_seek(cdd.index, cdd.lba);
 
   return bufferptr;
 }
@@ -308,7 +305,7 @@ int cdd_context_load(uint8 *state)
 int cdd_context_load_old(uint8 *state)
 {
   memcpy(&cdd.lba, state + 8, sizeof(cdd.lba));
-  cdd_seek(-cdd.index, cdd.lba);
+  cdd_seek(cdd.index, cdd.lba);
 
   return 12 * 4;
 }
