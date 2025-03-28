@@ -442,7 +442,6 @@ PICO_INTERNAL void PicoFrameMCD(void)
 void pcd_state_loaded(void)
 {
   unsigned int cycles;
-  int diff;
 
   pcd_state_loaded_mem();
 
@@ -453,7 +452,7 @@ void pcd_state_loaded(void)
 
   // old savestates..
   cycles = pcd_cycles_m68k_to_s68k(Pico.t.m68c_aim);
-  if (CYCLES_GE(cycles - SekCycleAimS68k, 1000)) {
+  if (CYCLES_GE(cycles - SekCycleAimS68k, 12500000/60)) {
     SekCycleCntS68k = SekCycleAimS68k = cycles;
   }
   if (pcd_event_times[PCD_EVENT_CDC] == 0) {
@@ -464,8 +463,7 @@ void pcd_state_loaded(void)
         (Pico_mcd->s68k_regs[0x31]+1) * 384);
   }
 
-  diff = cycles - Pico_mcd->pcm.update_cycles;
-  if ((unsigned int)diff > 12500000/50)
+  if (CYCLES_GE(cycles - Pico_mcd->pcm.update_cycles, 12500000/50))
     Pico_mcd->pcm.update_cycles = cycles;
 
   if (Pico_mcd->m.need_sync) {

@@ -62,7 +62,7 @@ void pcd_pcm_sync(unsigned int to)
   if ((int)(to - cycles) < 384)
     return;
 
-  steps = (to - cycles) / 384;
+  steps = (to - cycles) * ((1LL << 32) / 384) >> 32;
   if (Pico_mcd->pcm_mixpos + steps > PCM_MIXBUF_LEN)
     // shouldn't happen, but occasionally does
     steps = PCM_MIXBUF_LEN - Pico_mcd->pcm_mixpos;
@@ -147,7 +147,7 @@ void pcd_pcm_update(s32 *buf32, int length, int stereo)
   else {
     while (length-- > 0) {
       // mostly unused
-      *buf32++ += pcm[0];
+      *buf32++ += (pcm[0] + pcm[1]) >> 1;
 
       p += step;
       pcm += (p >> 16) * 2;
