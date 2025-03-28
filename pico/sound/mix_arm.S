@@ -299,7 +299,7 @@ m16_32_rsm_end:
 @ in=int_sample (max 20 bit), y=filter memory, r8=tmp
 .macro DCfilt in y
     rsb     r8, \y, \in, lsl #12	@ fixpoint 20.12
-    add     \y, \y, r8, asr #12		@ alpha = 1-1/4094
+    add     \y, \y, r8, asr #9		@ alpha = 1-1/512
     sub     \in, \in, \y, asr #12
 .endm
 
