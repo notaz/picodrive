@@ -148,6 +148,7 @@ int gfx_context_save(uint8 *state)
   save_param(&tmp32, 4);
 
   save_param(&gfx.y_step, sizeof(gfx.y_step));
+  save_param(&gfx.stampMask, sizeof(gfx.stampMask));
 
   return bufferptr;
 }
@@ -172,6 +173,7 @@ int gfx_context_load(const uint8 *state)
   gfx.mapPtr = (uint16 *)(Pico_mcd->word_ram2M + tmp32);
 
   load_param(&gfx.y_step, sizeof(gfx.y_step));
+  load_param(&gfx.stampMask, sizeof(gfx.stampMask));
 
   return bufferptr;
 }
