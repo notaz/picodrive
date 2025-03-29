@@ -189,15 +189,13 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
     chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
 }
 
-// timer state - FIXME
-static u32 timer_cycles[2]; // TODO save this in state!
-static u32 timer_tick_cycles[2];
-static u32 timer_tick_factor[2];
+// FIXME, timer state, in unused peri_regs space to have it in state save/load
+#define timer_cycles(sh2) *((u32 *)&(sh2)->peri_regs[0x1c])
+static u32 timer_tick_shift[2];
 
 // timers
 void p32x_timers_recalc(void)
 {
-  int cycles;
   int tmp, i;
 
   // SH2 timer step
@@ -210,11 +208,8 @@ void p32x_timers_recalc(void)
     if (tmp >= 6) tmp++;
     if (tmp) tmp += 5;
     else tmp = 1;
-    cycles = 1 << tmp;
-    timer_tick_cycles[i] = cycles;
-    timer_tick_factor[i] = tmp;
-    timer_cycles[i] = 0;
-    elprintf(EL_32XP, "WDT cycles[%d] = %d", i, cycles);
+    timer_tick_shift[i] = tmp;
+    elprintf(EL_32XP, "WDT cycles[%d] = %d", i, 1 << tmp);
   }
 }
 
@@ -225,10 +220,10 @@ NOINLINE void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice)
   int cnt; int i = sh2->is_slave;
 
   // WDT timer
-  timer_cycles[i] += cycles;
-  if (timer_cycles[i] > timer_tick_cycles[i]) {
-    cnt = (timer_cycles[i] >> timer_tick_factor[i]);
-    timer_cycles[i] -= timer_tick_cycles[i] * cnt;
+  timer_cycles(sh2) += cycles;
+  cnt = (timer_cycles(sh2) >> timer_tick_shift[i]);
+  if (cnt) {
+    timer_cycles(sh2) -= cnt << timer_tick_shift[i];
 
     cnt += PREG8(pregs, 0x81);
     if (cnt >= 0x100) {
@@ -411,6 +406,7 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
     if ((d & 0xff00) == 0xa500) { // WTCSR
       PREG8(r, 0x80) = d;
       p32x_timers_recalc();
+      timer_cycles(sh2) = 0;
     }
     if ((d & 0xff00) == 0x5a00) // WTCNT
       PREG8(r, 0x81) = d;
