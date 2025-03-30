@@ -231,6 +231,11 @@ static int PicoFrameHints(void)
   p32x_start_blank();
 #endif
 
+  if (pv->reg[12] & 2)
+    pv->status ^= SR_ODD; // change odd bit in interlace modes
+  else
+    pv->status &= ~SR_ODD; // never set in non-interlace modes
+
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)

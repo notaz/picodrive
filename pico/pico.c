@@ -297,8 +297,6 @@ void PicoFrame(void)
     goto end;
   }
 
-  //if(Pico.video.reg[12]&0x2) Pico.video.status ^= SR_ODD; // change odd bit in interlace mode
-
   PicoFrameStart();
   PicoFrameHints();
 
