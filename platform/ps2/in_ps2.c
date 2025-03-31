@@ -21,7 +21,8 @@
 
 #define IN_PS2_PREFIX "ps2:"
 #define IN_PS2_NBUTTONS 32
-#define ANALOG_DEADZONE 80
+
+struct in_default_bind *in_ps2_defbinds[4];
 
 /* note: in_ps2 handles combos (if 2 btns have the same bind,
  * both must be pressed for action to happen) */
@@ -82,14 +83,16 @@ static unsigned in_ps2_get_bits(int pad)
 
 static void in_ps2_probe(const in_drv_t *drv)
 {
-	in_register(IN_PS2_PREFIX "PS2 pad 1", -1, (void *)0,
-		IN_PS2_NBUTTONS, in_ps2_keys, 1);
-	in_register(IN_PS2_PREFIX "PS2 pad 2", -1, (void *)1,
-		IN_PS2_NBUTTONS, in_ps2_keys, 1);
-	in_register(IN_PS2_PREFIX "PS2 pad 3", -1, (void *)2,
-		IN_PS2_NBUTTONS, in_ps2_keys, 1);
-	in_register(IN_PS2_PREFIX "PS2 pad 4", -1, (void *)3,
-		IN_PS2_NBUTTONS, in_ps2_keys, 1);
+	char *name = IN_PS2_PREFIX "PS2 pad 0/0";
+	int num = (int)drv->pdata;
+	int offs = strlen(name)-3;
+
+	name[offs] = '1'+padMap[num][0];
+	if (mtapGetConnection(padMap[num][0]) == 1)
+		name[offs+2] = '1'+padMap[num][1];
+	else	name[offs+1] = '\0';
+	if (num < padMapped)
+		in_register(name, -1, (void *)num, IN_PS2_NBUTTONS, in_ps2_keys, 1);
 }
 
 static void in_ps2_free(void *drv_data)
@@ -226,6 +229,20 @@ static const in_drv_t in_ps2_drv = {
 	.menu_translate = in_ps2_menu_translate,
 };
 
+static struct in_default_bind *copy_defbinds(struct in_default_bind *defbinds)
+{
+	struct in_default_bind *newbinds;
+	int count = 0;
+
+	while (defbinds[count].code| defbinds[count].btype| defbinds[count].bit)
+		count ++;
+
+	newbinds = malloc((count+1) * sizeof(*defbinds));
+	if (newbinds)
+		memcpy(newbinds, defbinds, (count+1) * sizeof(*defbinds));
+	return newbinds;
+}
+
 void in_ps2_init(struct in_default_bind *defbinds)
 {
 	int i, j;
@@ -278,6 +295,23 @@ void in_ps2_init(struct in_default_bind *defbinds)
 	in_ps2_keys[lg2(PAD_CROSS)] = "Cross";
 	in_ps2_keys[lg2(PAD_SQUARE)] = "Square";
 
-	in_register_driver(&in_ps2_drv, defbinds, NULL, NULL);
+	/* copy default binds and map the 4 controllers to 4 players */
+	for (i = 0; i < 4; i++) {
+		in_ps2_defbinds[i] = copy_defbinds(defbinds);
+		for (j = 0; in_ps2_defbinds[i]; j++) {
+			struct in_default_bind *p = &in_ps2_defbinds[i][j];
+			if ((p->code | p->btype | p->bit) == 0) break;
+
+			if (p->btype == IN_BINDTYPE_PLAYER12) {
+				p->btype += (i >= 2);
+				p->bit += (i&1) * 16;
+			}
+		}
+	}
+
+	in_register_driver(&in_ps2_drv, in_ps2_defbinds[0], NULL, (void *)0);
+	in_register_driver(&in_ps2_drv, in_ps2_defbinds[1], NULL, (void *)1);
+	in_register_driver(&in_ps2_drv, in_ps2_defbinds[2], NULL, (void *)2);
+	in_register_driver(&in_ps2_drv, in_ps2_defbinds[3], NULL, (void *)3);
 }
 
