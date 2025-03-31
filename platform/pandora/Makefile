@@ -23,10 +23,7 @@ all: rel
 /tmp/PicoDrive.pxml: PicoDrive.pxml.template FORCE
 	./make_pxml.sh $< $@
 
-PicoDrive: ../../picodrive
-	$(STRIP) $^ -o $@
-
-rel: PicoDrive PicoDrive.sh picorestore \
+rel: ../../picodrive PicoDrive.sh picorestore \
 	PicoDrive.png PicoDrive_p.png \
 	../../pico/carthw.cfg skin \
 	../../README.md /tmp/PicoDrive.pxml

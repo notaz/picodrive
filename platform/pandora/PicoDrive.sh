@@ -6,7 +6,7 @@ if [ "`uname -r`" != "3.2.30" ]; then
   sudo -n /usr/pandora/scripts/op_hugetlb.sh 4
 fi
 
-./PicoDrive "$@"
+./picodrive "$@"
 
 # restore stuff if pico crashes
 ./picorestore
