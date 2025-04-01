@@ -231,11 +231,6 @@ static int PicoFrameHints(void)
   p32x_start_blank();
 #endif
 
-  if (pv->reg[12] & 2)
-    pv->status ^= SR_ODD; // change odd bit in interlace modes
-  else
-    pv->status &= ~SR_ODD; // never set in non-interlace modes
-
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
@@ -247,6 +242,7 @@ static int PicoFrameHints(void)
 
   SyncCPUs(Pico.t.m68c_aim);
 
+  // slot 0x00
   pv->status |= SR_F;
   pv->pending_ints |= 0x20;
 
@@ -261,6 +257,12 @@ static int PicoFrameHints(void)
     // off? single exception is MOVE.L which samples IRQ after the 1st write?
     SekInterrupt(6);
   }
+
+  // slot 0x01
+  if (pv->reg[12] & 2)
+    pv->status ^= SR_ODD; // change odd bit in interlace modes
+  else
+    pv->status &= ~SR_ODD; // never set in non-interlace modes
 
   // assert Z80 interrupt for one scanline even in busrq hold (Teddy Blues)
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
