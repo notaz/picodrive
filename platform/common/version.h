@@ -1,1 +1,1 @@
-#define VERSION "2.03" REVISION
+#define VERSION "2.04" REVISION
