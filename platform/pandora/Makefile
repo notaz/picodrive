@@ -30,6 +30,7 @@ rel: ../../picodrive PicoDrive.sh picorestore \
 	rm -rf out
 	mkdir out
 	cp -r $^ out/
+	mv out/README.md out/README
 	$(PND_MAKE) -p PicoDrive_$(VER).pnd -d out -x out/PicoDrive.pxml -i out/PicoDrive.png -c
 
 FORCE:
