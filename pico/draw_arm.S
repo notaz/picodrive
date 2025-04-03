@@ -836,7 +836,9 @@ DrawLayer:
 
     mov     r0, sp
     mov     r1, r9, lsr #29
-    bl      DrawStripInterlace @ struct TileStrip *ts, int plane_sh
+    mov     r2, r9, lsr #8
+    and     r2, r2, #0xff
+    bl      DrawStripInterlace @ struct TileStrip *ts, int plane_sh, int cellskip
 
     add     sp, sp, #6*4
     ldmfd   sp!, {r4-r11,pc}
