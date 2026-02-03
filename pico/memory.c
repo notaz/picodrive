@@ -41,18 +41,36 @@ static void xmap_set(uptr *map, int shift, u32 start_addr, u32 end_addr,
     return;
   }
 
+#ifdef __EMSCRIPTEN__
+  // In Emscripten, function pointers are small table indices (1, 3, 5, ...)
+  // which are odd numbers. Skip alignment check for function pointers.
+  if (!is_func && (addr & 1)) {
+    elprintf(EL_STATUS|EL_ANOMALY, "xmap_set: ptr is not aligned: %08lx", addr);
+    return;
+  }
+#else
   if (addr & 1) {
     elprintf(EL_STATUS|EL_ANOMALY, "xmap_set: ptr is not aligned: %08lx", addr);
     return;
   }
+#endif
 
   if (!is_func)
     addr -= start_addr;
 
   for (i = start_addr >> shift; i <= end_addr >> shift; i++) {
+#ifdef __EMSCRIPTEN__
+    // In Emscripten, function pointers are table indices that can't be shifted
+    // without losing data. Store them directly with the flag bit.
+    if (is_func)
+      map[i] = addr | MAP_FLAG;
+    else
+      map[i] = addr >> 1;
+#else
     map[i] = addr >> 1;
     if (is_func)
       map[i] |= MAP_FLAG;
+#endif
   }
 }
 

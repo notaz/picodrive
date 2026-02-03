@@ -1,0 +1,156 @@
+# Makefile for PicoDrive Web/Emscripten build (asm.js)
+#
+# Usage:
+#   make -f Makefile.web
+#   or: emmake make -f Makefile.web
+#
+
+# Emscripten compiler
+CC = emcc
+LD = emcc
+AR = emar
+
+TARGET = picodrive.js
+
+# Build output directory
+BUILD_DIR = build-web
+
+# Core flags
+CFLAGS = -I. -Izlib -O2 -DNDEBUG
+CFLAGS += -Wall -Wno-unused-variable -Wno-unused-function
+CFLAGS += -DFAMEC_NO_GOTOS
+
+# Emscripten specific flags for asm.js
+LDFLAGS = -O2
+LDFLAGS += -s WASM=0
+LDFLAGS += -s ALLOW_MEMORY_GROWTH=1
+LDFLAGS += -s INITIAL_MEMORY=67108864
+LDFLAGS += -s EXPORTED_FUNCTIONS='["_main","_pico_init","_pico_exit","_pico_get_rom_buffer","_pico_load_rom","_pico_reset","_pico_set_input","_pico_run_frame","_pico_get_video_buffer","_pico_get_video_width","_pico_get_video_height","_pico_is_pal","_pico_get_rom_name","_pico_get_button_up","_pico_get_button_down","_pico_get_button_left","_pico_get_button_right","_pico_get_button_b","_pico_get_button_c","_pico_get_button_a","_pico_get_button_start","_pico_get_button_z","_pico_get_button_y","_pico_get_button_x","_pico_get_button_mode","_pico_set_region","_pico_get_region","_pico_state_save","_pico_state_load","_pico_state_exists","_pico_get_state_buffer","_pico_get_state_size","_pico_get_state_load_buffer","_malloc","_free"]'
+LDFLAGS += -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","HEAP8","HEAP16","HEAP32","HEAPU8","HEAPU16","HEAPU32"]'
+LDFLAGS += -s INVOKE_RUN=0
+LDFLAGS += -s EXIT_RUNTIME=0
+
+# CPU emulation selection - use portable C implementations
+use_fame = 1
+use_cz80 = 1
+use_cyclone = 0
+use_drz80 = 0
+use_sh2drc = 0
+use_svpdrc = 0
+
+# Disable ARM-specific assembly
+asm_memory = 0
+asm_render = 0
+asm_ym2612 = 0
+asm_misc = 0
+asm_cdmemory = 0
+asm_mix = 0
+asm_32xdraw = 0
+asm_32xmemory = 0
+
+# Disable libchdr for now (complex dependencies)
+use_libchdr = 0
+
+# Platform
+PLATFORM = web
+
+# Core emulation sources
+SRCS = pico/pico.c pico/cart.c pico/memory.c \
+	pico/state.c pico/sek.c pico/z80if.c \
+	pico/videoport.c pico/draw2.c pico/draw.c \
+	pico/mode4.c pico/misc.c pico/eeprom.c \
+	pico/patch.c pico/debug.c pico/media.c
+
+# SMS
+SRCS += pico/sms.c
+
+# CD (without CHD support for now)
+SRCS += pico/cd/mcd.c pico/cd/memory.c pico/cd/sek.c \
+	pico/cd/cdc.c pico/cd/cdd.c pico/cd/cd_image.c \
+	pico/cd/cd_parse.c pico/cd/gfx.c pico/cd/gfx_dma.c \
+	pico/cd/misc.c pico/cd/pcm.c pico/cd/megasd.c
+
+# 32X
+SRCS += pico/32x/32x.c pico/32x/memory.c pico/32x/draw.c \
+	pico/32x/sh2soc.c pico/32x/pwm.c
+
+# Pico (Sega Pico toy)
+SRCS += pico/pico/pico.c pico/pico/memory.c pico/pico/xpcm.c
+
+# Cart hardware
+SRCS += pico/carthw/carthw.c pico/carthw/eeprom_spi.c
+SRCS += pico/carthw/svp/svp.c pico/carthw/svp/memory.c pico/carthw/svp/ssp16.c
+
+# Sound
+SRCS += pico/sound/sound.c pico/sound/resampler.c
+SRCS += pico/sound/sn76496.c pico/sound/ym2612.c
+SRCS += pico/sound/ym2413.c pico/sound/mix.c
+
+# CPU cores - M68K (FAME - portable C)
+CFLAGS += -DEMU_F68K
+SRCS += cpu/fame/famec.c
+
+# CPU cores - Z80 (CZ80 - portable C)
+CFLAGS += -D_USE_CZ80
+SRCS += cpu/cz80/cz80.c
+
+# CPU cores - SH2 (interpreter only, no DRC)
+SRCS += cpu/drc/cmn.c
+SRCS += cpu/sh2/sh2.c
+SRCS += cpu/sh2/mame/sh2pico.c
+
+# Unzip support (for zipped ROMs)
+SRCS += unzip/unzip.c
+
+# Zlib (required for compressed save states and ZIP support)
+SRCS += zlib/adler32.c zlib/compress.c zlib/crc32.c zlib/deflate.c \
+	zlib/gzio.c zlib/inffast.c zlib/inflate.c zlib/inftrees.c \
+	zlib/trees.c zlib/uncompr.c zlib/zutil.c
+
+# Web platform layer
+SRCS += platform/web/web.c
+
+# Object files
+OBJS = $(SRCS:.c=.o)
+
+# Default target
+all: $(BUILD_DIR) $(BUILD_DIR)/$(TARGET) $(BUILD_DIR)/index.html
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Compile C files
+%.o: %.c
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+# Link
+$(BUILD_DIR)/$(TARGET): $(OBJS)
+	$(LD) $(OBJS) -o $@ $(LDFLAGS)
+	@echo "Build complete: $@"
+
+# Copy HTML file
+$(BUILD_DIR)/index.html: platform/web/index.html
+	cp $< $@
+
+# Clean
+clean:
+	rm -f $(OBJS)
+	rm -rf $(BUILD_DIR)
+
+# Show help
+help:
+	@echo "PicoDrive Web Build"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all     - Build the asm.js version (default)"
+	@echo "  clean   - Remove build artifacts"
+	@echo ""
+	@echo "Output:"
+	@echo "  $(BUILD_DIR)/$(TARGET)     - The asm.js JavaScript file"
+	@echo "  $(BUILD_DIR)/index.html    - Web interface"
+	@echo ""
+	@echo "Usage:"
+	@echo "  emmake make -f Makefile.web"
+	@echo "  or: make -f Makefile.web CC=emcc LD=emcc"
+
+.PHONY: all clean help

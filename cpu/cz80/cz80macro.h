@@ -2,7 +2,7 @@
 
 	cz80macro.h
 
-	CZ80 äeéÌÉ}ÉNÉç
+	CZ80 ≈†e≈Ω√≠∆í}∆íN∆í¬ç
 
 ******************************************************************************/
 
@@ -62,12 +62,20 @@
 #define READ_MEM16(A)		(READ_MEM8(A) | (READ_MEM8((A) + 1) << 8))
 
 #if PICODRIVE_HACKS
+/* Z80_HANDLER_PTR: recover handler pointer from map entry.
+ * In Emscripten, function pointers are table indices stored directly.
+ * In normal builds, pointers are shifted right by 1 when stored. */
+#ifdef __EMSCRIPTEN__
+#define Z80_HANDLER_PTR(v) ((v) & ~MAP_FLAG)
+#else
+#define Z80_HANDLER_PTR(v) ((v) << 1)
+#endif
 #define WRITE_MEM8(A, D) { \
 	unsigned short a = A; \
 	unsigned char d = D; \
 	uptr v = z80_write_map[a >> Z80_MEM_SHIFT]; \
 	if (map_flag_set(v)) \
-		((z80_write_f *)(v << 1))(a, d); \
+		((z80_write_f *)Z80_HANDLER_PTR(v))(a, d); \
 	else \
 		*(unsigned char *)((v << 1) + a) = d; \
 }

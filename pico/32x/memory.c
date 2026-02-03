@@ -1913,6 +1913,13 @@ typedef void REGPARM(3) (sh2_write_handler)(u32 a, u32 d, SH2 *sh2);
 #define SH2MAP_ADDR2OFFS_W(a) \
   ((u32)(a) >> SH2_WRITE_SHIFT)
 
+/* Helper macro to recover handler pointer from map entry */
+#ifdef __EMSCRIPTEN__
+#define SH2_HANDLER_PTR(p) ((p) & ~((uptr)1 << (sizeof(uptr) * 8 - 1)))
+#else
+#define SH2_HANDLER_PTR(p) ((p) << 1)
+#endif
+
 u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
 {
   const sh2_memmap *sh2_map = sh2->read8_map;
@@ -1923,7 +1930,7 @@ u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
   if (!map_flag_set(p))
     return *(s8 *)((p << 1) + MEM_BE2(a & sh2_map->mask));
   else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)SH2_HANDLER_PTR(p))(a, sh2);
 }
 
 u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
@@ -1936,7 +1943,7 @@ u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
   if (!map_flag_set(p))
     return *(s16 *)((p << 1) + (a & sh2_map->mask));
   else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)SH2_HANDLER_PTR(p))(a, sh2);
 }
 
 u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
@@ -1950,7 +1957,7 @@ u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
     u32 *pd = (u32 *)((p << 1) + (a & sh2_map->mask));
     return CPU_BE2(*pd);
   } else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)SH2_HANDLER_PTR(p))(a, sh2);
 }
 
 void REGPARM(3) p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
@@ -2293,8 +2300,16 @@ static void get_bios(void)
   }
 }
 
+/* Memory map macros - handlers use high bit as flag
+ * For Emscripten, function pointers are table indices (small numbers)
+ * so we can't shift them without losing data. Use direct storage instead. */
+#ifdef __EMSCRIPTEN__
+#define MAP_MEMORY(m) ((uptr)(m) >> 1)
+#define MAP_HANDLER(h) ( (uptr)(h) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
+#else
 #define MAP_MEMORY(m) ((uptr)(m) >> 1)
 #define MAP_HANDLER(h) ( ((uptr)(h) >> 1) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
+#endif
 
 static sh2_memmap msh2_read8_map[0x80], msh2_read16_map[0x80],  msh2_read32_map[0x80];
 static sh2_memmap ssh2_read8_map[0x80], ssh2_read16_map[0x80],  ssh2_read32_map[0x80];

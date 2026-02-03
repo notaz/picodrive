@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicoDrive Web - Sega Genesis/Mega Drive Emulator</title>
+    <style>
+      * {
+          box-sizing: border-box;
+      }
+
+      body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+          color: #e0e0e0;
+          margin: 0;
+          padding: 20px;
+          min-height: 100vh;
+      }
+
+      .container {
+          max-width: 900px;
+          margin: 0 auto;
+      }
+
+      h1 {
+          text-align: center;
+          color: #00d4ff;
+          margin-bottom: 10px;
+          text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+      }
+
+      .subtitle {
+          text-align: center;
+          color: #888;
+          margin-bottom: 30px;
+      }
+
+      .game-area {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+      }
+
+      #canvas-container {
+          background: #000;
+          padding: 10px;
+          border-radius: 8px;
+          box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+          /* Fixed container size to prevent layout shifts */
+          width: 660px;
+          height: 468px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+      }
+
+      #screen {
+          display: block;
+          image-rendering: pixelated;
+          image-rendering: crisp-edges;
+          background: #000;
+          /* Fixed display size - canvas scales to fit */
+          width: 640px;
+          height: 448px;
+      }
+
+      .controls-section {
+          width: 100%;
+          max-width: 640px;
+      }
+
+      .file-input-wrapper {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          justify-content: center;
+          margin-bottom: 20px;
+      }
+
+      .btn {
+          padding: 12px 24px;
+          font-size: 14px;
+          font-weight: 600;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+      }
+
+      .btn-primary {
+          background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+          color: #000;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+      }
+
+      .btn-secondary {
+          background: #333;
+          color: #fff;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+          background: #444;
+      }
+
+      .btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+      }
+
+      #rom-input, #state-input {
+          display: none;
+      }
+
+      .game-info {
+          text-align: center;
+          margin: 10px 0;
+          min-height: 24px;
+      }
+
+      #status {
+          color: #888;
+          font-size: 14px;
+      }
+
+      .keyboard-help {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          padding: 20px;
+          margin-top: 20px;
+      }
+
+      .keyboard-help h3 {
+          margin-top: 0;
+          color: #00d4ff;
+      }
+
+      .key-mappings {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 10px;
+      }
+
+      .key-group {
+          background: rgba(0, 0, 0, 0.3);
+          padding: 15px;
+          border-radius: 6px;
+      }
+
+      .key-group h4 {
+          margin: 0 0 10px 0;
+          color: #aaa;
+          font-size: 12px;
+          text-transform: uppercase;
+      }
+
+      .key-item {
+          display: flex;
+          justify-content: space-between;
+          margin: 5px 0;
+          font-size: 14px;
+      }
+
+      .key-item .key {
+          background: #333;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-family: monospace;
+      }
+
+      .footer {
+          text-align: center;
+          margin-top: 30px;
+          color: #666;
+          font-size: 12px;
+      }
+
+      .footer a {
+          color: #00d4ff;
+          text-decoration: none;
+      }
+
+      @media (max-width: 700px) {
+          body {
+              padding: 10px;
+          }
+
+          #canvas-container {
+              width: calc(100vw - 20px);
+              height: auto;
+              aspect-ratio: 640 / 448;
+          }
+
+          #screen {
+              width: 100%;
+              height: 100%;
+          }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>PicoDrive Web</h1>
+      <p class="subtitle">Sega Genesis / Mega Drive / 32X Emulator</p>
+
+      <div class="game-area">
+        <div id="canvas-container">
+          <canvas id="screen" width="640" height="448"></canvas>
+        </div>
+
+        <div class="game-info">
+          <div id="status">Loading emulator...</div>
+        </div>
+
+        <div class="controls-section">
+          <div class="file-input-wrapper">
+            <input
+              type="file"
+              id="rom-input"
+              accept=".bin,.md,.gen,.smd,.32x,.sms,.gg"
+            >
+            <input type="file" id="state-input" accept=".state">
+            <button class="btn btn-primary" id="load-btn" disabled>Load ROM</button>
+            <button class="btn btn-secondary" id="reset-btn" disabled>Reset</button>
+            <button class="btn btn-secondary" id="save-state-btn" disabled>
+              Save State
+            </button>
+            <button class="btn btn-secondary" id="load-state-btn" disabled>
+              Load State
+            </button>
+          </div>
+        </div>
+
+        <div class="keyboard-help">
+          <h3>Keyboard Controls</h3>
+          <div class="key-mappings">
+            <div class="key-group">
+              <h4>Player 1 - D-Pad</h4>
+              <div class="key-item"><span>Up</span><span class="key">↑</span></div>
+              <div class="key-item"><span>Down</span><span class="key">↓</span></div>
+              <div class="key-item"><span>Left</span><span class="key">←</span></div>
+              <div class="key-item">
+                <span>Right</span><span class="key">→</span>
+              </div>
+            </div>
+            <div class="key-group">
+              <h4>Player 1 - Buttons</h4>
+              <div class="key-item"><span>A</span><span class="key">A</span></div>
+              <div class="key-item"><span>B</span><span class="key">S</span></div>
+              <div class="key-item"><span>C</span><span class="key">D</span></div>
+              <div class="key-item">
+                <span>Start</span><span class="key">Enter</span>
+              </div>
+            </div>
+            <div class="key-group">
+              <h4>Player 1 - 6-Button</h4>
+              <div class="key-item"><span>X</span><span class="key">Q</span></div>
+              <div class="key-item"><span>Y</span><span class="key">W</span></div>
+              <div class="key-item"><span>Z</span><span class="key">E</span></div>
+              <div class="key-item">
+                <span>Mode</span><span class="key">Shift</span>
+              </div>
+            </div>
+            <div class="key-group">
+              <h4>Player 2 - D-Pad</h4>
+              <div class="key-item"><span>Up</span><span class="key">I</span></div>
+              <div class="key-item"><span>Down</span><span class="key">K</span></div>
+              <div class="key-item"><span>Left</span><span class="key">J</span></div>
+              <div class="key-item">
+                <span>Right</span><span class="key">L</span>
+              </div>
+            </div>
+            <div class="key-group">
+              <h4>Player 2 - Buttons</h4>
+              <div class="key-item"><span>A</span><span class="key">B</span></div>
+              <div class="key-item"><span>B</span><span class="key">N</span></div>
+              <div class="key-item"><span>C</span><span class="key">M</span></div>
+              <div class="key-item">
+                <span>Start</span><span class="key">H</span>
+              </div>
+            </div>
+            <div class="key-group">
+              <h4>Player 2 - 6-Button</h4>
+              <div class="key-item"><span>X</span><span class="key">U</span></div>
+              <div class="key-item"><span>Y</span><span class="key">O</span></div>
+              <div class="key-item"><span>Z</span><span class="key">P</span></div>
+              <div class="key-item">
+                <span>Mode</span><span class="key">Ctrl</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>PicoDrive - Fast Sega 8/16 bit and 32X emulator</p>
+        <p>Supported formats: .bin, .md, .gen, .smd, .32x, .sms, .gg</p>
+      </div>
+    </div>
+
+    <script>
+      // Define Module BEFORE loading picodrive.js
+      var Module = {
+        onRuntimeInitialized: function () {
+          console.log("Emscripten runtime initialized, calling onPicoReady...")
+          window.picoRuntimeReady = true
+          if (typeof window.onPicoReady === "function") {
+            window.onPicoReady()
+          } else {
+            console.warn("onPicoReady not defined yet, will be called later")
+          }
+        },
+        print: function (text) {
+          console.log("stdout:", text)
+        },
+        printErr: function (text) {
+          console.error("stderr:", text)
+        },
+        onAbort: function (what) {
+          console.error("Emscripten aborted:", what)
+          document.getElementById("status").textContent = "Error: " + what
+        },
+      }
+      console.log("Module pre-defined")
+    </script>
+    <script src="picodrive.js"></script>
+    <script>
+      // PicoDrive Web Client
+      ;(function () {
+        "use strict"
+
+        // DOM elements
+        const canvas = document.getElementById("screen")
+        const ctx = canvas.getContext("2d")
+        const romInput = document.getElementById("rom-input")
+        const stateInput = document.getElementById("state-input")
+        const loadBtn = document.getElementById("load-btn")
+        const resetBtn = document.getElementById("reset-btn")
+        const saveStateBtn = document.getElementById("save-state-btn")
+        const loadStateBtn = document.getElementById("load-state-btn")
+        const status = document.getElementById("status")
+
+        // Emulator state
+        let emuReady = false
+        let gameLoaded = false
+        let running = false
+        let paused = false
+        let animFrameId = null
+        let currentRomFilename = ""
+
+        // Input state for both players
+        let inputState1 = 0
+        let inputState2 = 0
+
+        // Button mappings
+        let BTN_UP
+        let BTN_DOWN
+        let BTN_LEFT
+        let BTN_RIGHT
+        let BTN_A
+        let BTN_B
+        let BTN_C
+        let BTN_X
+        let BTN_Y
+        let BTN_Z
+        let BTN_START
+        let BTN_MODE
+
+        // Emscripten functions
+        let _pico_init
+        let _pico_get_rom_buffer
+        let _pico_load_rom
+        let _pico_reset
+        let _pico_set_input
+        let _pico_run_frame
+        let _pico_get_video_buffer
+        let _pico_get_video_width
+        let _pico_get_video_height
+        let _pico_state_save
+        let _pico_state_load
+        let _pico_get_state_buffer
+        let _pico_get_state_size
+        let _pico_get_state_load_buffer
+        let _pico_is_pal
+
+        // Video
+        let videoWidth = 320
+        let videoHeight = 224
+        let imageData = null
+
+        // Offscreen canvas for rendering at native resolution
+        let offscreenCanvas = document.createElement("canvas")
+        let offscreenCtx = offscreenCanvas.getContext("2d")
+
+        // Frame timing
+        let lastFrameTime = 0
+        let frameAccumulator = 0
+        let targetFrameTime = 1000 / 60 // Default NTSC (will be updated)
+
+        // Audio
+        let audioCtx = null
+        const SAMPLE_RATE = 44100
+        const MAX_AUDIO_LAG = 0.1 // 100ms max latency
+        let nextAudioTime = 0
+
+        // Initialize audio context on user interaction
+        function initAudio() {
+          if (audioCtx) {
+            return
+          }
+
+          try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+              sampleRate: SAMPLE_RATE,
+            })
+            nextAudioTime = 0
+            console.log(
+              "Audio context initialized, sample rate:",
+              audioCtx.sampleRate
+            )
+          } catch (e) {
+            console.warn("Failed to initialize audio:", e)
+          }
+        }
+
+        // Audio write callback (called from Emscripten)
+        window.onAudioWrite = function (audioData) {
+          if (!audioCtx || audioCtx.state !== "running") {
+            return
+          }
+
+          const samples = audioData.length / 2
+          const buffer = audioCtx.createBuffer(2, samples, SAMPLE_RATE)
+          const left = buffer.getChannelData(0)
+          const right = buffer.getChannelData(1)
+
+          for (let i = 0; i < samples; i++) {
+            left[i] = audioData[i * 2] / 32768
+            right[i] = audioData[i * 2 + 1] / 32768
+          }
+
+          const currentTime = audioCtx.currentTime
+
+          // If we"ve fallen too far behind, reset the schedule
+          if (nextAudioTime < currentTime) {
+            nextAudioTime = currentTime
+          }
+
+          // If we"re too far ahead (more than 100ms), skip this buffer to reduce latency
+          if (nextAudioTime > currentTime + MAX_AUDIO_LAG) {
+            return
+          }
+
+          const source = audioCtx.createBufferSource()
+          source.buffer = buffer
+          source.connect(audioCtx.destination)
+          source.start(nextAudioTime)
+
+          // Schedule next buffer right after this one
+          nextAudioTime = nextAudioTime + buffer.duration
+        }
+
+        // Video mode change callback
+        window.onVideoModeChange = function (width, height) {
+          videoWidth = width
+          videoHeight = height
+          // Set up offscreen canvas at native resolution
+          offscreenCanvas.width = width
+          offscreenCanvas.height = height
+          imageData = offscreenCtx.createImageData(width, height)
+          // Set canvas to native resolution (CSS handles scaling)
+          canvas.width = width
+          canvas.height = height
+          console.log("Video mode changed:", width, "x", height)
+        }
+
+        // Error callback
+        window.onPicoError = function (msg) {
+          status.textContent = "Error: " + msg
+          status.style.color = "#ff4444"
+        }
+
+        // Called when Emscripten runtime is ready
+        window.onPicoReady = function () {
+          console.log("PicoDrive ready")
+
+          // Wrap functions
+          _pico_init = Module.cwrap("pico_init", "number", [])
+          _pico_get_rom_buffer = Module.cwrap("pico_get_rom_buffer", "number", [
+            "number",
+          ])
+          _pico_load_rom = Module.cwrap("pico_load_rom", "number", ["string"])
+          _pico_reset = Module.cwrap("pico_reset", null, [])
+          _pico_set_input = Module.cwrap("pico_set_input", null, [
+            "number",
+            "number",
+          ])
+          _pico_run_frame = Module.cwrap("pico_run_frame", null, [])
+          _pico_get_video_buffer = Module.cwrap(
+            "pico_get_video_buffer",
+            "number",
+            []
+          )
+          _pico_get_video_width = Module.cwrap("pico_get_video_width", "number", [])
+          _pico_get_video_height = Module.cwrap(
+            "pico_get_video_height",
+            "number",
+            []
+          )
+          _pico_is_pal = Module.cwrap("pico_is_pal", "number", [])
+          _pico_state_save = Module.cwrap("pico_state_save", "number", [])
+          _pico_state_load = Module.cwrap("pico_state_load", "number", [])
+          _pico_get_state_buffer = Module.cwrap(
+            "pico_get_state_buffer",
+            "number",
+            []
+          )
+          _pico_get_state_size = Module.cwrap("pico_get_state_size", "number", [])
+          _pico_get_state_load_buffer = Module.cwrap(
+            "pico_get_state_load_buffer",
+            "number",
+            ["number"]
+          )
+
+          // Get button constants
+          BTN_UP = Module.ccall("pico_get_button_up", "number", [], [])
+          BTN_DOWN = Module.ccall("pico_get_button_down", "number", [], [])
+          BTN_LEFT = Module.ccall("pico_get_button_left", "number", [], [])
+          BTN_RIGHT = Module.ccall("pico_get_button_right", "number", [], [])
+          BTN_B = Module.ccall("pico_get_button_b", "number", [], [])
+          BTN_C = Module.ccall("pico_get_button_c", "number", [], [])
+          BTN_A = Module.ccall("pico_get_button_a", "number", [], [])
+          BTN_START = Module.ccall("pico_get_button_start", "number", [], [])
+          BTN_Z = Module.ccall("pico_get_button_z", "number", [], [])
+          BTN_Y = Module.ccall("pico_get_button_y", "number", [], [])
+          BTN_X = Module.ccall("pico_get_button_x", "number", [], [])
+          BTN_MODE = Module.ccall("pico_get_button_mode", "number", [], [])
+
+          // Initialize emulator
+          if (_pico_init()) {
+            emuReady = true
+            loadBtn.disabled = false
+            status.textContent = "Ready - Select a ROM file to play"
+            status.style.color = "#88ff88"
+          } else {
+            status.textContent = "Failed to initialize emulator"
+            status.style.color = "#ff4444"
+          }
+
+          // Initialize video
+          videoWidth = _pico_get_video_width()
+          videoHeight = _pico_get_video_height()
+          // Set up offscreen canvas at native resolution
+          offscreenCanvas.width = videoWidth
+          offscreenCanvas.height = videoHeight
+          imageData = offscreenCtx.createImageData(videoWidth, videoHeight)
+          // Set canvas to native resolution (CSS handles scaling)
+          canvas.width = videoWidth
+          canvas.height = videoHeight
+        }
+
+        // Load ROM from file
+        function loadROM(file) {
+          if (!emuReady) {
+            return
+          }
+
+          initAudio()
+
+          const reader = new FileReader()
+          reader.onload = function (e) {
+            const data = new Uint8Array(e.target.result)
+            const size = data.length
+
+            status.textContent = "Loading ROM..."
+
+            // Get buffer pointer and copy ROM data
+            const bufPtr = _pico_get_rom_buffer(size)
+            if (!bufPtr) {
+              status.textContent = "Failed to allocate ROM buffer"
+              status.style.color = "#ff4444"
+              return
+            }
+
+            // Copy ROM data to Emscripten heap
+            Module.HEAPU8.set(data, bufPtr)
+
+            // Load the ROM (region auto-detected from ROM header)
+            if (_pico_load_rom(file.name)) {
+              gameLoaded = true
+              running = true
+              paused = false
+              currentRomFilename = file.name
+
+              // Update UI
+              resetBtn.disabled = false
+              saveStateBtn.disabled = false
+              loadStateBtn.disabled = false
+              loadBtn.blur()
+
+              const isPal = _pico_is_pal()
+              status.textContent =
+                "Running (" + (isPal ? "PAL 50Hz" : "NTSC 60Hz") + ")"
+              status.style.color = "#88ff88"
+
+              // Set frame timing based on region
+              targetFrameTime = isPal ? 1000 / 50 : 1000 / 60
+              lastFrameTime = performance.now()
+              frameAccumulator = 0
+              console.log(
+                "Frame timing:",
+                isPal ? "50Hz PAL" : "60Hz NTSC",
+                "targetFrameTime:",
+                targetFrameTime.toFixed(2),
+                "ms"
+              )
+
+              // Start emulation loop
+              if (animFrameId) {
+                cancelAnimationFrame(animFrameId)
+              }
+              runFrame(performance.now())
+            } else {
+              status.textContent = "Failed to load ROM"
+              status.style.color = "#ff4444"
+            }
+          }
+          reader.readAsArrayBuffer(file)
+        }
+
+        // Render frame to canvas
+        function renderFrame() {
+          const bufPtr = _pico_get_video_buffer()
+          const width = _pico_get_video_width()
+          const height = _pico_get_video_height()
+
+          if (width !== videoWidth || height !== videoHeight || !imageData) {
+            videoWidth = width
+            videoHeight = height
+            // Set up offscreen canvas at native resolution
+            offscreenCanvas.width = width
+            offscreenCanvas.height = height
+            imageData = offscreenCtx.createImageData(width, height)
+            // Set canvas to native resolution (CSS handles scaling)
+            canvas.width = width
+            canvas.height = height
+            console.log("Video mode:", width, "x", height)
+          }
+
+          // Convert RGB565 to RGBA
+          const pixels = imageData.data
+          const heap = Module.HEAPU16
+          const base = bufPtr >> 1
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              // Buffer pitch matches width (same as libretro)
+              const srcIdx = base + y * width + x
+              const dstIdx = (y * width + x) * 4
+
+              const pixel = heap[srcIdx]
+
+              // RGB565 to RGB888 (5-6-5 bits)
+              const r = ((pixel >> 11) & 0x1f) << 3
+              const g = ((pixel >> 5) & 0x3f) << 2
+              const b = (pixel & 0x1f) << 3
+
+              pixels[dstIdx] = r
+              pixels[dstIdx + 1] = g
+              pixels[dstIdx + 2] = b
+              pixels[dstIdx + 3] = 255
+            }
+          }
+
+          // Draw to offscreen canvas first, then scale to display
+          offscreenCtx.putImageData(imageData, 0, 0)
+          ctx.imageSmoothingEnabled = false
+          ctx.drawImage(
+            offscreenCanvas,
+            0,
+            0,
+            width,
+            height,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          )
+        }
+
+        // Main emulation loop
+        function runFrame(currentTime) {
+          if (!running || paused) {
+            animFrameId = null
+            return
+          }
+
+          // Calculate elapsed time
+          const deltaTime = currentTime - lastFrameTime
+          lastFrameTime = currentTime
+
+          // Accumulate time (cap at 100ms to prevent spiral of death)
+          frameAccumulator = frameAccumulator + Math.min(deltaTime, 100)
+
+          // Run emulation frames at correct rate
+          let framesRun = 0
+          while (frameAccumulator >= targetFrameTime && framesRun < 3) {
+            // Set input for both players
+            _pico_set_input(0, inputState1)
+            _pico_set_input(1, inputState2)
+
+            // Run one frame
+            _pico_run_frame()
+
+            frameAccumulator = frameAccumulator - targetFrameTime
+            framesRun = framesRun + 1
+          }
+
+          // Render only if we ran at least one frame
+          if (framesRun > 0) {
+            renderFrame()
+          }
+
+          // Schedule next frame
+          animFrameId = requestAnimationFrame(runFrame)
+        }
+
+        // Keyboard handling - Player 1 and Player 2 key mappings
+        const keyMapPlayer1 = {
+          ArrowUp: "UP",
+          ArrowDown: "DOWN",
+          ArrowLeft: "LEFT",
+          ArrowRight: "RIGHT",
+          Enter: "START",
+          KeyA: "A",
+          KeyS: "B",
+          KeyD: "C",
+          KeyQ: "X",
+          KeyW: "Y",
+          KeyE: "Z",
+          ShiftLeft: "MODE",
+          ShiftRight: "MODE",
+        }
+
+        const keyMapPlayer2 = {
+          KeyI: "UP",
+          KeyK: "DOWN",
+          KeyJ: "LEFT",
+          KeyL: "RIGHT",
+          KeyH: "START",
+          KeyB: "A",
+          KeyN: "B",
+          KeyM: "C",
+          KeyU: "X",
+          KeyO: "Y",
+          KeyP: "Z",
+          ControlLeft: "MODE",
+          ControlRight: "MODE",
+        }
+
+        function actionToButton(action) {
+          switch (action) {
+            case "UP":
+              return BTN_UP
+            case "DOWN":
+              return BTN_DOWN
+            case "LEFT":
+              return BTN_LEFT
+            case "RIGHT":
+              return BTN_RIGHT
+            case "A":
+              return BTN_A
+            case "B":
+              return BTN_B
+            case "C":
+              return BTN_C
+            case "START":
+              return BTN_START
+            case "X":
+              return BTN_X
+            case "Y":
+              return BTN_Y
+            case "Z":
+              return BTN_Z
+            case "MODE":
+              return BTN_MODE
+            default:
+              return 0
+          }
+        }
+
+        function updateInput(code, pressed) {
+          // Check Player 1
+          const action1 = keyMapPlayer1[code]
+          if (action1) {
+            const btn = actionToButton(action1)
+            if (pressed) {
+              inputState1 |= btn
+            } else {
+              inputState1 &= ~btn
+            }
+          }
+
+          // Check Player 2
+          const action2 = keyMapPlayer2[code]
+          if (action2) {
+            const btn = actionToButton(action2)
+            if (pressed) {
+              inputState2 |= btn
+            } else {
+              inputState2 &= ~btn
+            }
+          }
+        }
+
+        function isGameKey(code) {
+          return keyMapPlayer1[code] || keyMapPlayer2[code]
+        }
+
+        document.addEventListener("keydown", function (e) {
+          if (isGameKey(e.code)) {
+            e.preventDefault()
+            updateInput(e.code, true)
+          }
+        })
+
+        document.addEventListener("keyup", function (e) {
+          if (isGameKey(e.code)) {
+            e.preventDefault()
+            updateInput(e.code, false)
+          }
+        })
+
+        // Button handlers
+        loadBtn.addEventListener("click", function () {
+          romInput.click()
+        })
+
+        romInput.addEventListener("change", function (e) {
+          if (e.target.files.length > 0) {
+            loadROM(e.target.files[0])
+          }
+        })
+
+        resetBtn.addEventListener("click", function () {
+          if (gameLoaded) {
+            _pico_reset()
+            if (!running) {
+              running = true
+              paused = false
+              status.textContent = "Running"
+              runFrame()
+            }
+          }
+        })
+
+        saveStateBtn.addEventListener("click", function () {
+          if (gameLoaded) {
+            if (_pico_state_save()) {
+              // Get the state data from emscripten memory
+              const statePtr = _pico_get_state_buffer()
+              const stateSize = _pico_get_state_size()
+
+              if (statePtr && stateSize > 0) {
+                // Copy data from emscripten heap
+                const stateData = new Uint8Array(
+                  Module.HEAPU8.buffer,
+                  statePtr,
+                  stateSize
+                )
+                const blob = new Blob([stateData], {
+                  type: "application/octet-stream",
+                })
+
+                // Create download link
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+
+                // Use ROM filename (without extension) for state filename
+                const baseName =
+                  currentRomFilename.replace(/\.[^/.]+$/, "") || "game"
+                a.download = baseName + ".state"
+
+                // Trigger download
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+
+                status.textContent = "State saved to file"
+                status.style.color = "#88ff88"
+              } else {
+                status.textContent = "Failed to get state data"
+                status.style.color = "#ff4444"
+              }
+            } else {
+              status.textContent = "Failed to save state"
+              status.style.color = "#ff4444"
+            }
+          }
+        })
+
+        loadStateBtn.addEventListener("click", function () {
+          if (gameLoaded) {
+            stateInput.click()
+          }
+        })
+
+        stateInput.addEventListener("change", function (e) {
+          if (e.target.files.length > 0 && gameLoaded) {
+            const file = e.target.files[0]
+            const reader = new FileReader()
+
+            reader.onload = function (event) {
+              const data = new Uint8Array(event.target.result)
+              const size = data.length
+
+              // Get buffer to write state data
+              const bufPtr = _pico_get_state_load_buffer(size)
+              if (!bufPtr) {
+                status.textContent = "Failed to allocate state buffer"
+                status.style.color = "#ff4444"
+                return
+              }
+
+              // Copy state data to emscripten heap
+              Module.HEAPU8.set(data, bufPtr)
+
+              // Load the state
+              if (_pico_state_load()) {
+                status.textContent = "State loaded from file"
+                status.style.color = "#88ff88"
+              } else {
+                status.textContent = "Failed to load state"
+                status.style.color = "#ff4444"
+              }
+            }
+
+            reader.readAsArrayBuffer(file)
+          }
+          // Reset the input so the same file can be loaded again
+          stateInput.value = ""
+        })
+
+        // Drag and drop support
+        canvas.addEventListener("dragover", function (e) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = "copy"
+        })
+
+        canvas.addEventListener("drop", function (e) {
+          e.preventDefault()
+          if (e.dataTransfer.files.length > 0) {
+            loadROM(e.dataTransfer.files[0])
+          }
+        })
+
+        // Pause emulation when page loses focus, resume when it regains focus
+        function pauseEmulation() {
+          if (gameLoaded && running && !paused) {
+            paused = true
+            status.textContent = "Paused (window inactive)"
+          }
+        }
+
+        function resumeEmulation() {
+          if (gameLoaded && running && paused) {
+            paused = false
+            const isPal = _pico_is_pal()
+            status.textContent =
+              "Running (" + (isPal ? "PAL 50Hz" : "NTSC 60Hz") + ")"
+            // Reset frame timing to prevent catching up
+            lastFrameTime = performance.now()
+            frameAccumulator = 0
+            runFrame(performance.now())
+          }
+        }
+
+        // Handle page visibility changes (tab switching)
+        document.addEventListener("visibilitychange", function () {
+          if (document.hidden) {
+            pauseEmulation()
+          } else {
+            resumeEmulation()
+          }
+        })
+
+        // Handle window focus/blur
+        window.addEventListener("blur", pauseEmulation)
+        window.addEventListener("focus", resumeEmulation)
+
+        // Initial status
+        status.textContent = "Loading emulator..."
+
+        // Check if runtime was already initialized before our code ran
+        if (window.picoRuntimeReady && !emuReady) {
+          console.log("Runtime was already ready, initializing now...")
+          window.onPicoReady()
+        }
+      })()
+    </script>
+  </body>
+</html>

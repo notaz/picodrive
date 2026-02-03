@@ -217,11 +217,21 @@ void Cz80_Reset(cz80_struc *CPU)
 
 /* */
 #if PICODRIVE_HACKS
+/* Z80_HANDLER_PTR: recover handler pointer from map entry.
+ * In Emscripten, function pointers are table indices stored directly.
+ * In normal builds, pointers are shifted right by 1 when stored. */
+#ifndef Z80_HANDLER_PTR
+#ifdef __EMSCRIPTEN__
+#define Z80_HANDLER_PTR(v) ((v) & ~MAP_FLAG)
+#else
+#define Z80_HANDLER_PTR(v) ((v) << 1)
+#endif
+#endif
 static inline unsigned char picodrive_read(unsigned short a)
 {
 	uptr v = z80_read_map[a >> Z80_MEM_SHIFT];
 	if (map_flag_set(v))
-		return ((z80_read_f *)(v << 1))(a);
+		return ((z80_read_f *)Z80_HANDLER_PTR(v))(a);
 	return *(unsigned char *)((v << 1) + a);
 }
 #endif
